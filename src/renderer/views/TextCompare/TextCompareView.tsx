@@ -6,15 +6,16 @@ import {
   RefreshCw,
   Save,
   RotateCcw,
-  ChevronDown,
-  ChevronUp,
+  ArrowUp,
+  ArrowDown,
   Columns,
   Rows,
   Sliders,
-  AlertTriangle,
   CheckCircle2,
+  AlertTriangle,
   FileCheck2,
-  Copy,
+  ArrowRight,
+  ArrowLeft,
 } from 'lucide-react';
 import { FileContentResult, TextCompareOptions } from '@shared/types.js';
 import { compareTextContent } from '@shared/comparison-engine/whitespace.js';
@@ -23,6 +24,7 @@ import { ConfirmModalConfig } from '../../components/ConfirmModal.js';
 interface TextCompareViewProps {
   leftPath: string;
   rightPath: string;
+  theme?: 'dark' | 'light';
   onSetLeftPath: (p: string) => void;
   onSetRightPath: (p: string) => void;
   onRequestConfirm: (config: ConfirmModalConfig) => void;
@@ -70,6 +72,7 @@ export function detectLanguage(filePath: string): string {
 export const TextCompareView: React.FC<TextCompareViewProps> = ({
   leftPath,
   rightPath,
+  theme = 'dark',
   onSetLeftPath,
   onSetRightPath,
   onRequestConfirm,
@@ -197,7 +200,6 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     diffEditorRef.current = editor;
 
     try {
-      // Update line changes on model update
       editor.onDidUpdateDiff(() => {
         const lineChanges = editor.getLineChanges();
         setDiffStats((prev) => ({
@@ -206,7 +208,6 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         }));
       });
 
-      // Track editor changes for dirty state
       const modifiedEditor = editor.getModifiedEditor();
       modifiedEditor.onDidChangeModelContent(() => {
         const val = modifiedEditor.getValue();
@@ -315,7 +316,6 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     }
   };
 
-  // Safe Full File Copy
   const handleCopyLeftToRight = () => {
     if (!leftPath || !rightPath) return;
 
@@ -381,124 +381,159 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
   const language = detectLanguage(leftPath || rightPath);
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-slate-950 overflow-hidden text-slate-200">
-      {/* 1. File Path Header & Selection Bar */}
-      <div className="bg-slate-900 border-b border-slate-800 p-2 flex items-center space-x-2 flex-shrink-0">
-        {/* Left File */}
-        <div className="flex-1 flex items-center bg-slate-950 border border-slate-700 rounded px-2.5 py-1 focus-within:border-blue-500 transition">
-          <FileCode className="w-4 h-4 text-blue-400 mr-2 flex-shrink-0" />
+    <div className="flex-1 flex flex-col h-full bg-white dark:bg-black overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans">
+      {/* 1. Beyond Compare Dual Address Header */}
+      <div className="bg-neutral-100 dark:bg-neutral-950 border-b border-neutral-300 dark:border-neutral-800 p-1.5 flex items-center space-x-2 flex-shrink-0">
+        {/* Left File Address Box */}
+        <div className="flex-1 flex items-center bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-2 py-1">
+          <FileCode className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 mr-2 flex-shrink-0" />
           <input
             type="text"
             value={leftPath}
             onChange={(e) => onSetLeftPath(e.target.value)}
-            placeholder="Select Left File..."
-            className="bg-transparent text-xs w-full focus:outline-none font-mono text-slate-200 placeholder-slate-500"
+            placeholder="Left file path..."
+            className="bg-transparent text-xs w-full focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400"
           />
           {leftData && !leftData.error && (
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 ml-1.5 flex-shrink-0">
+            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-neutral-100 dark:bg-neutral-900 text-neutral-500 border border-neutral-300 dark:border-neutral-700 ml-1.5 flex-shrink-0">
               {leftData.encoding.toUpperCase()} • {(leftData.size / 1024).toFixed(1)} KB
             </span>
           )}
           <button
             onClick={handlePickLeft}
-            className="ml-1.5 text-xs px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+            className="ml-1 text-[11px] px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-700 transition"
           >
-            Browse
+            Browse...
           </button>
         </div>
 
-        {/* Swap Sides */}
+        {/* Swap Button */}
         <button
           onClick={handleSwap}
-          title="Swap Left and Right Files (Cmd+Alt+S)"
-          className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition flex-shrink-0"
+          title="Swap Left and Right Files"
+          className="p-1.5 rounded bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-800 transition flex-shrink-0"
         >
-          <ArrowLeftRight className="w-4 h-4" />
+          <ArrowLeftRight className="w-3.5 h-3.5" />
         </button>
 
-        {/* Right File */}
-        <div className="flex-1 flex items-center bg-slate-950 border border-slate-700 rounded px-2.5 py-1 focus-within:border-blue-500 transition">
-          <FileCode className="w-4 h-4 text-purple-400 mr-2 flex-shrink-0" />
+        {/* Right File Address Box */}
+        <div className="flex-1 flex items-center bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-2 py-1">
+          <FileCode className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 mr-2 flex-shrink-0" />
           <input
             type="text"
             value={rightPath}
             onChange={(e) => onSetRightPath(e.target.value)}
-            placeholder="Select Right File..."
-            className="bg-transparent text-xs w-full focus:outline-none font-mono text-slate-200 placeholder-slate-500"
+            placeholder="Right file path..."
+            className="bg-transparent text-xs w-full focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400"
           />
           {rightData && !rightData.error && (
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 ml-1.5 flex-shrink-0">
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 text-neutral-500 border border-neutral-300 dark:border-neutral-700 ml-1.5 flex-shrink-0">
               {rightData.encoding.toUpperCase()} • {(rightData.size / 1024).toFixed(1)} KB
             </span>
           )}
           <button
             onClick={handlePickRight}
-            className="ml-1.5 text-xs px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+            className="ml-1 text-[11px] px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-700 transition"
           >
-            Browse
+            Browse...
           </button>
         </div>
 
-        {/* Refresh */}
+        {/* Refresh / Re-compare */}
         <button
           onClick={loadFiles}
           disabled={isLoading}
           title="Refresh comparison (Cmd+R)"
-          className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition flex-shrink-0"
+          className="p-1.5 rounded bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-800 transition flex-shrink-0"
         >
-          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
-      {/* 2. Compare Controls Toolbar */}
-      <div className="bg-slate-900/90 border-b border-slate-800 px-3 py-1.5 flex items-center justify-between text-xs flex-shrink-0">
-        {/* Navigation & Diff Counters */}
-        <div className="flex items-center space-x-2">
-          <div className="flex items-center space-x-1 bg-slate-950 border border-slate-800 rounded px-1.5 py-0.5">
-            <button
-              onClick={handlePrevDiff}
-              title="Previous Difference (Shift+F7)"
-              className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
-            >
-              <ChevronUp className="w-3.5 h-3.5" />
-            </button>
-            <span className="text-[11px] font-mono px-1 text-slate-300">
-              {diffStats.diffCount} diffs
-            </span>
-            <button
-              onClick={handleNextDiff}
-              title="Next Difference (F7)"
-              className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
-            >
-              <ChevronDown className="w-3.5 h-3.5" />
-            </button>
-          </div>
+      {/* 2. Beyond Compare Text Compare Action Toolbar */}
+      <div className="bg-neutral-100 dark:bg-black border-b border-neutral-300 dark:border-neutral-800 px-3 py-1 flex items-center justify-between text-xs flex-shrink-0 select-none">
+        {/* Navigation & Difference Jumpers */}
+        <div className="flex items-center space-x-1.5">
+          {/* Previous Diff button */}
+          <button
+            onClick={handlePrevDiff}
+            title="Previous Difference (Shift+F7 / Alt+Up)"
+            className="flex items-center space-x-1 px-2 py-1 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+          >
+            <ArrowUp className="w-3.5 h-3.5 text-red-500" />
+            <span>Prev Diff</span>
+          </button>
+
+          {/* Next Diff button */}
+          <button
+            onClick={handleNextDiff}
+            title="Next Difference (F7 / Alt+Down)"
+            className="flex items-center space-x-1 px-2 py-1 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
+          >
+            <ArrowDown className="w-3.5 h-3.5 text-red-500" />
+            <span>Next Diff</span>
+          </button>
+
+          <span className="font-mono text-neutral-500 dark:text-neutral-400 text-[11px] px-1">
+            {diffStats.diffCount} differences
+          </span>
+
+          <span className="h-4 w-px bg-neutral-300 dark:bg-neutral-800 mx-1" />
+
+          {/* Copy section L -> R */}
+          <button
+            onClick={handleCopyLeftToRight}
+            title="Copy file Left to Right"
+            disabled={!leftPath || !rightPath}
+            className="flex items-center space-x-1 px-2 py-1 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 disabled:opacity-40 transition font-medium"
+          >
+            <ArrowRight className="w-3.5 h-3.5" />
+            <span>Copy L→R</span>
+          </button>
+
+          {/* Copy section R -> L */}
+          <button
+            onClick={handleCopyRightToLeft}
+            title="Copy file Right to Left"
+            disabled={!leftPath || !rightPath}
+            className="flex items-center space-x-1 px-2 py-1 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40 disabled:opacity-40 transition font-medium"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Copy R→L</span>
+          </button>
+
+          <span className="h-4 w-px bg-neutral-300 dark:bg-neutral-800 mx-1" />
 
           {/* View mode toggle (Side by Side vs Inline) */}
-          <div className="flex items-center bg-slate-950 border border-slate-800 rounded p-0.5">
-            <button
-              onClick={() => setRenderSideBySide(true)}
-              title="Side-by-Side Diff"
-              className={`p-1 rounded text-xs transition ${
-                renderSideBySide ? 'bg-slate-800 text-blue-400' : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Columns className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => setRenderSideBySide(false)}
-              title="Inline Unified Diff"
-              className={`p-1 rounded text-xs transition ${
-                !renderSideBySide ? 'bg-slate-800 text-blue-400' : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Rows className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          <button
+            onClick={() => setRenderSideBySide(true)}
+            title="Side-by-Side Diff"
+            className={`p-1 rounded transition ${
+              renderSideBySide
+                ? 'bg-neutral-300 dark:bg-neutral-800 text-blue-600 dark:text-blue-400 font-bold border border-neutral-400 dark:border-neutral-700'
+                : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-900'
+            }`}
+          >
+            <Columns className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => setRenderSideBySide(false)}
+            title="Inline Unified Diff"
+            className={`p-1 rounded transition ${
+              !renderSideBySide
+                ? 'bg-neutral-300 dark:bg-neutral-800 text-blue-600 dark:text-blue-400 font-bold border border-neutral-400 dark:border-neutral-700'
+                : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-900'
+            }`}
+          >
+            <Rows className="w-3.5 h-3.5" />
+          </button>
+        </div>
 
+        {/* Right Controls: Whitespace & Save buttons */}
+        <div className="flex items-center space-x-2">
           {/* Whitespace options */}
-          <div className="flex items-center space-x-1 pl-2 border-l border-slate-800">
-            <Sliders className="w-3 h-3 text-slate-500 mr-1" />
+          <div className="flex items-center space-x-1">
+            <Sliders className="w-3 h-3 text-neutral-400 mr-1" />
             <select
               value={options.ignoreWhitespace}
               onChange={(e) =>
@@ -507,56 +542,19 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
                   ignoreWhitespace: e.target.value as 'none' | 'trim' | 'all',
                 }))
               }
-              className="bg-slate-950 border border-slate-800 rounded px-2 py-0.5 text-[11px] text-slate-300 focus:outline-none focus:border-blue-500 font-mono"
+              className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-1.5 py-0.5 text-[11px] text-neutral-800 dark:text-neutral-200 focus:outline-none"
             >
-              <option value="none">Compare whitespace strictly</option>
-              <option value="trim">Ignore leading/trailing whitespace</option>
-              <option value="all">Ignore all whitespace</option>
+              <option value="none">Strict Whitespace</option>
+              <option value="trim">Ignore Leading/Trailing</option>
+              <option value="all">Ignore All Whitespace</option>
             </select>
-
-            <label className="flex items-center space-x-1 text-[11px] text-slate-400 ml-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={options.ignoreBlankLines}
-                onChange={(e) =>
-                  setOptions((prev) => ({ ...prev, ignoreBlankLines: e.target.checked }))
-                }
-                className="rounded border-slate-700 bg-slate-800 text-blue-600 w-3 h-3"
-              />
-              <span>Ignore blank lines</span>
-            </label>
           </div>
-        </div>
-
-        {/* Copy & Save Actions */}
-        <div className="flex items-center space-x-2">
-          {/* Copy entire left to right */}
-          <button
-            onClick={handleCopyLeftToRight}
-            title="Copy entire file Left to Right"
-            disabled={!leftPath || !rightPath}
-            className="flex items-center space-x-1 text-[11px] px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-blue-400 border border-slate-700 disabled:opacity-40 transition"
-          >
-            <Copy className="w-3 h-3" />
-            <span>Copy L→R</span>
-          </button>
-
-          {/* Copy entire right to left */}
-          <button
-            onClick={handleCopyRightToLeft}
-            title="Copy entire file Right to Left"
-            disabled={!leftPath || !rightPath}
-            className="flex items-center space-x-1 text-[11px] px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-purple-400 border border-slate-700 disabled:opacity-40 transition"
-          >
-            <Copy className="w-3 h-3 rotate-180" />
-            <span>Copy R→L</span>
-          </button>
 
           {/* Save Left */}
           {leftDirty && (
             <button
               onClick={handleSaveLeft}
-              className="flex items-center space-x-1 text-[11px] px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium shadow animate-pulse"
+              className="flex items-center space-x-1 px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium shadow animate-pulse"
             >
               <Save className="w-3 h-3" />
               <span>Save Left</span>
@@ -567,7 +565,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
           {rightDirty && (
             <button
               onClick={handleSaveRight}
-              className="flex items-center space-x-1 text-[11px] px-2.5 py-1 rounded bg-purple-600 hover:bg-purple-500 text-white font-medium shadow animate-pulse"
+              className="flex items-center space-x-1 px-2.5 py-1 rounded bg-purple-600 hover:bg-purple-500 text-white font-medium shadow animate-pulse"
             >
               <Save className="w-3 h-3" />
               <span>Save Right</span>
@@ -578,67 +576,60 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
           {(leftDirty || rightDirty) && (
             <button
               onClick={handleRevertAll}
-              title="Revert unsaved edits back to disk contents"
-              className="flex items-center space-x-1 text-[11px] px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700"
+              title="Revert unsaved edits"
+              className="flex items-center space-x-1 px-2 py-1 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100"
             >
               <RotateCcw className="w-3 h-3" />
               <span>Revert</span>
             </button>
           )}
 
-          <span className="text-[11px] font-mono text-slate-500 pl-1">
-            Language: <strong className="text-slate-400">{language}</strong>
+          <span className="font-mono text-[11px] text-neutral-400 pl-1">
+            {language}
           </span>
         </div>
       </div>
 
       {/* 3. Whitespace differences notification banner */}
       {diffStats.whitespaceDifferenceOnly && options.ignoreWhitespace !== 'none' && (
-        <div className="bg-emerald-950/40 border-b border-emerald-900/60 px-3 py-1.5 text-xs flex items-center justify-between text-emerald-300">
-          <div className="flex items-center space-x-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-            <span>
-              <strong>Whitespace Rule Notice:</strong> Files differ solely in whitespace or line-endings.
-              With the active rule <em>"{options.ignoreWhitespace}"</em>, the normalized contents are identical!
-            </span>
-          </div>
+        <div className="bg-emerald-50 dark:bg-emerald-950/40 border-b border-emerald-200 dark:border-emerald-900 px-3 py-1 text-xs text-emerald-800 dark:text-emerald-300 flex items-center space-x-2">
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+          <span>
+            <strong>Whitespace Rule Notice:</strong> Files differ solely in whitespace or line-endings.
+            With the active rule <em>"{options.ignoreWhitespace}"</em>, the normalized contents are identical!
+          </span>
         </div>
       )}
 
       {/* Large file warning banner */}
       {(leftData?.isTruncated || rightData?.isTruncated) && (
-        <div className="bg-amber-950/40 border-b border-amber-900/60 px-3 py-1.5 text-xs flex items-center justify-between text-amber-300">
-          <div className="flex items-center space-x-2">
-            <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
-            <span>
-              <strong>Large File Guard:</strong> One or more files exceed the 5 MB safety limit. First 5 MB preview loaded to preserve smooth UI responsiveness.
-            </span>
-          </div>
+        <div className="bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900 px-3 py-1 text-xs text-amber-800 dark:text-amber-300 flex items-center space-x-2">
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+          <span>
+            <strong>Large File Guard:</strong> One or more files exceed the 5 MB safety limit. First 5 MB preview loaded.
+          </span>
         </div>
       )}
 
       {diffError && (
-        <div className="bg-rose-950/60 border-b border-rose-900/80 px-3 py-1.5 text-xs flex items-center justify-between text-rose-200">
+        <div className="bg-red-50 dark:bg-red-950/40 border-b border-red-200 dark:border-red-900 px-3 py-1 text-xs text-red-700 dark:text-red-300 flex items-center justify-between">
           <span>{diffError}</span>
-          <button
-            onClick={() => setDiffError(null)}
-            className="text-[10px] uppercase font-bold text-rose-400"
-          >
+          <button onClick={() => setDiffError(null)} className="font-bold text-[10px] uppercase">
             Dismiss
           </button>
         </div>
       )}
 
-      {/* 4. Monaco Diff Editor Canvas */}
-      <div className="flex-1 relative min-h-0 bg-[#1e1e1e]">
+      {/* 4. Monaco Diff Editor Canvas (Pitch black in dark mode, crisp white in light mode) */}
+      <div className="flex-1 relative min-h-0 bg-white dark:bg-black">
         {!leftPath && !rightPath ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 bg-slate-950 p-8 text-center">
-            <FileCheck2 className="w-12 h-12 text-slate-600 mb-3 stroke-[1.2]" />
-            <h4 className="text-base font-semibold text-slate-300 mb-1">
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-600 bg-white dark:bg-black p-8 text-center select-none">
+            <FileCheck2 className="w-12 h-12 mb-3 stroke-[1.2]" />
+            <h4 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
               No Files Loaded in Text Compare
             </h4>
-            <p className="text-xs max-w-md text-slate-400 mb-4">
-              Select Left and Right files above, or double-click any pair in the Folder Compare tab to inspect syntax-highlighted side-by-side differences.
+            <p className="text-xs max-w-sm text-neutral-500 mb-4">
+              Select Left and Right files above, or double-click any pair in Folder Compare to inspect side-by-side differences.
             </p>
           </div>
         ) : (
@@ -647,7 +638,20 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             language={language}
             original={leftEditorContent}
             modified={rightEditorContent}
-            theme="vs-dark"
+            theme={theme === 'dark' ? 'pitch-black' : 'vs'}
+            beforeMount={(monaco) => {
+              monaco.editor.defineTheme('pitch-black', {
+                base: 'vs-dark',
+                inherit: true,
+                rules: [],
+                colors: {
+                  'editor.background': '#000000',
+                  'editorGutter.background': '#050505',
+                  'diffEditor.insertedTextBackground': 'rgba(34, 197, 94, 0.20)',
+                  'diffEditor.removedTextBackground': 'rgba(239, 68, 68, 0.25)',
+                },
+              });
+            }}
             onMount={handleEditorDidMount}
             options={{
               renderSideBySide,

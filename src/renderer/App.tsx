@@ -13,7 +13,34 @@ import { AppSettings, RecentComparison } from '@shared/types.js';
 export const App: React.FC = () => {
   // Navigation & Theme
   const [activeTab, setActiveTab] = useState<NavigationTab>('folder');
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+
+  // Initialize theme from storage (default to 'dark' pitch black)
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    try {
+      const saved = localStorage.getItem('diffx_theme');
+      if (saved === 'light' || saved === 'dark') return saved;
+    } catch {
+      // ignore
+    }
+    return 'dark';
+  });
+
+  // Synchronize <html> root class for Tailwind and body background immediately
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+      document.body.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+      document.body.classList.remove('dark');
+    }
+    try {
+      localStorage.setItem('diffx_theme', theme);
+    } catch {
+      // ignore
+    }
+  }, [theme]);
 
   // Shared Path State across Views
   const [folderLeftPath, setFolderLeftPath] = useState('');
@@ -86,7 +113,6 @@ export const App: React.FC = () => {
     }
   }, [recentList, settings.enableHistory]);
 
-  // Record recent comparison
   const addRecent = (type: 'folder' | 'text' | 'structured', left: string, right: string) => {
     if (!settings.enableHistory || !left || !right) return;
     setRecentList((prev) => {
@@ -101,7 +127,7 @@ export const App: React.FC = () => {
           rightPath: right,
           timestamp: Date.now(),
         },
-        ...filtered.slice(0, 19), // Keep at most 20 recent
+        ...filtered.slice(0, 19),
       ];
     });
   };
@@ -145,12 +171,10 @@ export const App: React.FC = () => {
   // Global Keyboard Navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd/Ctrl + / for Shortcuts
       if ((e.metaKey || e.ctrlKey) && e.key === '/') {
         e.preventDefault();
         setShortcutsOpen((prev) => !prev);
       }
-      // Quick tabs: Cmd/Ctrl + 1, 2, 3, 4, 5
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey) {
         if (e.key === '1') {
           e.preventDefault();
@@ -176,7 +200,7 @@ export const App: React.FC = () => {
   }, []);
 
   return (
-    <div className={`h-full w-full flex flex-col ${theme === 'dark' ? 'dark' : ''}`}>
+    <div className={`h-full w-full flex flex-col bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 ${theme === 'dark' ? 'dark' : ''}`}>
       {/* Header Shell */}
       <Header
         activeTab={activeTab}
@@ -187,7 +211,7 @@ export const App: React.FC = () => {
       />
 
       {/* Main Workspace Body */}
-      <main className="flex-1 flex flex-col min-h-0 relative">
+      <main className="flex-1 flex flex-col min-h-0 relative bg-white dark:bg-black">
         {activeTab === 'folder' && (
           <FolderCompareView
             leftFolder={folderLeftPath}
@@ -210,6 +234,7 @@ export const App: React.FC = () => {
           <TextCompareView
             leftPath={textLeftPath}
             rightPath={textRightPath}
+            theme={theme}
             onSetLeftPath={(path) => {
               setTextLeftPath(path);
               if (path && textRightPath) addRecent('text', path, textRightPath);
@@ -224,7 +249,10 @@ export const App: React.FC = () => {
         )}
 
         {activeTab === 'structured' && (
-          <StructuredCompareView onUpdateStatus={handleUpdateStatus} />
+          <StructuredCompareView
+            theme={theme}
+            onUpdateStatus={handleUpdateStatus}
+          />
         )}
 
         {activeTab === 'home' && (

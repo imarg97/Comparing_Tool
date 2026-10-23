@@ -3,28 +3,44 @@
 @tailwind utilities;
 
 @layer base {
+  /* Default light theme border */
   * {
-    border-color: #334155;
+    border-color: #e5e7eb;
+  }
+  .dark * {
+    border-color: #262626;
   }
   
-  /* Custom scrollbar for high density desktop feel */
+  /* High-density desktop scrollbars */
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 9px;
+    height: 9px;
   }
   ::-webkit-scrollbar-track {
-    background: #090d16;
+    background: #f3f4f6;
+  }
+  .dark ::-webkit-scrollbar-track {
+    background: #000000;
   }
   ::-webkit-scrollbar-thumb {
-    background: #27354a;
+    background: #cbd5e1;
     border-radius: 4px;
+    border: 2px solid #f3f4f6;
+  }
+  .dark ::-webkit-scrollbar-thumb {
+    background: #27272a;
+    border-radius: 4px;
+    border: 2px solid #000000;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #3b82f6;
+    background: #94a3b8;
+  }
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: #3f3f46;
   }
 }
 
-/* Monaco container fix */
+/* Monaco container adjustments */
 .monaco-diff-editor, .monaco-editor {
-  padding-top: 2px;
+  padding-top: 1px;
 }

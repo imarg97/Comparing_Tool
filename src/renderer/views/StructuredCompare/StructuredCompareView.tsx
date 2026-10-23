@@ -18,10 +18,14 @@ import {
 import { compareStructuredData } from '@shared/comparison-engine/structured.js';
 
 interface StructuredCompareViewProps {
+  theme?: 'dark' | 'light';
   onUpdateStatus: (text: string) => void;
 }
 
-export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({ onUpdateStatus }) => {
+export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
+  theme = 'dark',
+  onUpdateStatus,
+}) => {
   const [format, setFormat] = useState<StructuredFormat>('yaml');
   const [filterKubernetes, setFilterKubernetes] = useState(true);
   const [ignoreKeysInput, setIgnoreKeysInput] = useState('metadata.resourceVersion, metadata.uid, status');
@@ -101,20 +105,22 @@ status:
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-slate-950 overflow-hidden text-slate-200">
+    <div className="flex-1 flex flex-col h-full bg-white dark:bg-black overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans">
       {/* 1. Configuration Toolbar */}
-      <div className="bg-slate-900 border-b border-slate-800 p-2.5 flex items-center justify-between flex-shrink-0 text-xs">
+      <div className="bg-neutral-100 dark:bg-neutral-950 border-b border-neutral-300 dark:border-neutral-800 p-2 flex items-center justify-between flex-shrink-0 text-xs">
         <div className="flex items-center space-x-3">
-          <div className="flex items-center space-x-1.5 font-medium text-slate-200">
-            <Boxes className="w-4 h-4 text-blue-400" />
+          <div className="flex items-center space-x-1.5 font-medium">
+            <Boxes className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             <span>Structured Mode:</span>
           </div>
 
-          <div className="flex items-center bg-slate-950 border border-slate-700 rounded p-0.5">
+          <div className="flex items-center bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded p-0.5">
             <button
               onClick={() => setFormat('yaml')}
               className={`px-2.5 py-0.5 rounded text-xs transition ${
-                format === 'yaml' ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:text-slate-200'
+                format === 'yaml'
+                  ? 'bg-blue-600 text-white font-bold'
+                  : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
               }`}
             >
               YAML
@@ -122,7 +128,9 @@ status:
             <button
               onClick={() => setFormat('json')}
               className={`px-2.5 py-0.5 rounded text-xs transition ${
-                format === 'json' ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:text-slate-200'
+                format === 'json'
+                  ? 'bg-blue-600 text-white font-bold'
+                  : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
               }`}
             >
               JSON
@@ -130,15 +138,15 @@ status:
           </div>
 
           {/* Kubernetes Preset toggle */}
-          <label className="flex items-center space-x-2 cursor-pointer bg-slate-950 border border-slate-800 px-2.5 py-1 rounded text-slate-300">
+          <label className="flex items-center space-x-2 cursor-pointer bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 px-2.5 py-1 rounded">
             <input
               type="checkbox"
               checked={filterKubernetes}
               onChange={(e) => setFilterKubernetes(e.target.checked)}
-              className="rounded border-slate-700 bg-slate-800 text-blue-600 w-3.5 h-3.5"
+              className="rounded border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-blue-600 w-3.5 h-3.5"
             />
             <span className="flex items-center space-x-1">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               <span>Kubernetes / OpenShift Noise Filter</span>
             </span>
           </label>
@@ -157,7 +165,7 @@ status:
               setResult(null);
             }}
             title="Load Sample ConfigMap / JSON"
-            className="flex items-center space-x-1 px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs border border-slate-700 transition"
+            className="flex items-center space-x-1 px-3 py-1 rounded bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 font-medium text-xs border border-neutral-300 dark:border-neutral-800 transition"
           >
             <FileEdit className="w-3.5 h-3.5" />
             <span>Load Sample</span>
@@ -165,7 +173,7 @@ status:
 
           <button
             onClick={handleRunStructuredCompare}
-            className="flex items-center space-x-1.5 px-4 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow transition"
+            className="flex items-center space-x-1.5 px-4 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-sm transition"
           >
             <Play className="w-3.5 h-3.5 fill-current" />
             <span>Analyze Semantic Differences</span>
@@ -174,37 +182,37 @@ status:
       </div>
 
       {/* 2. Ignore Keys Bar */}
-      <div className="bg-slate-900/60 border-b border-slate-800 px-3 py-1.5 flex items-center space-x-2 text-xs flex-shrink-0">
-        <Filter className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
-        <span className="text-slate-400 text-[11px] whitespace-nowrap">Ignored Object Keys:</span>
+      <div className="bg-neutral-100/60 dark:bg-neutral-950 border-b border-neutral-300 dark:border-neutral-800 px-3 py-1 flex items-center space-x-2 text-xs flex-shrink-0">
+        <Filter className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" />
+        <span className="text-neutral-500 dark:text-neutral-400 text-[11px] whitespace-nowrap">Ignored Object Keys:</span>
         <input
           type="text"
           value={ignoreKeysInput}
           onChange={(e) => setIgnoreKeysInput(e.target.value)}
           placeholder="metadata.resourceVersion, status, managedFields..."
-          className="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-0.5 font-mono text-[11px] text-slate-200 focus:outline-none focus:border-blue-500"
+          className="flex-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-2 py-0.5 font-mono text-[11px] focus:outline-none focus:border-blue-500 text-neutral-900 dark:text-neutral-100"
         />
       </div>
 
       {/* 3. Semantic Results Summary Table (if compared) */}
       {result && (
-        <div className="bg-slate-900/90 border-b border-slate-800 p-3 max-h-48 overflow-y-auto flex-shrink-0">
+        <div className="bg-neutral-100 dark:bg-neutral-950 border-b border-neutral-300 dark:border-neutral-800 p-2.5 max-h-48 overflow-y-auto flex-shrink-0">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center space-x-2">
               {result.identical ? (
-                <div className="flex items-center space-x-1.5 text-emerald-400 font-medium text-xs">
+                <div className="flex items-center space-x-1.5 text-emerald-600 dark:text-emerald-400 font-medium text-xs">
                   <CheckCircle2 className="w-4 h-4" />
                   <span>Semantically Identical (All meaningful configuration properties match!)</span>
                 </div>
               ) : (
-                <div className="flex items-center space-x-1.5 text-amber-300 font-medium text-xs">
+                <div className="flex items-center space-x-1.5 text-amber-600 dark:text-amber-400 font-medium text-xs">
                   <AlertCircle className="w-4 h-4" />
                   <span>{result.items.length} Semantic Structural Differences Found:</span>
                 </div>
               )}
             </div>
             {result.parseError && (
-              <span className="text-rose-400 text-xs font-mono">{result.parseError}</span>
+              <span className="text-rose-600 dark:text-rose-400 text-xs font-mono">{result.parseError}</span>
             )}
           </div>
 
@@ -213,23 +221,23 @@ status:
               {result.items.map((item: StructuredDiffItem, idx: number) => (
                 <div
                   key={idx}
-                  className="flex items-center justify-between text-xs font-mono bg-slate-950 px-2.5 py-1 rounded border border-slate-800"
+                  className="flex items-center justify-between text-xs font-mono bg-white dark:bg-black px-2.5 py-1 rounded border border-neutral-200 dark:border-neutral-800"
                 >
                   <div className="flex items-center space-x-2">
                     <span
                       className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
                         item.status === 'added'
-                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                          ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800'
                           : item.status === 'removed'
-                          ? 'bg-rose-950 text-rose-400 border border-rose-800'
-                          : 'bg-amber-950 text-amber-300 border border-amber-800'
+                          ? 'bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-800'
+                          : 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800'
                       }`}
                     >
                       {item.status.toUpperCase()}
                     </span>
-                    <span className="text-blue-300 font-semibold">{item.keyPath}</span>
+                    <span className="text-blue-600 dark:text-blue-400 font-semibold">{item.keyPath}</span>
                   </div>
-                  <span className="text-slate-400 text-[11px]">{item.message}</span>
+                  <span className="text-neutral-500 text-[11px]">{item.message}</span>
                 </div>
               ))}
             </div>
@@ -238,13 +246,13 @@ status:
       )}
 
       {/* 4. Side-by-Side Monaco Editor with Raw or Clean Data */}
-      <div className="flex-1 flex flex-col min-h-0">
+      <div className="flex-1 flex flex-col min-h-0 bg-white dark:bg-black">
         <DiffEditor
           height="100%"
           language={format}
           original={result ? result.cleanLeft : leftContent}
           modified={result ? result.cleanRight : rightContent}
-          theme="vs-dark"
+          theme={theme === 'dark' ? 'vs-dark' : 'vs'}
           options={{
             renderSideBySide: true,
             readOnly: false,
