@@ -51,7 +51,7 @@ export const App: React.FC = () => {
   const [structuredRightPath, setStructuredRightPath] = useState('');
 
   // Status Bar State
-  const [statusText, setStatusText] = useState('Defex Ready');
+  const [statusText, setStatusText] = useState('DiffX Ready');
   const [statusItemCount, setStatusItemCount] = useState<number | undefined>(undefined);
   const [statusDuration, setStatusDuration] = useState<number | undefined>(undefined);
 

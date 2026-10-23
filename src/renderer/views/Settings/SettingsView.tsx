@@ -145,7 +145,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 Save Recent Comparison Paths
               </span>
               <span className="text-[11px] text-neutral-500 block">
-                Defex only stores paths and timestamps locally. File contents are never stored.
+                DiffX only stores paths and timestamps locally. File contents are never stored.
               </span>
             </div>
             <input

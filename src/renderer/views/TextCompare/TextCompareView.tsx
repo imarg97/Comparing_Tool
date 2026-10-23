@@ -16,7 +16,6 @@ import {
   ArrowLeft,
   Home,
   FolderOpen,
-  Calendar,
   Database,
   Copy,
 } from 'lucide-react';
@@ -642,7 +641,64 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         }
       });
 
-      // Left Editor Listeners
+      // Paste listener for left editor: split concatenated tags into clean new lines and trigger flash animation
+      origEditor.onDidPaste((e: any) => {
+        const pasteRange = e.range;
+        if (!pasteRange) return;
+        const origModel = origEditor.getModel();
+        if (!origModel) return;
+
+        if (pasteRange.startColumn > 1 && pasteRange.startLineNumber === pasteRange.endLineNumber) {
+          const lineContent = origModel.getLineContent(pasteRange.startLineNumber);
+          const beforePaste = lineContent.substring(0, pasteRange.startColumn - 1);
+          const pastedText = lineContent.substring(pasteRange.startColumn - 1, pasteRange.endColumn - 1);
+
+          if (beforePaste.trim().endsWith('>') && pastedText.trim().startsWith('<')) {
+            const editRange = {
+              startLineNumber: pasteRange.startLineNumber,
+              startColumn: pasteRange.startColumn,
+              endLineNumber: pasteRange.startLineNumber,
+              endColumn: pasteRange.startColumn,
+            };
+            origModel.pushEditOperations([], [{ range: editRange, text: '\n' }], () => null);
+            flashCopiedHighlight('left', pasteRange.startLineNumber + 1, pasteRange.startLineNumber + 1);
+            onUpdateStatus('Pasted line cleanly onto new line with diff flash');
+            return;
+          }
+        }
+
+        flashCopiedHighlight('left', pasteRange.startLineNumber, pasteRange.endLineNumber);
+      });
+
+      // Paste listener for right editor: split concatenated tags into clean new lines and trigger flash animation
+      modEditor.onDidPaste((e: any) => {
+        const pasteRange = e.range;
+        if (!pasteRange) return;
+        const modModel = modEditor.getModel();
+        if (!modModel) return;
+
+        // If text was pasted at the end of a line (e.g. into an insertion gap viewzone)
+        if (pasteRange.startColumn > 1 && pasteRange.startLineNumber === pasteRange.endLineNumber) {
+          const lineContent = modModel.getLineContent(pasteRange.startLineNumber);
+          const beforePaste = lineContent.substring(0, pasteRange.startColumn - 1);
+          const pastedText = lineContent.substring(pasteRange.startColumn - 1, pasteRange.endColumn - 1);
+
+          if (beforePaste.trim().endsWith('>') && pastedText.trim().startsWith('<')) {
+            const editRange = {
+              startLineNumber: pasteRange.startLineNumber,
+              startColumn: pasteRange.startColumn,
+              endLineNumber: pasteRange.startLineNumber,
+              endColumn: pasteRange.startColumn,
+            };
+            modModel.pushEditOperations([], [{ range: editRange, text: '\n' }], () => null);
+            flashCopiedHighlight('right', pasteRange.startLineNumber + 1, pasteRange.startLineNumber + 1);
+            onUpdateStatus('Pasted line cleanly onto new line with diff flash');
+            return;
+          }
+        }
+
+        flashCopiedHighlight('right', pasteRange.startLineNumber, pasteRange.endLineNumber);
+      });
       origEditor.onDidChangeModelContent(() => {
         const val = origEditor.getValue();
         setLeftEditorContent(val);
@@ -1406,45 +1462,51 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       {/* ================= 3. Beyond Compare Dedicated Metadata Line (Image 3) ================= */}
       {(leftPath || rightPath) && (
         <div className="flex items-center bg-[#eaeaea] dark:bg-[#111111] border-b border-[#d8d8d8] dark:border-neutral-800 text-[10px] font-mono px-3 py-0.5 flex-shrink-0 select-none w-full max-w-full overflow-hidden text-neutral-600 dark:text-neutral-400">
-          <div className="w-1/2 flex items-center space-x-3 truncate pr-2">
-            {leftMeta ? (
+          <div className="w-1/2 flex items-center space-x-2 truncate pr-2">
+            {leftPath ? (
+              <span className="flex items-center space-x-1 truncate text-blue-700 dark:text-blue-300 font-semibold" title={leftPath}>
+                <FileCode className="w-3 h-3 text-blue-500 flex-shrink-0" />
+                <span className="truncate">{leftPath}</span>
+              </span>
+            ) : (
+              <span className="italic text-neutral-400">No file loaded on Left</span>
+            )}
+            {leftMeta && (
               <>
-                <span className="flex items-center space-x-1 truncate text-neutral-800 dark:text-neutral-200">
-                  <Calendar className="w-3 h-3 text-neutral-400 flex-shrink-0" />
-                  <span>{leftMeta.dateStr}</span>
-                </span>
-                <span className="flex items-center space-x-1 text-neutral-700 dark:text-neutral-300 font-semibold">
+                <span className="text-neutral-400">•</span>
+                <span className="flex items-center space-x-1 text-neutral-700 dark:text-neutral-300 font-medium flex-shrink-0">
                   <Database className="w-3 h-3 text-neutral-400 flex-shrink-0" />
                   <span>{leftMeta.formattedBytes}</span>
                 </span>
-                <span className="text-[9px] uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                <span className="text-[9px] uppercase tracking-wider text-blue-600 dark:text-blue-400 flex-shrink-0">
                   {leftMeta.spec}
                 </span>
               </>
-            ) : (
-              <span className="italic text-neutral-400">No file loaded on Left</span>
             )}
           </div>
 
           <div className="h-3 w-px bg-neutral-300 dark:bg-neutral-800 mx-1 flex-shrink-0" />
 
-          <div className="w-1/2 flex items-center space-x-3 truncate pl-2">
-            {rightMeta ? (
+          <div className="w-1/2 flex items-center space-x-2 truncate pl-2">
+            {rightPath ? (
+              <span className="flex items-center space-x-1 truncate text-purple-700 dark:text-purple-300 font-semibold" title={rightPath}>
+                <FileCode className="w-3 h-3 text-purple-500 flex-shrink-0" />
+                <span className="truncate">{rightPath}</span>
+              </span>
+            ) : (
+              <span className="italic text-neutral-400">No file loaded on Right</span>
+            )}
+            {rightMeta && (
               <>
-                <span className="flex items-center space-x-1 truncate text-neutral-800 dark:text-neutral-200">
-                  <Calendar className="w-3 h-3 text-neutral-400 flex-shrink-0" />
-                  <span>{rightMeta.dateStr}</span>
-                </span>
-                <span className="flex items-center space-x-1 text-neutral-700 dark:text-neutral-300 font-semibold">
+                <span className="text-neutral-400">•</span>
+                <span className="flex items-center space-x-1 text-neutral-700 dark:text-neutral-300 font-medium flex-shrink-0">
                   <Database className="w-3 h-3 text-neutral-400 flex-shrink-0" />
                   <span>{rightMeta.formattedBytes}</span>
                 </span>
-                <span className="text-[9px] uppercase tracking-wider text-purple-600 dark:text-purple-400">
+                <span className="text-[9px] uppercase tracking-wider text-purple-600 dark:text-purple-400 flex-shrink-0">
                   {rightMeta.spec}
                 </span>
               </>
-            ) : (
-              <span className="italic text-neutral-400">No file loaded on Right</span>
             )}
           </div>
         </div>
@@ -1644,7 +1706,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
                 diffAlgorithm: 'advanced',
                 renderIndicators: true,
                 renderMarginRevertIcon: false,
-                ...(activeFilter === 'diffs' ? ({ hideUnchangedRegions: { enabled: true, contextLineCount: 1, minimumLineCount: 2 } } as any) : {}),
+                hideUnchangedRegions: { enabled: false },
               } as any}
             />
           )}

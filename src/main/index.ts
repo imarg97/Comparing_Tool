@@ -16,7 +16,7 @@ const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
 function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
-    title: 'Defex',
+    title: 'DiffX',
     width: 1360,
     height: 880,
     minWidth: 960,

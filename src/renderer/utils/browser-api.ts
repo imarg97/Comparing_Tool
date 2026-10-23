@@ -136,9 +136,18 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
         browserFolderStore.rightFile = file;
       }
 
-      const returnedPath = file.webkitRelativePath && file.webkitRelativePath.includes('/')
+      let returnedPath = file.webkitRelativePath && file.webkitRelativePath.includes('/')
         ? file.webkitRelativePath
         : file.name;
+
+      if (_defaultPath && (_defaultPath.includes('/') || _defaultPath.includes('\\'))) {
+        const lastSlash = Math.max(_defaultPath.lastIndexOf('/'), _defaultPath.lastIndexOf('\\'));
+        if (lastSlash > 0) {
+          const dir = _defaultPath.substring(0, lastSlash);
+          const sep = _defaultPath.includes('\\') ? '\\' : '/';
+          returnedPath = `${dir}${sep}${file.name}`;
+        }
+      }
 
       // Index file under multiple possible lookup paths for seamless loading
       browserFolderStore.singleFiles.set(returnedPath, file);

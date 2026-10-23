@@ -16,8 +16,8 @@
     "package:win": "npm run build && electron-builder --win"
   },
   "build": {
-    "appId": "com.defex.desktop",
-    "productName": "Defex",
+    "appId": "com.diffx.desktop",
+    "productName": "DiffX",
     "directories": {
       "output": "release"
     },

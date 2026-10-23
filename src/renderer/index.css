@@ -56,12 +56,39 @@
 
 /* =========================================================================
    High-Contrast & High-Visibility Diff Highlighting (Beyond Compare Standard)
+   Line numbers remain clean and neutral; only code lines are highlighted.
    ========================================================================= */
 
-/* Light Mode: Clearly visible tinted backgrounds for changed lines and tokens */
-.monaco-diff-editor .line-delete,
-.monaco-diff-editor .ced-line-delete,
-.monaco-diff-editor .diff-line-delete {
+/* Neutral line numbers margin without red/green background wash */
+.monaco-diff-editor .margin,
+.monaco-diff-editor .margin-view-overlays,
+.monaco-diff-editor .margin .line-numbers,
+.monaco-diff-editor .margin-view-overlays .line-numbers,
+.monaco-diff-editor .margin .line-delete,
+.monaco-diff-editor .margin .line-insert,
+.monaco-diff-editor .margin-view-overlays .line-delete,
+.monaco-diff-editor .margin-view-overlays .line-insert {
+  background-color: transparent !important;
+  border-left: none !important;
+  color: #6b7280 !important;
+}
+.dark .monaco-diff-editor .margin,
+.dark .monaco-diff-editor .margin-view-overlays,
+.dark .monaco-diff-editor .margin .line-numbers,
+.dark .monaco-diff-editor .margin-view-overlays .line-numbers,
+.dark .monaco-diff-editor .margin .line-delete,
+.dark .monaco-diff-editor .margin .line-insert,
+.dark .monaco-diff-editor .margin-view-overlays .line-delete,
+.dark .monaco-diff-editor .margin-view-overlays .line-insert {
+  background-color: transparent !important;
+  border-left: none !important;
+  color: #71717a !important;
+}
+
+/* Light Mode: Clearly visible tinted backgrounds strictly for changed text lines and tokens */
+.monaco-diff-editor .lines-content .line-delete,
+.monaco-diff-editor .lines-content .ced-line-delete,
+.monaco-diff-editor .lines-content .diff-line-delete {
   background-color: #fee2e2 !important; /* Clearly visible rose-pink tint across entire line */
   border-left: 3px solid #ef4444 !important;
 }
@@ -73,9 +100,9 @@
   border: 1px solid #ef4444 !important;
   border-radius: 2px;
 }
-.monaco-diff-editor .line-insert,
-.monaco-diff-editor .ced-line-insert,
-.monaco-diff-editor .diff-line-insert {
+.monaco-diff-editor .lines-content .line-insert,
+.monaco-diff-editor .lines-content .ced-line-insert,
+.monaco-diff-editor .lines-content .diff-line-insert {
   background-color: #dcfce7 !important; /* Clearly visible mint-green tint across entire line */
   border-left: 3px solid #22c55e !important;
 }
@@ -93,9 +120,9 @@
 }
 
 /* Dark Mode: Vibrant, clearly visible ruby & emerald diff highlights on pitch black */
-.dark .monaco-diff-editor .line-delete,
-.dark .monaco-diff-editor .ced-line-delete,
-.dark .monaco-diff-editor .diff-line-delete {
+.dark .monaco-diff-editor .lines-content .line-delete,
+.dark .monaco-diff-editor .lines-content .ced-line-delete,
+.dark .monaco-diff-editor .lines-content .diff-line-delete {
   background-color: rgba(220, 38, 38, 0.32) !important; /* Visible deep red wash across line */
   border-left: 3px solid #f87171 !important;
 }
@@ -107,9 +134,9 @@
   border: 1px solid #f87171 !important;
   border-radius: 2px;
 }
-.dark .monaco-diff-editor .line-insert,
-.dark .monaco-diff-editor .ced-line-insert,
-.dark .monaco-diff-editor .diff-line-insert {
+.dark .monaco-diff-editor .lines-content .line-insert,
+.dark .monaco-diff-editor .lines-content .ced-line-insert,
+.dark .monaco-diff-editor .lines-content .diff-line-insert {
   background-color: rgba(34, 197, 94, 0.28) !important; /* Visible deep emerald wash across line */
   border-left: 3px solid #4ade80 !important;
 }

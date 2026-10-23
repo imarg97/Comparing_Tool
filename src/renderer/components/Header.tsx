@@ -79,9 +79,9 @@ export const Header: React.FC<HeaderProps> = ({
             title="Open Sessions Launcher (Ctrl+4)"
             className="flex items-center space-x-1.5 mr-2 pl-1 hover:opacity-80 transition cursor-pointer"
           >
-            <img src="/favicon.svg" alt="Defex" className="w-3.5 h-3.5 rounded-xs object-contain" />
+            <img src="/favicon.svg" alt="DiffX" className="w-3.5 h-3.5 rounded-xs object-contain" />
             <span className="font-bold text-[11px] tracking-tight text-neutral-900 dark:text-neutral-100">
-              Defex
+              DiffX
             </span>
             <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-normal">
               • {tabLabels[activeTab]}
@@ -413,7 +413,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
                 <div className="my-1 border-t border-neutral-200 dark:border-neutral-800" />
                 <div className="px-3 py-1.5 text-[11px] text-neutral-500">
-                  Defex Comparison Suite v1.5<br />
+                  DiffX Comparison Suite v1.5<br />
                   High-Precision Comparison Engine
                 </div>
               </div>
