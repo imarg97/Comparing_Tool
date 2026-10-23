@@ -749,20 +749,24 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         }
       });
 
-      // Click on Left Editor Gutter / Line Numbers
+      // Click on Left Editor Gutter Glyph Arrow (⇨)
       origEditor.onMouseDown((e: any) => {
         setActiveFocusSide('left');
         const line = e.target?.position?.lineNumber;
         if (!line) return;
 
-        const isGutterClick =
-          e.target?.type === 2 || e.target?.type === 3 || e.target?.type === 4 ||
-          e.target?.element?.classList?.contains('diffx-glyph-copy-l2r');
+        // ONLY trigger transfer when clicking the glyph margin arrow (type 2) - NEVER on line numbers (type 3)
+        const isGlyphArrowClick =
+          (e.target?.type === 2 ||
+            e.target?.element?.classList?.contains('diffx-glyph-copy-l2r') ||
+            Boolean(e.target?.element?.closest?.('.diffx-glyph-copy-l2r'))) &&
+          e.target?.type !== 3 &&
+          e.target?.type !== 4;
 
         const chunk = findChunkAtLine(chunksRef.current, line, 'left') || findClosestChunk(chunksRef.current, line, 'left');
         if (chunk || activeSelection) {
           if (chunk) setActiveDiffChunk(chunk);
-          if (isGutterClick) {
+          if (isGlyphArrowClick) {
             const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
             if (activeSelection && activeSelection.side === 'left') {
               executeSelectedLinesCopyL2R(origEditor.getModel(), modEditor.getModel(), activeSelection, chunk, outRange);
@@ -791,20 +795,24 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         }
       });
 
-      // Click on Right Editor Gutter / Line Numbers
+      // Click on Right Editor Gutter Glyph Arrow (⇦)
       modEditor.onMouseDown((e: any) => {
         setActiveFocusSide('right');
         const line = e.target?.position?.lineNumber;
         if (!line) return;
 
-        const isGutterClick =
-          e.target?.type === 2 || e.target?.type === 3 || e.target?.type === 4 ||
-          e.target?.element?.classList?.contains('diffx-glyph-copy-r2l');
+        // ONLY trigger transfer when clicking the glyph margin arrow (type 2) - NEVER on line numbers (type 3)
+        const isGlyphArrowClick =
+          (e.target?.type === 2 ||
+            e.target?.element?.classList?.contains('diffx-glyph-copy-r2l') ||
+            Boolean(e.target?.element?.closest?.('.diffx-glyph-copy-r2l'))) &&
+          e.target?.type !== 3 &&
+          e.target?.type !== 4;
 
         const chunk = findChunkAtLine(chunksRef.current, line, 'right') || findClosestChunk(chunksRef.current, line, 'right');
         if (chunk || activeSelection) {
           if (chunk) setActiveDiffChunk(chunk);
-          if (isGutterClick) {
+          if (isGlyphArrowClick) {
             const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
             if (activeSelection && activeSelection.side === 'right') {
               executeSelectedLinesCopyR2L(origEditor.getModel(), modEditor.getModel(), activeSelection, chunk, outRange);

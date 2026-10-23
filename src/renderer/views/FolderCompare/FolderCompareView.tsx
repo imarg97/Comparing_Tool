@@ -9,8 +9,6 @@ import {
   ChevronRight,
   ChevronDown,
   ArrowUp,
-  ArrowRight,
-  ArrowLeft,
   Search,
   Equal,
   ChevronLeft,
@@ -384,6 +382,21 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
       onCancel: () => {},
     });
   };
+
+  // Keyboard shortcuts: Alt+Right / Alt+Left for transferring selected file
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && e.key === 'ArrowRight' && selectedEntry && selectedEntry.left.exists) {
+        e.preventDefault();
+        handleCopyLeftToRight(selectedEntry);
+      } else if (e.altKey && e.key === 'ArrowLeft' && selectedEntry && selectedEntry.right.exists) {
+        e.preventDefault();
+        handleCopyRightToLeft(selectedEntry);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedEntry, result]);
 
   const toggleSort = (field: 'name' | 'size' | 'mtime') => {
     setSortOptions((prev) => ({
@@ -843,31 +856,25 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
           </button>
         </div>
 
-        {/* Right: Copy Actions, Rules & Search */}
+        {/* Right: Rules & Search */}
         <div className="flex items-center space-x-2">
-          {/* Copy Selected to Right */}
+          {/* Accessible programmatic actions for menu bar */}
           <button
+            data-action="copy-l2r"
+            className="sr-only"
             disabled={!selectedEntry || !selectedEntry.left.exists}
             onClick={() => selectedEntry && handleCopyLeftToRight(selectedEntry)}
-            title="Copy Selected File to Right"
-            className="flex items-center space-x-1 px-2 py-1 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 disabled:opacity-40 transition font-medium text-xs"
           >
-            <ArrowRight className="w-3.5 h-3.5" />
-            <span>Copy L→R</span>
+            Copy L to R
           </button>
-
-          {/* Copy Selected to Left */}
           <button
+            data-action="copy-r2l"
+            className="sr-only"
             disabled={!selectedEntry || !selectedEntry.right.exists}
             onClick={() => selectedEntry && handleCopyRightToLeft(selectedEntry)}
-            title="Copy Selected File to Left"
-            className="flex items-center space-x-1 px-2 py-1 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40 disabled:opacity-40 transition font-medium text-xs"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Copy R→L</span>
+            Copy R to L
           </button>
-
-          <span className="h-4 w-px bg-neutral-300 dark:bg-neutral-800 mx-1" />
 
           {/* Search Box */}
           <div className="flex items-center bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-2 py-0.5 w-44">
