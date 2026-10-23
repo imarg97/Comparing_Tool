@@ -413,7 +413,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
                 <div className="my-1 border-t border-neutral-200 dark:border-neutral-800" />
                 <div className="px-3 py-1.5 text-[11px] text-neutral-500">
-                  DiffX Comparison Suite v1.5<br />
+                  DiffX Comparison Suite v2.0.0<br />
                   High-Precision Comparison Engine
                 </div>
               </div>

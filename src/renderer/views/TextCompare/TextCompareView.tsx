@@ -186,7 +186,15 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
           }
         }
         if (!p) {
-          p = (file as any).path || file.name;
+          p = (file as any).path || '';
+        }
+        // Construct full Beyond Compare Downloads path if bare filename
+        if (!p || (!p.includes('/') && !p.includes('\\'))) {
+          const dir = (leftPath && (leftPath.includes('/') || leftPath.includes('\\')))
+            ? leftPath.substring(0, Math.max(leftPath.lastIndexOf('/'), leftPath.lastIndexOf('\\')))
+            : 'C:\\Users\\naira\\Downloads';
+          const sep = dir.includes('/') ? '/' : '\\';
+          p = `${dir}${sep}${file.name}`;
         }
         items.push({ path: p, file });
       }
@@ -194,7 +202,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     return items;
   };
 
-  const handleDropToSide = (items: DroppedItem[], targetSide: 'left' | 'right') => {
+  const handleDropToSide = async (items: DroppedItem[], targetSide: 'left' | 'right') => {
     if (!items.length) return;
     if (items.length >= 2) {
       const leftItem = items[0];
@@ -203,6 +211,12 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       registerBrowserFile(rightItem.path, rightItem.file, 'right');
       registerBrowserFile(leftItem.file.name, leftItem.file, 'left');
       registerBrowserFile(rightItem.file.name, rightItem.file, 'right');
+      const leftTxt = await leftItem.file.text();
+      const rightTxt = await rightItem.file.text();
+      setLeftEditorContent(leftTxt);
+      setRightEditorContent(rightTxt);
+      setLeftDirty(false);
+      setRightDirty(false);
       onSetLeftPath(leftItem.path);
       onSetRightPath(rightItem.path);
       onUpdateStatus(`Loaded Left (${leftItem.path}) and Right (${rightItem.path})`);
@@ -210,10 +224,15 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       const item = items[0];
       registerBrowserFile(item.path, item.file, targetSide);
       registerBrowserFile(item.file.name, item.file, targetSide);
+      const txt = await item.file.text();
       if (targetSide === 'left') {
+        setLeftEditorContent(txt);
+        setLeftDirty(false);
         onSetLeftPath(item.path);
         onUpdateStatus(`Loaded Left file: ${item.path}`);
       } else {
+        setRightEditorContent(txt);
+        setRightDirty(false);
         onSetRightPath(item.path);
         onUpdateStatus(`Loaded Right file: ${item.path}`);
       }
@@ -279,6 +298,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
   const rightDecorationsRef = useRef<string[]>([]);
   const copiedHighlightDecsRef = useRef<{ left: string[]; right: string[] }>({ left: [], right: [] });
   const chunksRef = useRef<DiffChunk[]>([]);
+  const canonicalChunksRef = useRef<DiffChunk[]>([]);
   chunksRef.current = diffChunks;
 
   // Active focus side for shortcuts & save
@@ -368,7 +388,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
   };
 
   // View Filter: All (*), Diffs (≠), Same (=)
-  const applyViewFilter = (filter: 'all' | 'diffs' | 'same', chunks: DiffChunk[] = diffChunks) => {
+  const applyViewFilter = (filter: 'all' | 'diffs' | 'same', chunks: DiffChunk[] = canonicalChunksRef.current.length ? canonicalChunksRef.current : diffChunks) => {
     if (!diffEditorRef.current) return;
     try {
       const origEditor = diffEditorRef.current.getOriginalEditor();
@@ -406,7 +426,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
   };
 
   useEffect(() => {
-    applyViewFilter(activeFilter, diffChunks);
+    applyViewFilter(activeFilter, canonicalChunksRef.current.length ? canonicalChunksRef.current : diffChunks);
   }, [activeFilter, diffChunks]);
 
   // Load files when paths change
@@ -529,6 +549,9 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     try {
       const lineChanges = diffEditorRef.current.getLineChanges();
       const chunks = normalizeLineChanges(lineChanges);
+      if (activeFilter === 'all' || !canonicalChunksRef.current.length) {
+        canonicalChunksRef.current = chunks;
+      }
       setDiffChunks(chunks);
 
       const origEditor = diffEditorRef.current.getOriginalEditor();
@@ -537,7 +560,9 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       const newLeftDecs: any[] = [];
       const newRightDecs: any[] = [];
 
-      for (const chunk of chunks) {
+      const activeList = canonicalChunksRef.current.length ? canonicalChunksRef.current : chunks;
+
+      for (const chunk of activeList) {
         // Show Right Arrow (⇨) on Left only if Left has real lines to copy!
         if (chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart) {
           newLeftDecs.push({
@@ -602,14 +627,15 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
 
       editor.onDidUpdateDiff(() => {
         const lineChanges = editor.getLineChanges();
+        const chunks = normalizeLineChanges(lineChanges);
+        if (activeFilter === 'all' || !canonicalChunksRef.current.length) {
+          canonicalChunksRef.current = chunks;
+        }
         setDiffStats((prev) => ({
           ...prev,
           diffCount: lineChanges ? lineChanges.length : 0,
         }));
         updateGutterDecorations();
-        if (activeFilter !== 'all') {
-          setTimeout(() => applyViewFilter(activeFilter), 50);
-        }
       });
 
       // Right Editor Listeners
@@ -648,26 +674,45 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         const origModel = origEditor.getModel();
         if (!origModel) return;
 
-        if (pasteRange.startColumn > 1 && pasteRange.startLineNumber === pasteRange.endLineNumber) {
-          const lineContent = origModel.getLineContent(pasteRange.startLineNumber);
-          const beforePaste = lineContent.substring(0, pasteRange.startColumn - 1);
-          const pastedText = lineContent.substring(pasteRange.startColumn - 1, pasteRange.endColumn - 1);
+        const startLine = pasteRange.startLineNumber;
+        const endLine = pasteRange.endLineNumber;
+        const startCol = pasteRange.startColumn;
+        const endCol = pasteRange.endColumn;
 
-          if (beforePaste.trim().endsWith('>') && pastedText.trim().startsWith('<')) {
-            const editRange = {
-              startLineNumber: pasteRange.startLineNumber,
-              startColumn: pasteRange.startColumn,
-              endLineNumber: pasteRange.startLineNumber,
-              endColumn: pasteRange.startColumn,
-            };
-            origModel.pushEditOperations([], [{ range: editRange, text: '\n' }], () => null);
-            flashCopiedHighlight('left', pasteRange.startLineNumber + 1, pasteRange.startLineNumber + 1);
-            onUpdateStatus('Pasted line cleanly onto new line with diff flash');
-            return;
-          }
+        const lineContent = origModel.getLineContent(startLine);
+        const beforePaste = lineContent.substring(0, startCol - 1);
+        const endLineContent = origModel.getLineContent(endLine);
+        const afterPaste = endLineContent.substring(endCol - 1);
+
+        let targetFlashStart = startLine;
+        let targetFlashEnd = endLine;
+
+        // Condition A: Pasted before existing content on that line
+        if (afterPaste.trim().length > 0 && (startCol === 1 || beforePaste.trim().length === 0 || beforePaste.trim().endsWith('>'))) {
+          const splitAfterRange = {
+            startLineNumber: endLine,
+            startColumn: endCol,
+            endLineNumber: endLine,
+            endColumn: endCol,
+          };
+          origModel.pushEditOperations([], [{ range: splitAfterRange, text: '\n' }], () => null);
         }
 
-        flashCopiedHighlight('left', pasteRange.startLineNumber, pasteRange.endLineNumber);
+        // Condition B: Pasted at the end of existing content on that line
+        if (beforePaste.trim().length > 0) {
+          const splitBeforeRange = {
+            startLineNumber: startLine,
+            startColumn: startCol,
+            endLineNumber: startLine,
+            endColumn: startCol,
+          };
+          origModel.pushEditOperations([], [{ range: splitBeforeRange, text: '\n' }], () => null);
+          targetFlashStart = startLine + 1;
+          targetFlashEnd = endLine + 1;
+        }
+
+        flashCopiedHighlight('left', targetFlashStart, targetFlashEnd);
+        onUpdateStatus('Pasted diff content with clean line alignment');
       });
 
       // Paste listener for right editor: split concatenated tags into clean new lines and trigger flash animation
@@ -677,28 +722,47 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         const modModel = modEditor.getModel();
         if (!modModel) return;
 
-        // If text was pasted at the end of a line (e.g. into an insertion gap viewzone)
-        if (pasteRange.startColumn > 1 && pasteRange.startLineNumber === pasteRange.endLineNumber) {
-          const lineContent = modModel.getLineContent(pasteRange.startLineNumber);
-          const beforePaste = lineContent.substring(0, pasteRange.startColumn - 1);
-          const pastedText = lineContent.substring(pasteRange.startColumn - 1, pasteRange.endColumn - 1);
+        const startLine = pasteRange.startLineNumber;
+        const endLine = pasteRange.endLineNumber;
+        const startCol = pasteRange.startColumn;
+        const endCol = pasteRange.endColumn;
 
-          if (beforePaste.trim().endsWith('>') && pastedText.trim().startsWith('<')) {
-            const editRange = {
-              startLineNumber: pasteRange.startLineNumber,
-              startColumn: pasteRange.startColumn,
-              endLineNumber: pasteRange.startLineNumber,
-              endColumn: pasteRange.startColumn,
-            };
-            modModel.pushEditOperations([], [{ range: editRange, text: '\n' }], () => null);
-            flashCopiedHighlight('right', pasteRange.startLineNumber + 1, pasteRange.startLineNumber + 1);
-            onUpdateStatus('Pasted line cleanly onto new line with diff flash');
-            return;
-          }
+        const lineContent = modModel.getLineContent(startLine);
+        const beforePaste = lineContent.substring(0, startCol - 1);
+        const endLineContent = modModel.getLineContent(endLine);
+        const afterPaste = endLineContent.substring(endCol - 1);
+
+        let targetFlashStart = startLine;
+        let targetFlashEnd = endLine;
+
+        // Condition A: Pasted before existing content on that line
+        if (afterPaste.trim().length > 0 && (startCol === 1 || beforePaste.trim().length === 0 || beforePaste.trim().endsWith('>'))) {
+          const splitAfterRange = {
+            startLineNumber: endLine,
+            startColumn: endCol,
+            endLineNumber: endLine,
+            endColumn: endCol,
+          };
+          modModel.pushEditOperations([], [{ range: splitAfterRange, text: '\n' }], () => null);
         }
 
-        flashCopiedHighlight('right', pasteRange.startLineNumber, pasteRange.endLineNumber);
+        // Condition B: Pasted at the end of existing content on that line
+        if (beforePaste.trim().length > 0) {
+          const splitBeforeRange = {
+            startLineNumber: startLine,
+            startColumn: startCol,
+            endLineNumber: startLine,
+            endColumn: startCol,
+          };
+          modModel.pushEditOperations([], [{ range: splitBeforeRange, text: '\n' }], () => null);
+          targetFlashStart = startLine + 1;
+          targetFlashEnd = endLine + 1;
+        }
+
+        flashCopiedHighlight('right', targetFlashStart, targetFlashEnd);
+        onUpdateStatus('Pasted diff content with clean line alignment');
       });
+
       origEditor.onDidChangeModelContent(() => {
         const val = origEditor.getValue();
         setLeftEditorContent(val);
@@ -734,12 +798,13 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         if (!line) return;
 
         const isGutterClick =
-          e.target?.type === 2 || e.target?.type === 3 || e.target?.type === 4;
+          e.target?.type === 2 || e.target?.type === 3 || e.target?.type === 4 ||
+          e.target?.element?.classList?.contains('diffx-glyph-copy-l2r');
 
         const chunk = findChunkAtLine(chunksRef.current, line, 'left') || findClosestChunk(chunksRef.current, line, 'left');
         if (chunk) {
           setActiveDiffChunk(chunk);
-          if (isGutterClick && e.target?.type === 2) {
+          if (isGutterClick) {
             const outRange = { startLine: 0, endLine: 0 };
             executeChunkCopyL2R(origEditor.getModel(), modEditor.getModel(), chunk, outRange);
             setRightEditorContent(modEditor.getValue());
@@ -761,12 +826,13 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         if (!line) return;
 
         const isGutterClick =
-          e.target?.type === 2 || e.target?.type === 3 || e.target?.type === 4;
+          e.target?.type === 2 || e.target?.type === 3 || e.target?.type === 4 ||
+          e.target?.element?.classList?.contains('diffx-glyph-copy-r2l');
 
         const chunk = findChunkAtLine(chunksRef.current, line, 'right') || findClosestChunk(chunksRef.current, line, 'right');
         if (chunk) {
           setActiveDiffChunk(chunk);
-          if (isGutterClick && e.target?.type === 2) {
+          if (isGutterClick) {
             const outRange = { startLine: 0, endLine: 0 };
             executeChunkCopyR2L(origEditor.getModel(), modEditor.getModel(), chunk, outRange);
             setLeftEditorContent(origEditor.getValue());

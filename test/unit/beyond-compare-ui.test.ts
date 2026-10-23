@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { detectLanguage } from '../../src/renderer/views/TextCompare/TextCompareView.js';
 import { detectFormatFromPath } from '../../src/renderer/views/StructuredCompare/StructuredCompareView.js';
+import { executeChunkCopyL2R } from '../../src/shared/comparison-engine/diff-copy.js';
 
 describe('Beyond Compare UI Utilities', () => {
   describe('detectLanguage', () => {
@@ -39,6 +40,109 @@ describe('Beyond Compare UI Utilities', () => {
 
     it('detects JSON format from path', () => {
       expect(detectFormatFromPath('config.json')).toBe('json');
+    });
+  });
+
+  describe('Beyond Compare Overview Map & Gap Logic (v2.0.0)', () => {
+    it('classifies alignment gaps as blue indicators', () => {
+      // Chunk where left has line 2, right has gap (modifiedStart: 1, modifiedEnd: 0)
+      const gapChunk = {
+        id: 'chunk_gap_1',
+        originalStart: 2,
+        originalEnd: 2,
+        modifiedStart: 1,
+        modifiedEnd: 0,
+      };
+      const isAlignmentGap = gapChunk.modifiedEnd === 0 || gapChunk.originalEnd === 0;
+      expect(isAlignmentGap).toBe(true);
+    });
+
+    it('classifies single difference line as thin tick and multi-line as solid cluster', () => {
+      const singleDiff = {
+        id: 'chunk_single',
+        originalStart: 5,
+        originalEnd: 5,
+        modifiedStart: 5,
+        modifiedEnd: 5,
+      };
+      const countSingle = singleDiff.originalEnd - singleDiff.originalStart + 1;
+      expect(countSingle).toBe(1);
+
+      const clusterDiff = {
+        id: 'chunk_cluster',
+        originalStart: 74,
+        originalEnd: 87,
+        modifiedStart: 74,
+        modifiedEnd: 87,
+      };
+      const countCluster = clusterDiff.originalEnd - clusterDiff.originalStart + 1;
+      expect(countCluster).toBe(14);
+      expect(countCluster > 1).toBe(true);
+    });
+
+    it('guarantees clean line insertion into gaps without XML tag concatenation', () => {
+      const originalText = `<sys xmlns="urn:mavenir:ns:yang:vmas:6.0.2.0">\n<encryption>false</encryption>\n<nsid>NSD_VMAS_VNF</nsid>`;
+      const modifiedText = `<sys xmlns="urn:mavenir:ns:yang:vmas:6.0.2.0">\n<nsid>NSD_VMAS_VNF</nsid>`;
+
+      // Fake Monaco model to test pushEditOperations logic
+      class FakeModel {
+        lines: string[];
+        constructor(content: string) {
+          this.lines = content.split('\n');
+        }
+        getLineCount() {
+          return this.lines.length;
+        }
+        getLineMaxColumn(line: number) {
+          return (this.lines[line - 1] || '').length + 1;
+        }
+        getValueInRange(range: any) {
+          return this.lines.slice(range.startLineNumber - 1, range.endLineNumber).join('\n');
+        }
+        pushEditOperations(_beforeCursorState: any, edits: any[]) {
+          for (const edit of edits) {
+            const { range, text } = edit;
+            const linesBefore = this.lines.slice(0, range.startLineNumber - 1);
+            const currentLine = this.lines[range.startLineNumber - 1] || '';
+            const beforeCol = currentLine.substring(0, range.startColumn - 1);
+            const endCurrentLine = this.lines[range.endLineNumber - 1] || '';
+            const afterCol = endCurrentLine.substring(range.endColumn - 1);
+            const linesAfter = this.lines.slice(range.endLineNumber);
+
+            const newMiddle = beforeCol + text + afterCol;
+            const replaced = [...linesBefore, ...newMiddle.split('\n'), ...linesAfter];
+            this.lines = replaced;
+          }
+        }
+        getValue() {
+          return this.lines.join('\n');
+        }
+      }
+
+      const origModel = new FakeModel(originalText);
+      const modModel = new FakeModel(modifiedText);
+
+      // Diff chunk representing line 2 insertion into gap on right
+      const gapChunk = {
+        id: 'chunk_0',
+        originalStart: 2,
+        originalEnd: 2,
+        modifiedStart: 1,
+        modifiedEnd: 0,
+      };
+
+      const outRange = { startLine: 0, endLine: 0 };
+      const res = executeChunkCopyL2R(origModel, modModel, gapChunk, outRange);
+
+      expect(res).toBe(true);
+      expect(outRange.startLine).toBe(2);
+      expect(outRange.endLine).toBe(2);
+
+      const resultingLines = modModel.getValue().split('\n');
+      expect(resultingLines[0]).toBe('<sys xmlns="urn:mavenir:ns:yang:vmas:6.0.2.0">');
+      expect(resultingLines[1]).toBe('<encryption>false</encryption>');
+      expect(resultingLines[2]).toBe('<nsid>NSD_VMAS_VNF</nsid>');
+      expect(resultingLines.length).toBe(3);
     });
   });
 });

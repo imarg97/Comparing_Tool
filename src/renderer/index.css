@@ -55,8 +55,10 @@
 }
 
 /* =========================================================================
-   High-Contrast & High-Visibility Diff Highlighting (Beyond Compare Standard)
-   Line numbers remain clean and neutral; only code lines are highlighted.
+   Beyond Compare Minimalist Visual Fidelity (Screenshots 2, 3, 4, 5)
+   Clean white background, black font, subtle light pink wash for diff lines,
+   red font for changed tokens, and yellow highlight for newly copied lines.
+   Line numbers remain clean and neutral without any colored wash.
    ========================================================================= */
 
 /* Neutral line numbers margin without red/green background wash */
@@ -85,100 +87,84 @@
   color: #71717a !important;
 }
 
-/* Light Mode: Clearly visible tinted backgrounds strictly for changed text lines and tokens */
+/* Light Mode: Beyond Compare subtle light-pink wash on BOTH sides with red text for changed tokens */
 .monaco-diff-editor .lines-content .line-delete,
 .monaco-diff-editor .lines-content .ced-line-delete,
-.monaco-diff-editor .lines-content .diff-line-delete {
-  background-color: #fee2e2 !important; /* Clearly visible rose-pink tint across entire line */
-  border-left: 3px solid #ef4444 !important;
-}
-.monaco-diff-editor .char-delete,
-.monaco-diff-editor .ced-char-delete {
-  background-color: #fca5a5 !important; /* Prominent red for changed words */
-  color: #7f1d1d !important;            /* High-contrast deep red text */
-  font-weight: 700 !important;
-  border: 1px solid #ef4444 !important;
-  border-radius: 2px;
-}
+.monaco-diff-editor .lines-content .diff-line-delete,
 .monaco-diff-editor .lines-content .line-insert,
 .monaco-diff-editor .lines-content .ced-line-insert,
 .monaco-diff-editor .lines-content .diff-line-insert {
-  background-color: #dcfce7 !important; /* Clearly visible mint-green tint across entire line */
-  border-left: 3px solid #22c55e !important;
-}
-.monaco-diff-editor .char-insert,
-.monaco-diff-editor .ced-char-insert {
-  background-color: #86efac !important;
-  color: #14532d !important;            /* High-contrast deep green text */
-  font-weight: 700 !important;
-  border: 1px solid #22c55e !important;
-  border-radius: 2px;
-}
-.monaco-diff-editor .diagonal-fill,
-.monaco-diff-editor .ced-diagonal-fill {
-  background-color: #e2e8f0 !important;
+  background-color: #fff2f2 !important; /* Subtle Beyond Compare light pink/rose line tint */
+  border-left: 2px solid #ef4444 !important;
 }
 
-/* Dark Mode: Vibrant, clearly visible ruby & emerald diff highlights on pitch black */
-.dark .monaco-diff-editor .lines-content .line-delete,
-.dark .monaco-diff-editor .lines-content .ced-line-delete,
-.dark .monaco-diff-editor .lines-content .diff-line-delete {
-  background-color: rgba(220, 38, 38, 0.32) !important; /* Visible deep red wash across line */
-  border-left: 3px solid #f87171 !important;
-}
-.dark .monaco-diff-editor .char-delete,
-.dark .monaco-diff-editor .ced-char-delete {
-  background-color: rgba(239, 68, 68, 0.65) !important;
-  color: #ffffff !important;                            /* Crisp white text over dark red */
+.monaco-diff-editor .char-delete,
+.monaco-diff-editor .ced-char-delete,
+.monaco-diff-editor .char-insert,
+.monaco-diff-editor .ced-char-insert {
+  background-color: #fecaca !important; /* Soft rose highlight for changed tokens */
+  color: #dc2626 !important;            /* High-contrast deep red text matching Beyond Compare */
   font-weight: 700 !important;
-  border: 1px solid #f87171 !important;
   border-radius: 2px;
 }
+
+.monaco-diff-editor .diagonal-fill,
+.monaco-diff-editor .ced-diagonal-fill {
+  background-color: #f1f5f9 !important;
+}
+
+/* Dark Mode: Minimalist dark tint with crisp ruby text */
+.dark .monaco-diff-editor .lines-content .line-delete,
+.dark .monaco-diff-editor .lines-content .ced-line-delete,
+.dark .monaco-diff-editor .lines-content .diff-line-delete,
 .dark .monaco-diff-editor .lines-content .line-insert,
 .dark .monaco-diff-editor .lines-content .ced-line-insert,
 .dark .monaco-diff-editor .lines-content .diff-line-insert {
-  background-color: rgba(34, 197, 94, 0.28) !important; /* Visible deep emerald wash across line */
-  border-left: 3px solid #4ade80 !important;
+  background-color: rgba(239, 68, 68, 0.16) !important;
+  border-left: 2px solid #f87171 !important;
 }
+
+.dark .monaco-diff-editor .char-delete,
+.dark .monaco-diff-editor .ced-char-delete,
 .dark .monaco-diff-editor .char-insert,
 .dark .monaco-diff-editor .ced-char-insert {
-  background-color: rgba(34, 197, 94, 0.60) !important;
-  color: #ffffff !important;                            /* Crisp white text over emerald */
+  background-color: rgba(239, 68, 68, 0.45) !important;
+  color: #fca5a5 !important;
   font-weight: 700 !important;
-  border: 1px solid #4ade80 !important;
   border-radius: 2px;
 }
+
 .dark .monaco-diff-editor .diagonal-fill,
 .dark .monaco-diff-editor .ced-diagonal-fill {
   background-color: #1e293b !important;
 }
 
-/* Copied Difference Highlight Animation (Beyond Compare Smooth Flash) */
+/* Copied Difference Highlight Animation (Beyond Compare Bright Yellow Highlight - Image 4) */
 .diffx-copied-highlight-line {
-  background-color: rgba(59, 130, 246, 0.40) !important;
-  border-top: 1px solid #3b82f6 !important;
-  border-bottom: 1px solid #3b82f6 !important;
-  animation: diffx-copy-pulse 1.8s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+  background-color: #fef08a !important; /* Beyond Compare Yellow */
+  border-top: 1px solid #eab308 !important;
+  border-bottom: 1px solid #eab308 !important;
+  animation: diffx-copy-pulse 2.2s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
 }
 
 .dark .diffx-copied-highlight-line {
-  background-color: rgba(59, 130, 246, 0.50) !important;
-  border-top: 1px solid #60a5fa !important;
-  border-bottom: 1px solid #60a5fa !important;
-  animation: diffx-copy-pulse 1.8s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+  background-color: rgba(234, 179, 8, 0.45) !important;
+  border-top: 1px solid #facc15 !important;
+  border-bottom: 1px solid #facc15 !important;
+  animation: diffx-copy-pulse 2.2s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
 }
 
 .diffx-copied-highlight-gutter {
-  background-color: #2563eb !important;
+  background-color: #eab308 !important;
 }
 
 @keyframes diffx-copy-pulse {
   0% {
-    background-color: rgba(59, 130, 246, 0.70);
-    box-shadow: inset 0 0 8px rgba(59, 130, 246, 0.6);
+    background-color: #facc15;
+    box-shadow: inset 0 0 8px rgba(234, 179, 8, 0.8);
   }
-  30% {
-    background-color: rgba(59, 130, 246, 0.35);
+  35% {
+    background-color: #fef08a;
   }
   100% {
     background-color: transparent;
@@ -186,12 +172,12 @@
   }
 }
 
-/* Gutter Arrow Glyphs for Copy Left-to-Right (⇨) and Right-to-Left (⇦) */
+/* Beyond Compare Gold Gutter Arrow Badges for Copy Left-to-Right (⇨) and Right-to-Left (⇦) */
 .diffx-glyph-copy-l2r {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14'/%3E%3Cpath d='m12 5 7 7-7 7'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='%23fef08a' stroke='%23ca8a04' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14'/%3E%3Cpath d='m12 5 7 7-7 7'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: center;
-  background-size: 14px 14px;
+  background-size: 15px 15px;
   cursor: pointer !important;
   transition: transform 0.15s ease;
 }
@@ -200,10 +186,10 @@
 }
 
 .diffx-glyph-copy-r2l {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239333ea' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 19-7-7 7-7'/%3E%3Cpath d='M19 12H5'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='%23fef08a' stroke='%23ca8a04' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 19-7-7 7-7'/%3E%3Cpath d='M19 12H5'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: center;
-  background-size: 14px 14px;
+  background-size: 15px 15px;
   cursor: pointer !important;
   transition: transform 0.15s ease;
 }

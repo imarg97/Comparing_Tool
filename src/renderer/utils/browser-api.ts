@@ -83,6 +83,8 @@ export function registerBrowserFile(pathKey: string, file: File, side?: 'left' |
   browserFolderStore.singleFiles.set(file.name, file);
   browserFolderStore.singleFiles.set(`file://${pathKey}`, file);
   browserFolderStore.singleFiles.set(`browser://${pathKey}`, file);
+  // Also register with Windows Downloads default path so lookups succeed with both
+  browserFolderStore.singleFiles.set(`C:\\Users\\naira\\Downloads\\${file.name}`, file);
   if (side === 'left') {
     browserFolderStore.leftFile = file;
   } else if (side === 'right') {
@@ -95,7 +97,11 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
 
   return {
     getPathForFile: (file: File) => {
-      return (file as any).path || file.name;
+      const explicit = (file as any).path;
+      if (explicit && (explicit.includes('/') || explicit.includes('\\'))) {
+        return explicit;
+      }
+      return `C:\\Users\\naira\\Downloads\\${file.name}`;
     },
 
     selectDirectory: async (_defaultPath?: string, side?: 'left' | 'right') => {
@@ -136,9 +142,7 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
         browserFolderStore.rightFile = file;
       }
 
-      let returnedPath = file.webkitRelativePath && file.webkitRelativePath.includes('/')
-        ? file.webkitRelativePath
-        : file.name;
+      let returnedPath = '';
 
       if (_defaultPath && (_defaultPath.includes('/') || _defaultPath.includes('\\'))) {
         const lastSlash = Math.max(_defaultPath.lastIndexOf('/'), _defaultPath.lastIndexOf('\\'));
@@ -149,9 +153,18 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
         }
       }
 
+      if (!returnedPath) {
+        if (file.webkitRelativePath && file.webkitRelativePath.includes('/')) {
+          returnedPath = file.webkitRelativePath;
+        } else {
+          returnedPath = `C:\\Users\\naira\\Downloads\\${file.name}`;
+        }
+      }
+
       // Index file under multiple possible lookup paths for seamless loading
       browserFolderStore.singleFiles.set(returnedPath, file);
       browserFolderStore.singleFiles.set(file.name, file);
+      browserFolderStore.singleFiles.set(`C:\\Users\\naira\\Downloads\\${file.name}`, file);
       if (side) {
         browserFolderStore.singleFiles.set(`${side}/${file.name}`, file);
         browserFolderStore.singleFiles.set(`${side === 'left' ? 'L' : 'R'}/${file.name}`, file);

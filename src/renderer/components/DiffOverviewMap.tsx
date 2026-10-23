@@ -19,14 +19,14 @@ export const DiffOverviewMap: React.FC<DiffOverviewMapProps> = ({
   theme: _theme = 'light',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const safeTotalLines = Math.max(totalLines, 50);
+  const safeTotalLines = Math.max(totalLines, 30);
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const clickY = e.clientY - rect.top;
 
-    // Check if clicked near an existing chunk (within 24px)
+    // Check if clicked near an existing chunk (within 20px)
     let bestChunk: DiffChunk | null = null;
     let minDistance = Infinity;
 
@@ -41,7 +41,7 @@ export const DiffOverviewMap: React.FC<DiffOverviewMapProps> = ({
       }
     }
 
-    if (bestChunk && minDistance <= 24) {
+    if (bestChunk && minDistance <= 20) {
       if (onScrollToChunk) {
         onScrollToChunk(bestChunk);
         return;
@@ -57,27 +57,36 @@ export const DiffOverviewMap: React.FC<DiffOverviewMapProps> = ({
   };
 
   // Viewport thumb approximation (approx 35 visible lines)
-  const thumbHeightPercent = Math.max(5, (35 / safeTotalLines) * 100);
+  const thumbHeightPercent = Math.max(4, (35 / safeTotalLines) * 100);
   const thumbTopPercent = Math.max(0, Math.min(100 - thumbHeightPercent, ((currentLine - 1) / safeTotalLines) * 100));
 
   return (
     <div
       ref={containerRef}
       onClick={handleClick}
-      title="Comparison Overview Map • Click marker to jump directly to difference"
-      className="w-4 h-full bg-[#f4f4f4] dark:bg-[#121212] border-r border-[#d4d4d4] dark:border-neutral-800 flex-shrink-0 relative select-none cursor-pointer overflow-hidden shadow-inner"
+      title="Comparison Overview Map • Red = Differences, Blue = Alignment Gaps, Blue Box = Viewport"
+      className="w-5 h-full bg-[#f8f8f8] dark:bg-[#141414] border-r border-[#d4d4d4] dark:border-neutral-800 flex-shrink-0 relative select-none cursor-pointer overflow-hidden"
     >
-      {/* Background outline hash grid */}
-      <div className="absolute inset-0 opacity-20 bg-[linear-gradient(to_bottom,#888_1px,transparent_1px)] bg-[size:100%_8px]" />
+      {/* Subtle guide line */}
+      <div className="absolute top-0 bottom-0 left-1/2 w-px bg-neutral-200/60 dark:bg-neutral-800/60 pointer-events-none" />
 
-      {/* Difference markers */}
+      {/* Difference markers (Beyond Compare exact visual fidelity) */}
       {chunks.map((chunk) => {
+        const isLeftOnly = chunk.originalStart > 0 && chunk.modifiedStart === 0;
+        const isRightOnly = chunk.modifiedStart > 0 && chunk.originalStart === 0;
+        const isAlignmentGap = isLeftOnly || isRightOnly || chunk.originalEnd === 0 || chunk.modifiedEnd === 0;
+
         const start = chunk.originalStart > 0 ? chunk.originalStart : chunk.modifiedStart;
         const end = chunk.originalEnd > 0 ? chunk.originalEnd : (chunk.modifiedEnd > 0 ? chunk.modifiedEnd : start);
         const count = Math.max(1, end - start + 1);
 
-        const top = Math.max(0, Math.min(99, ((start - 1) / safeTotalLines) * 100));
-        const height = Math.max(2.2, (count / safeTotalLines) * 100);
+        const top = Math.max(0, Math.min(99.5, ((start - 1) / safeTotalLines) * 100));
+
+        // Single difference = crisp thin line; Cluster = solid filled block
+        const isSingleLine = count === 1;
+        const heightPercent = isSingleLine
+          ? Math.max(1.2, (1 / safeTotalLines) * 100)
+          : Math.max(2.5, (count / safeTotalLines) * 100);
 
         return (
           <div
@@ -92,21 +101,32 @@ export const DiffOverviewMap: React.FC<DiffOverviewMapProps> = ({
             }}
             style={{
               top: `${top}%`,
-              height: `${height}%`,
+              height: isSingleLine ? '2px' : `${heightPercent}%`,
+              minHeight: isSingleLine ? '2px' : '6px',
             }}
-            className="absolute left-0.5 right-0.5 bg-red-500 hover:bg-red-400 dark:bg-red-600 dark:hover:bg-red-500 rounded-[1px] shadow-xs cursor-pointer transition-colors"
-            title={`Diff: lines ${start}–${end} (Click to jump)`}
+            className={`absolute left-0.5 right-0.5 ${
+              isAlignmentGap
+                ? 'bg-[#2563eb] hover:bg-[#1d4ed8] dark:bg-[#3b82f6]' // Blue line for alignment gap
+                : 'bg-[#dc2626] hover:bg-[#b91c1c] dark:bg-[#ef4444]' // Red tick or solid bar for text diff
+            } cursor-pointer transition-colors shadow-2xs z-10`}
+            title={
+              isAlignmentGap
+                ? `Alignment Gap: lines ${start}–${end} (Click to jump)`
+                : isSingleLine
+                ? `Difference: line ${start} (Click to jump)`
+                : `Diff Cluster: lines ${start}–${end} (${count} lines) (Click to jump)`
+            }
           />
         );
       })}
 
-      {/* Viewport thumb indicator (yellow outline matching Beyond Compare Image 3) */}
+      {/* Viewport thumb indicator (Crisp Blue Rectangular Frame matching Beyond Compare Image 5) */}
       <div
         style={{
           top: `${thumbTopPercent}%`,
           height: `${thumbHeightPercent}%`,
         }}
-        className="absolute left-0 right-0 border-2 border-amber-500 bg-amber-400/25 pointer-events-none rounded-[1px] shadow-sm transition-[top] duration-75"
+        className="absolute left-0.5 right-0.5 border-1.5 border-[#2563eb] bg-[#3b82f6]/15 pointer-events-none rounded-[1px] transition-[top] duration-75 z-20"
       />
     </div>
   );
