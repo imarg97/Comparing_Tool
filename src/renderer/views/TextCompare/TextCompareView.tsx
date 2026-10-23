@@ -19,7 +19,6 @@ import {
   Calendar,
   Database,
   Copy,
-  Check,
 } from 'lucide-react';
 import { FileContentResult, TextCompareOptions } from '@shared/types.js';
 import { compareTextContent } from '@shared/comparison-engine/whitespace.js';
@@ -27,6 +26,7 @@ import {
   DiffChunk,
   normalizeLineChanges,
   findChunkAtLine,
+  findClosestChunk,
   executeChunkCopyL2R,
   executeChunkCopyR2L,
   ChunkCopyRange,
@@ -158,7 +158,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     text: string;
   } | null>(null);
 
-  const [copiedNotification, setCopiedNotification] = useState<string | null>(null);
+
 
   // Drag and drop states across whole page
   const [isDraggingLeft, setIsDraggingLeft] = useState(false);
@@ -284,7 +284,34 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
   const [activeFocusSide, setActiveFocusSide] = useState<'left' | 'right'>('right');
   const [lastModifiedSide, setLastModifiedSide] = useState<'left' | 'right'>('right');
 
-  // Flash highlight on copied differences (L2R or R2L)
+  // Jump to diff chunk cleanly (centers on diff, sets cursor, updates inspection)
+  const handleJumpToChunk = (chunk: DiffChunk) => {
+    if (!diffEditorRef.current) return;
+    try {
+      const origEditor = diffEditorRef.current.getOriginalEditor();
+      const modEditor = diffEditorRef.current.getModifiedEditor();
+
+      if (chunk.originalStart > 0) {
+        origEditor.revealLineInCenter(chunk.originalStart);
+        origEditor.setPosition({ lineNumber: chunk.originalStart, column: 1 });
+        origEditor.focus();
+        setActiveFocusSide('left');
+        updateLineDetails(chunk.originalStart);
+        setActiveDiffChunk(chunk);
+      } else if (chunk.modifiedStart > 0) {
+        modEditor.revealLineInCenter(chunk.modifiedStart);
+        modEditor.setPosition({ lineNumber: chunk.modifiedStart, column: 1 });
+        modEditor.focus();
+        setActiveFocusSide('right');
+        updateLineDetails(chunk.modifiedStart);
+        setActiveDiffChunk(chunk);
+      }
+    } catch {
+      // non-fatal
+    }
+  };
+
+  // Flash highlight on copied differences (L2R or R2L) with Beyond Compare smooth animation
   const flashCopiedHighlight = (side: 'left' | 'right', startLine: number, endLine: number) => {
     if (!diffEditorRef.current) return;
     try {
@@ -293,17 +320,21 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
 
       const s = Math.max(1, startLine);
       const e = Math.max(s, endLine);
+      const model = editor.getModel();
+      if (!model) return;
+
       const decs = [
         {
           range: {
             startLineNumber: s,
             startColumn: 1,
             endLineNumber: e,
-            endColumn: editor.getModel()?.getLineMaxColumn(e) || 1,
+            endColumn: model.getLineMaxColumn(e) || 1,
           },
           options: {
             isWholeLine: true,
-            className: 'diffx-copied-highlight',
+            className: 'diffx-copied-highlight-line',
+            marginClassName: 'diffx-copied-highlight-gutter',
           },
         },
       ];
@@ -316,6 +347,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
 
       editor.revealLinesInCenter(s, e);
       editor.setPosition({ lineNumber: s, column: 1 });
+      editor.focus();
 
       setTimeout(() => {
         if (!diffEditorRef.current) return;
@@ -328,11 +360,74 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         } catch {
           // ignore
         }
-      }, 2500);
+      }, 1800);
     } catch {
       // ignore
     }
   };
+
+  // View Filter: All (*), Diffs (≠), Same (=)
+  const applyViewFilter = (filter: 'all' | 'diffs' | 'same', chunks: DiffChunk[] = diffChunks) => {
+    if (!diffEditorRef.current) return;
+    try {
+      const origEditor = diffEditorRef.current.getOriginalEditor();
+      const modEditor = diffEditorRef.current.getModifiedEditor();
+
+      if (filter === 'all') {
+        origEditor.setHiddenAreas([]);
+        modEditor.setHiddenAreas([]);
+        diffEditorRef.current.updateOptions({
+          hideUnchangedRegions: { enabled: false },
+        });
+      } else if (filter === 'diffs') {
+        origEditor.setHiddenAreas([]);
+        modEditor.setHiddenAreas([]);
+        diffEditorRef.current.updateOptions({
+          hideUnchangedRegions: {
+            enabled: true,
+            contextLineCount: 1,
+            minimumLineCount: 2,
+            revealLineCount: 20,
+          },
+        });
+      } else if (filter === 'same') {
+        diffEditorRef.current.updateOptions({
+          hideUnchangedRegions: { enabled: false },
+        });
+
+        const leftHiddenRanges: any[] = [];
+        const rightHiddenRanges: any[] = [];
+
+        for (const chunk of chunks) {
+          if (chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart) {
+            leftHiddenRanges.push({
+              startLineNumber: chunk.originalStart,
+              startColumn: 1,
+              endLineNumber: chunk.originalEnd,
+              endColumn: 1,
+            });
+          }
+          if (chunk.modifiedStart > 0 && chunk.modifiedEnd >= chunk.modifiedStart) {
+            rightHiddenRanges.push({
+              startLineNumber: chunk.modifiedStart,
+              startColumn: 1,
+              endLineNumber: chunk.modifiedEnd,
+              endColumn: 1,
+            });
+          }
+        }
+
+        origEditor.setHiddenAreas(leftHiddenRanges);
+        modEditor.setHiddenAreas(rightHiddenRanges);
+      }
+    } catch {
+      // non-fatal
+    }
+  };
+
+  useEffect(() => {
+    applyViewFilter(activeFilter, diffChunks);
+  }, [activeFilter, diffChunks]);
 
   // Load files when paths change
   useEffect(() => {
@@ -448,7 +543,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     }
   };
 
-  // Update Gutter Arrow Icons for each diff chunk (Image 3)
+  // Update Gutter Arrow Icons for each diff chunk (Beyond Compare Style)
   const updateGutterDecorations = () => {
     if (!diffEditorRef.current) return;
     try {
@@ -463,7 +558,8 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       const newRightDecs: any[] = [];
 
       for (const chunk of chunks) {
-        if (chunk.originalStart > 0) {
+        // Show Right Arrow (⇨) on Left only if Left has real lines to copy!
+        if (chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart) {
           newLeftDecs.push({
             range: {
               startLineNumber: chunk.originalStart,
@@ -475,13 +571,14 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
               isWholeLine: false,
               glyphMarginClassName: 'diffx-glyph-copy-l2r',
               glyphMarginHoverMessage: {
-                value: `**⇨ Copy Lines ${chunk.originalStart}–${chunk.originalEnd || chunk.originalStart} to Right**`,
+                value: `**⇨ Copy Lines ${chunk.originalStart}–${chunk.originalEnd} to Right**`,
               },
             },
           });
         }
 
-        if (chunk.modifiedStart > 0) {
+        // Show Left Arrow (⇦) on Right only if Right has real lines to copy!
+        if (chunk.modifiedStart > 0 && chunk.modifiedEnd >= chunk.modifiedStart) {
           newRightDecs.push({
             range: {
               startLineNumber: chunk.modifiedStart,
@@ -493,7 +590,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
               isWholeLine: false,
               glyphMarginClassName: 'diffx-glyph-copy-r2l',
               glyphMarginHoverMessage: {
-                value: `**⇦ Copy Lines ${chunk.modifiedStart}–${chunk.modifiedEnd || chunk.modifiedStart} to Left**`,
+                value: `**⇦ Copy Lines ${chunk.modifiedStart}–${chunk.modifiedEnd} to Left**`,
               },
             },
           });
@@ -530,6 +627,9 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
           diffCount: lineChanges ? lineChanges.length : 0,
         }));
         updateGutterDecorations();
+        if (activeFilter !== 'all') {
+          setTimeout(() => applyViewFilter(activeFilter), 50);
+        }
       });
 
       // Right Editor Listeners
@@ -596,10 +696,13 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         const line = e.target?.position?.lineNumber;
         if (!line) return;
 
-        // If clicked on gutter glyph arrow
-        if (e.target?.type === 2 /* GUTTER_GLYPH_MARGIN */) {
-          const chunk = findChunkAtLine(chunksRef.current, line, 'left');
-          if (chunk) {
+        const isGutterClick =
+          e.target?.type === 2 || e.target?.type === 3 || e.target?.type === 4;
+
+        const chunk = findChunkAtLine(chunksRef.current, line, 'left') || findClosestChunk(chunksRef.current, line, 'left');
+        if (chunk) {
+          setActiveDiffChunk(chunk);
+          if (isGutterClick && e.target?.type === 2) {
             const outRange = { startLine: 0, endLine: 0 };
             executeChunkCopyL2R(origEditor.getModel(), modEditor.getModel(), chunk, outRange);
             setRightEditorContent(modEditor.getValue());
@@ -609,13 +712,8 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             if (outRange.startLine > 0) {
               flashCopiedHighlight('right', outRange.startLine, outRange.endLine);
             }
-            setCopiedNotification(`Copied chunk lines ${chunk.originalStart}–${chunk.originalEnd} Left ⇨ Right`);
-            setTimeout(() => setCopiedNotification(null), 2500);
-            onUpdateStatus(`Copied diff paragraph (lines ${chunk.originalStart}–${chunk.originalEnd}) Left ⇨ Right`);
+            onUpdateStatus(`Copied diff lines ${chunk.originalStart}–${chunk.originalEnd || chunk.originalStart} Left ⇨ Right`);
           }
-        } else {
-          const chunk = findChunkAtLine(chunksRef.current, line, 'left');
-          setActiveDiffChunk(chunk);
         }
       });
 
@@ -625,9 +723,13 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         const line = e.target?.position?.lineNumber;
         if (!line) return;
 
-        if (e.target?.type === 2 /* GUTTER_GLYPH_MARGIN */) {
-          const chunk = findChunkAtLine(chunksRef.current, line, 'right');
-          if (chunk) {
+        const isGutterClick =
+          e.target?.type === 2 || e.target?.type === 3 || e.target?.type === 4;
+
+        const chunk = findChunkAtLine(chunksRef.current, line, 'right') || findClosestChunk(chunksRef.current, line, 'right');
+        if (chunk) {
+          setActiveDiffChunk(chunk);
+          if (isGutterClick && e.target?.type === 2) {
             const outRange = { startLine: 0, endLine: 0 };
             executeChunkCopyR2L(origEditor.getModel(), modEditor.getModel(), chunk, outRange);
             setLeftEditorContent(origEditor.getValue());
@@ -637,13 +739,8 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             if (outRange.startLine > 0) {
               flashCopiedHighlight('left', outRange.startLine, outRange.endLine);
             }
-            setCopiedNotification(`Copied chunk lines ${chunk.modifiedStart}–${chunk.modifiedEnd} Right ⇦ Left`);
-            setTimeout(() => setCopiedNotification(null), 2500);
-            onUpdateStatus(`Copied diff paragraph (lines ${chunk.modifiedStart}–${chunk.modifiedEnd}) Right ⇦ Left`);
+            onUpdateStatus(`Copied diff lines ${chunk.modifiedStart}–${chunk.modifiedEnd || chunk.modifiedStart} Right ⇦ Left`);
           }
-        } else {
-          const chunk = findChunkAtLine(chunksRef.current, line, 'right');
-          setActiveDiffChunk(chunk);
         }
       });
 
@@ -698,43 +795,13 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     const modModel = modEditor.getModel();
     if (!origModel || !modModel) return;
 
-    // If active user line selection exists on left
-    if (activeSelection && activeSelection.side === 'left') {
-      const text = activeSelection.text;
-      const chunk = findChunkAtLine(chunksRef.current, activeSelection.startLine, 'left');
-      const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
-      if (chunk) {
-        executeChunkCopyL2R(origModel, modModel, chunk, outRange);
-      } else {
-        const targetLine = Math.min(activeSelection.startLine, modModel.getLineCount());
-        const targetEnd = Math.min(activeSelection.endLine, modModel.getLineCount());
-        const range = {
-          startLineNumber: targetLine,
-          startColumn: 1,
-          endLineNumber: targetEnd,
-          endColumn: modModel.getLineMaxColumn(targetEnd),
-        };
-        modModel.pushEditOperations([], [{ range, text }], () => null);
-        outRange.startLine = targetLine;
-        outRange.endLine = targetEnd;
-      }
-      setRightEditorContent(modModel.getValue());
-      setRightDirty(true);
-      setLastModifiedSide('right');
-      setActiveFocusSide('right');
-      if (outRange.startLine > 0) {
-        flashCopiedHighlight('right', outRange.startLine, outRange.endLine);
-      }
-      setCopiedNotification(`Copied lines ${activeSelection.startLine}–${activeSelection.endLine} Left ⇨ Right`);
-      setTimeout(() => setCopiedNotification(null), 2500);
-      onUpdateStatus(`Copied lines ${activeSelection.startLine}–${activeSelection.endLine} Left ⇨ Right`);
-      return;
-    }
+    const activeLine = cursorLineNumber || origEditor.getPosition()?.lineNumber || 1;
+    const chunk = activeSelection
+      ? findClosestChunk(chunksRef.current, activeSelection.startLine, 'left')
+      : activeDiffChunk || findClosestChunk(chunksRef.current, activeLine, 'left');
 
-    // If active diff chunk exists
-    const chunk = activeDiffChunk || (chunksRef.current.length > 0 ? chunksRef.current[0] : null);
+    const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
     if (chunk) {
-      const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
       executeChunkCopyL2R(origModel, modModel, chunk, outRange);
       setRightEditorContent(modModel.getValue());
       setRightDirty(true);
@@ -743,9 +810,26 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       if (outRange.startLine > 0) {
         flashCopiedHighlight('right', outRange.startLine, outRange.endLine);
       }
-      setCopiedNotification(`Copied diff paragraph (lines ${chunk.originalStart}–${chunk.originalEnd}) Left ⇨ Right`);
-      setTimeout(() => setCopiedNotification(null), 2500);
-      onUpdateStatus(`Copied diff paragraph (lines ${chunk.originalStart}–${chunk.originalEnd}) Left ⇨ Right`);
+      onUpdateStatus(`Copied diff lines ${chunk.originalStart}–${chunk.originalEnd || chunk.originalStart} Left ⇨ Right`);
+    } else if (activeSelection && activeSelection.side === 'left') {
+      const text = activeSelection.text;
+      const targetLine = Math.min(activeSelection.startLine, modModel.getLineCount());
+      const targetEnd = Math.min(activeSelection.endLine, modModel.getLineCount());
+      const range = {
+        startLineNumber: targetLine,
+        startColumn: 1,
+        endLineNumber: targetEnd,
+        endColumn: modModel.getLineMaxColumn(targetEnd),
+      };
+      modModel.pushEditOperations([], [{ range, text }], () => null);
+      outRange.startLine = targetLine;
+      outRange.endLine = targetEnd;
+      setRightEditorContent(modModel.getValue());
+      setRightDirty(true);
+      setLastModifiedSide('right');
+      setActiveFocusSide('right');
+      flashCopiedHighlight('right', outRange.startLine, outRange.endLine);
+      onUpdateStatus(`Copied selected lines ${activeSelection.startLine}–${activeSelection.endLine} Left ⇨ Right`);
     }
   };
 
@@ -758,41 +842,13 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     const modModel = modEditor.getModel();
     if (!origModel || !modModel) return;
 
-    if (activeSelection && activeSelection.side === 'right') {
-      const text = activeSelection.text;
-      const chunk = findChunkAtLine(chunksRef.current, activeSelection.startLine, 'right');
-      const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
-      if (chunk) {
-        executeChunkCopyR2L(origModel, modModel, chunk, outRange);
-      } else {
-        const targetLine = Math.min(activeSelection.startLine, origModel.getLineCount());
-        const targetEnd = Math.min(activeSelection.endLine, origModel.getLineCount());
-        const range = {
-          startLineNumber: targetLine,
-          startColumn: 1,
-          endLineNumber: targetEnd,
-          endColumn: origModel.getLineMaxColumn(targetEnd),
-        };
-        origModel.pushEditOperations([], [{ range, text }], () => null);
-        outRange.startLine = targetLine;
-        outRange.endLine = targetEnd;
-      }
-      setLeftEditorContent(origModel.getValue());
-      setLeftDirty(true);
-      setLastModifiedSide('left');
-      setActiveFocusSide('left');
-      if (outRange.startLine > 0) {
-        flashCopiedHighlight('left', outRange.startLine, outRange.endLine);
-      }
-      setCopiedNotification(`Copied lines ${activeSelection.startLine}–${activeSelection.endLine} Right ⇦ Left`);
-      setTimeout(() => setCopiedNotification(null), 2500);
-      onUpdateStatus(`Copied lines ${activeSelection.startLine}–${activeSelection.endLine} Right ⇦ Left`);
-      return;
-    }
+    const activeLine = cursorLineNumber || modEditor.getPosition()?.lineNumber || 1;
+    const chunk = activeSelection
+      ? findClosestChunk(chunksRef.current, activeSelection.startLine, 'right')
+      : activeDiffChunk || findClosestChunk(chunksRef.current, activeLine, 'right');
 
-    const chunk = activeDiffChunk || (chunksRef.current.length > 0 ? chunksRef.current[0] : null);
+    const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
     if (chunk) {
-      const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
       executeChunkCopyR2L(origModel, modModel, chunk, outRange);
       setLeftEditorContent(origModel.getValue());
       setLeftDirty(true);
@@ -801,9 +857,26 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       if (outRange.startLine > 0) {
         flashCopiedHighlight('left', outRange.startLine, outRange.endLine);
       }
-      setCopiedNotification(`Copied diff paragraph (lines ${chunk.modifiedStart}–${chunk.modifiedEnd}) Right ⇦ Left`);
-      setTimeout(() => setCopiedNotification(null), 2500);
-      onUpdateStatus(`Copied diff paragraph (lines ${chunk.modifiedStart}–${chunk.modifiedEnd}) Right ⇦ Left`);
+      onUpdateStatus(`Copied diff lines ${chunk.modifiedStart}–${chunk.modifiedEnd || chunk.modifiedStart} Right ⇦ Left`);
+    } else if (activeSelection && activeSelection.side === 'right') {
+      const text = activeSelection.text;
+      const targetLine = Math.min(activeSelection.startLine, origModel.getLineCount());
+      const targetEnd = Math.min(activeSelection.endLine, origModel.getLineCount());
+      const range = {
+        startLineNumber: targetLine,
+        startColumn: 1,
+        endLineNumber: targetEnd,
+        endColumn: origModel.getLineMaxColumn(targetEnd),
+      };
+      origModel.pushEditOperations([], [{ range, text }], () => null);
+      outRange.startLine = targetLine;
+      outRange.endLine = targetEnd;
+      setLeftEditorContent(origModel.getValue());
+      setLeftDirty(true);
+      setLastModifiedSide('left');
+      setActiveFocusSide('left');
+      flashCopiedHighlight('left', outRange.startLine, outRange.endLine);
+      onUpdateStatus(`Copied selected lines ${activeSelection.startLine}–${activeSelection.endLine} Right ⇦ Left`);
     }
   };
 
@@ -830,8 +903,6 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
 
     if (textToCopy) {
       navigator.clipboard.writeText(textToCopy);
-      setCopiedNotification('Diff text copied to clipboard!');
-      setTimeout(() => setCopiedNotification(null), 2500);
       onUpdateStatus('Diff text copied to system clipboard');
     }
   };
@@ -1418,13 +1489,6 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         </div>
       )}
 
-      {/* Copy Toast Notification */}
-      {copiedNotification && (
-        <div className="bg-emerald-500 text-white px-3 py-1 text-xs font-semibold flex items-center justify-center space-x-1.5 shadow-md">
-          <Check className="w-3.5 h-3.5" />
-          <span>{copiedNotification}</span>
-        </div>
-      )}
 
       {/* Warnings & Errors */}
       {diffStats.whitespaceDifferenceOnly && options.ignoreWhitespace !== 'none' && (
@@ -1456,12 +1520,19 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
               rightEditorContent.split('\n').length
             )}
             currentLine={cursorLineNumber || 1}
+            onScrollToChunk={handleJumpToChunk}
             onScrollToLine={(line) => {
               if (diffEditorRef.current) {
                 try {
-                  diffEditorRef.current.getOriginalEditor().revealLineInCenter(line);
-                  diffEditorRef.current.getModifiedEditor().revealLineInCenter(line);
-                  updateLineDetails(line);
+                  const chunk = findClosestChunk(diffChunks, line, activeFocusSide);
+                  if (chunk) {
+                    handleJumpToChunk(chunk);
+                  } else {
+                    const orig = diffEditorRef.current.getOriginalEditor();
+                    orig.revealLineInCenter(line);
+                    orig.setPosition({ lineNumber: line, column: 1 });
+                    updateLineDetails(line);
+                  }
                 } catch {
                   // non-fatal
                 }
@@ -1559,11 +1630,13 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
                     'editorGutter.background': '#f6f6f6',
                     'editorLineNumber.foreground': '#717171',
                     'editorLineNumber.activeForeground': '#000000',
-                    'diffEditor.insertedTextBackground': '#bbf7d0',
+                    'diffEditor.insertedTextBackground': '#86efac',
                     'diffEditor.removedTextBackground': '#fca5a5',
-                    'diffEditor.insertedLineBackground': '#f0fdf4',
-                    'diffEditor.removedLineBackground': '#fde8e8',
-                    'diffEditor.diagonalFill': '#e5e5e5',
+                    'diffEditor.insertedLineBackground': '#dcfce788',
+                    'diffEditor.removedLineBackground': '#fee2e288',
+                    'diffEditor.diagonalFill': '#cbd5e1',
+                    'diffEditorGutter.insertedLineBackground': '#22c55e',
+                    'diffEditorGutter.removedLineBackground': '#ef4444',
                   },
                 });
 
@@ -1578,11 +1651,13 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
                     'editorGutter.background': '#050505',
                     'editorLineNumber.foreground': '#666666',
                     'editorLineNumber.activeForeground': '#ffffff',
-                    'diffEditor.insertedTextBackground': '#14532d88',
-                    'diffEditor.removedTextBackground': '#7f1d1d88',
-                    'diffEditor.insertedLineBackground': '#14532d30',
-                    'diffEditor.removedLineBackground': '#7f1d1d30',
-                    'diffEditor.diagonalFill': '#1a1a1a',
+                    'diffEditor.insertedTextBackground': 'rgba(34, 197, 94, 0.65)',
+                    'diffEditor.removedTextBackground': 'rgba(239, 68, 68, 0.70)',
+                    'diffEditor.insertedLineBackground': 'rgba(34, 197, 94, 0.28)',
+                    'diffEditor.removedLineBackground': 'rgba(239, 68, 68, 0.32)',
+                    'diffEditor.diagonalFill': '#1e293b',
+                    'diffEditorGutter.insertedLineBackground': '#4ade80',
+                    'diffEditorGutter.removedLineBackground': '#f87171',
                   },
                 });
               }}
@@ -1602,7 +1677,11 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
                 diffWordWrap: 'on',
                 glyphMargin: true,
                 stickyScroll: { enabled: false },
-                ...(activeFilter === 'diffs' ? ({ hideUnchangedRegions: { enabled: true } } as any) : {}),
+                maxComputationTime: 0,
+                diffAlgorithm: 'advanced',
+                renderIndicators: true,
+                renderMarginRevertIcon: false,
+                ...(activeFilter === 'diffs' ? ({ hideUnchangedRegions: { enabled: true, contextLineCount: 1, minimumLineCount: 2 } } as any) : {}),
               } as any}
             />
           )}

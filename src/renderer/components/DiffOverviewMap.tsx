@@ -6,6 +6,7 @@ interface DiffOverviewMapProps {
   totalLines: number;
   currentLine?: number;
   onScrollToLine: (line: number) => void;
+  onScrollToChunk?: (chunk: DiffChunk) => void;
   theme?: 'dark' | 'light';
 }
 
@@ -14,6 +15,7 @@ export const DiffOverviewMap: React.FC<DiffOverviewMapProps> = ({
   totalLines,
   currentLine = 1,
   onScrollToLine,
+  onScrollToChunk,
   theme: _theme = 'light',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -23,6 +25,32 @@ export const DiffOverviewMap: React.FC<DiffOverviewMapProps> = ({
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const clickY = e.clientY - rect.top;
+
+    // Check if clicked near an existing chunk (within 24px)
+    let bestChunk: DiffChunk | null = null;
+    let minDistance = Infinity;
+
+    for (const chunk of chunks) {
+      const start = chunk.originalStart > 0 ? chunk.originalStart : chunk.modifiedStart;
+      const chunkFraction = (start - 1) / safeTotalLines;
+      const chunkY = chunkFraction * rect.height;
+      const dist = Math.abs(clickY - chunkY);
+      if (dist < minDistance) {
+        minDistance = dist;
+        bestChunk = chunk;
+      }
+    }
+
+    if (bestChunk && minDistance <= 24) {
+      if (onScrollToChunk) {
+        onScrollToChunk(bestChunk);
+        return;
+      }
+      const line = bestChunk.originalStart > 0 ? bestChunk.originalStart : bestChunk.modifiedStart;
+      onScrollToLine(line);
+      return;
+    }
+
     const fraction = Math.max(0, Math.min(1, clickY / rect.height));
     const targetLine = Math.max(1, Math.round(fraction * safeTotalLines));
     onScrollToLine(targetLine);
@@ -36,7 +64,7 @@ export const DiffOverviewMap: React.FC<DiffOverviewMapProps> = ({
     <div
       ref={containerRef}
       onClick={handleClick}
-      title="Comparison Overview Map • Click to jump"
+      title="Comparison Overview Map • Click marker to jump directly to difference"
       className="w-4 h-full bg-[#f4f4f4] dark:bg-[#121212] border-r border-[#d4d4d4] dark:border-neutral-800 flex-shrink-0 relative select-none cursor-pointer overflow-hidden shadow-inner"
     >
       {/* Background outline hash grid */}
@@ -49,17 +77,25 @@ export const DiffOverviewMap: React.FC<DiffOverviewMapProps> = ({
         const count = Math.max(1, end - start + 1);
 
         const top = Math.max(0, Math.min(99, ((start - 1) / safeTotalLines) * 100));
-        const height = Math.max(1.8, (count / safeTotalLines) * 100);
+        const height = Math.max(2.2, (count / safeTotalLines) * 100);
 
         return (
           <div
             key={chunk.id}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onScrollToChunk) {
+                onScrollToChunk(chunk);
+              } else {
+                onScrollToLine(start);
+              }
+            }}
             style={{
               top: `${top}%`,
               height: `${height}%`,
             }}
-            className="absolute left-0.5 right-0.5 bg-red-500 dark:bg-red-600 rounded-[1px] shadow-xs"
-            title={`Diff: lines ${start}–${end}`}
+            className="absolute left-0.5 right-0.5 bg-red-500 hover:bg-red-400 dark:bg-red-600 dark:hover:bg-red-500 rounded-[1px] shadow-xs cursor-pointer transition-colors"
+            title={`Diff: lines ${start}–${end} (Click to jump)`}
           />
         );
       })}

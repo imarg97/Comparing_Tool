@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   normalizeLineChanges,
   findChunkAtLine,
+  findClosestChunk,
   executeChunkCopyL2R,
   executeChunkCopyR2L,
   spliceLines,
@@ -26,7 +27,7 @@ describe('Diff Copy Engine', () => {
     expect(chunks[0].modifiedEnd).toBe(0);
   });
 
-  it('finds the chunk enclosing a line number', () => {
+  it('finds the chunk enclosing a line number or sitting at a gap', () => {
     const chunks: DiffChunk[] = [
       {
         id: '1',
@@ -50,7 +51,35 @@ describe('Diff Copy Engine', () => {
     expect(findChunkAtLine(chunks, 73, 'left')).toBeNull();
     expect(findChunkAtLine(chunks, 88, 'left')).toBeNull();
 
+    // Right side gap lookup at line 74 and 75
+    expect(findChunkAtLine(chunks, 74, 'right')?.id).toBe('1');
+    expect(findChunkAtLine(chunks, 75, 'right')?.id).toBe('1');
+
     expect(findChunkAtLine(chunks, 96, 'right')?.id).toBe('2');
+  });
+
+  it('finds the closest chunk when clicking near a diff', () => {
+    const chunks: DiffChunk[] = [
+      {
+        id: 'chunk_1',
+        originalStart: 10,
+        originalEnd: 12,
+        modifiedStart: 10,
+        modifiedEnd: 12,
+      },
+      {
+        id: 'chunk_2',
+        originalStart: 2981,
+        originalEnd: 2985,
+        modifiedStart: 2980,
+        modifiedEnd: 0,
+      },
+    ];
+
+    expect(findClosestChunk(chunks, 2980, 'left')?.id).toBe('chunk_2');
+    expect(findClosestChunk(chunks, 2983, 'left')?.id).toBe('chunk_2');
+    expect(findClosestChunk(chunks, 2988, 'left')?.id).toBe('chunk_2');
+    expect(findClosestChunk(chunks, 11, 'left')?.id).toBe('chunk_1');
   });
 
   it('executes chunk copy L2R using mock models', () => {

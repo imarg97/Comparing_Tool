@@ -33,19 +33,57 @@ export function findChunkAtLine(
 
   for (const c of chunks) {
     if (side === 'left') {
-      const end = c.originalEnd >= c.originalStart ? c.originalEnd : c.originalStart;
-      if (line >= c.originalStart && line <= end) {
+      const hasContent = c.originalStart > 0 && c.originalEnd >= c.originalStart;
+      if (hasContent && line >= c.originalStart && line <= c.originalEnd) {
+        return c;
+      }
+      if (!hasContent && (line === c.originalStart || line === c.originalStart + 1)) {
         return c;
       }
     } else {
-      const end = c.modifiedEnd >= c.modifiedStart ? c.modifiedEnd : c.modifiedStart;
-      if (line >= c.modifiedStart && line <= end) {
+      const hasContent = c.modifiedStart > 0 && c.modifiedEnd >= c.modifiedStart;
+      if (hasContent && line >= c.modifiedStart && line <= c.modifiedEnd) {
+        return c;
+      }
+      if (!hasContent && (line === c.modifiedStart || line === c.modifiedStart + 1)) {
         return c;
       }
     }
   }
 
   return null;
+}
+
+/**
+ * Finds the closest diff chunk to a given line number (used for snapping click or jump)
+ */
+export function findClosestChunk(
+  chunks: DiffChunk[],
+  line: number,
+  side: 'left' | 'right'
+): DiffChunk | null {
+  if (!chunks.length) return null;
+  const direct = findChunkAtLine(chunks, line, side);
+  if (direct) return direct;
+
+  let closest: DiffChunk | null = null;
+  let minDistance = Infinity;
+
+  for (const c of chunks) {
+    let targetStart = 0;
+    if (side === 'left') {
+      targetStart = c.originalStart > 0 ? c.originalStart : c.modifiedStart;
+    } else {
+      targetStart = c.modifiedStart > 0 ? c.modifiedStart : c.originalStart;
+    }
+    const dist = Math.abs(line - targetStart);
+    if (dist < minDistance) {
+      minDistance = dist;
+      closest = c;
+    }
+  }
+
+  return closest;
 }
 
 /**

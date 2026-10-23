@@ -55,74 +55,107 @@
 }
 
 /* =========================================================================
-   Soft Diff Highlighting (Prevents jarring patchy red blocks or white tag gaps)
+   High-Contrast & High-Visibility Diff Highlighting (Beyond Compare Standard)
    ========================================================================= */
 
-/* Light Mode: Uniform pleasant tint across entire changed lines */
+/* Light Mode: Clearly visible tinted backgrounds for changed lines and tokens */
 .monaco-diff-editor .line-delete,
+.monaco-diff-editor .ced-line-delete,
 .monaco-diff-editor .diff-line-delete {
-  background-color: #fde8e8 !important; /* Soft rose / pink tint across whole line */
+  background-color: #fee2e2 !important; /* Clearly visible rose-pink tint across entire line */
+  border-left: 3px solid #ef4444 !important;
 }
-.monaco-diff-editor .char-delete {
-  background-color: #fca5a5 !important; /* Pastel red for changed words */
-  color: #991b1b !important;            /* High-contrast dark red text */
-  font-weight: 600 !important;
+.monaco-diff-editor .char-delete,
+.monaco-diff-editor .ced-char-delete {
+  background-color: #fca5a5 !important; /* Prominent red for changed words */
+  color: #7f1d1d !important;            /* High-contrast deep red text */
+  font-weight: 700 !important;
+  border: 1px solid #ef4444 !important;
   border-radius: 2px;
 }
 .monaco-diff-editor .line-insert,
+.monaco-diff-editor .ced-line-insert,
 .monaco-diff-editor .diff-line-insert {
-  background-color: #f0fdf4 !important; /* Soft mint green across whole line */
+  background-color: #dcfce7 !important; /* Clearly visible mint-green tint across entire line */
+  border-left: 3px solid #22c55e !important;
 }
-.monaco-diff-editor .char-insert {
-  background-color: #bbf7d0 !important;
-  color: #166534 !important;
-  font-weight: 600 !important;
+.monaco-diff-editor .char-insert,
+.monaco-diff-editor .ced-char-insert {
+  background-color: #86efac !important;
+  color: #14532d !important;            /* High-contrast deep green text */
+  font-weight: 700 !important;
+  border: 1px solid #22c55e !important;
   border-radius: 2px;
 }
-
-/* Dark Mode: Subtle wine/crimson tint on pitch black (No neon red glare) */
-.dark .monaco-diff-editor .line-delete,
-.dark .monaco-diff-editor .diff-line-delete {
-  background-color: rgba(220, 38, 38, 0.18) !important; /* Subtle dark red across whole line */
+.monaco-diff-editor .diagonal-fill,
+.monaco-diff-editor .ced-diagonal-fill {
+  background-color: #e2e8f0 !important;
 }
-.dark .monaco-diff-editor .char-delete {
-  background-color: rgba(239, 68, 68, 0.35) !important;
-  color: #fca5a5 !important;                           /* Crisp readable light red text */
-  font-weight: 600 !important;
+
+/* Dark Mode: Vibrant, clearly visible ruby & emerald diff highlights on pitch black */
+.dark .monaco-diff-editor .line-delete,
+.dark .monaco-diff-editor .ced-line-delete,
+.dark .monaco-diff-editor .diff-line-delete {
+  background-color: rgba(220, 38, 38, 0.32) !important; /* Visible deep red wash across line */
+  border-left: 3px solid #f87171 !important;
+}
+.dark .monaco-diff-editor .char-delete,
+.dark .monaco-diff-editor .ced-char-delete {
+  background-color: rgba(239, 68, 68, 0.65) !important;
+  color: #ffffff !important;                            /* Crisp white text over dark red */
+  font-weight: 700 !important;
+  border: 1px solid #f87171 !important;
   border-radius: 2px;
 }
 .dark .monaco-diff-editor .line-insert,
+.dark .monaco-diff-editor .ced-line-insert,
 .dark .monaco-diff-editor .diff-line-insert {
-  background-color: rgba(34, 197, 94, 0.15) !important;
+  background-color: rgba(34, 197, 94, 0.28) !important; /* Visible deep emerald wash across line */
+  border-left: 3px solid #4ade80 !important;
 }
-.dark .monaco-diff-editor .char-insert {
-  background-color: rgba(34, 197, 94, 0.35) !important;
-  color: #86efac !important;
-  font-weight: 600 !important;
+.dark .monaco-diff-editor .char-insert,
+.dark .monaco-diff-editor .ced-char-insert {
+  background-color: rgba(34, 197, 94, 0.60) !important;
+  color: #ffffff !important;                            /* Crisp white text over emerald */
+  font-weight: 700 !important;
+  border: 1px solid #4ade80 !important;
   border-radius: 2px;
 }
-
-/* Copied Difference Highlight Animation */
-.diffx-copied-highlight {
-  background-color: rgba(59, 130, 246, 0.25) !important;
-  outline: 2px solid #3b82f6 !important;
-  outline-offset: -2px;
-  border-radius: 2px;
-  animation: diffx-pulse-fade 2.5s ease-out forwards;
+.dark .monaco-diff-editor .diagonal-fill,
+.dark .monaco-diff-editor .ced-diagonal-fill {
+  background-color: #1e293b !important;
 }
 
-@keyframes diffx-pulse-fade {
+/* Copied Difference Highlight Animation (Beyond Compare Smooth Flash) */
+.diffx-copied-highlight-line {
+  background-color: rgba(59, 130, 246, 0.40) !important;
+  border-top: 1px solid #3b82f6 !important;
+  border-bottom: 1px solid #3b82f6 !important;
+  animation: diffx-copy-pulse 1.8s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+}
+
+.dark .diffx-copied-highlight-line {
+  background-color: rgba(59, 130, 246, 0.50) !important;
+  border-top: 1px solid #60a5fa !important;
+  border-bottom: 1px solid #60a5fa !important;
+  animation: diffx-copy-pulse 1.8s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+}
+
+.diffx-copied-highlight-gutter {
+  background-color: #2563eb !important;
+}
+
+@keyframes diffx-copy-pulse {
   0% {
-    background-color: rgba(59, 130, 246, 0.45);
-    outline-color: #2563eb;
+    background-color: rgba(59, 130, 246, 0.70);
+    box-shadow: inset 0 0 8px rgba(59, 130, 246, 0.6);
   }
-  70% {
-    background-color: rgba(59, 130, 246, 0.20);
-    outline-color: rgba(37, 99, 235, 0.6);
+  30% {
+    background-color: rgba(59, 130, 246, 0.35);
   }
   100% {
     background-color: transparent;
-    outline-color: transparent;
+    border-color: transparent;
   }
 }
 
