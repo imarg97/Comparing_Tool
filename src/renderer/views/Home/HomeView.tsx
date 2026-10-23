@@ -282,7 +282,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 DIFFX SUITE v1.2
               </div>
               <div className="text-[11px] text-red-100 leading-tight">
-                Designed for engineering teams who need Beyond Compare workflows anywhere.
+                Designed for high-performance file, folder, and configuration comparison.
               </div>
             </div>
           </div>

@@ -56,7 +56,7 @@ export const LineDetailInspector: React.FC<LineDetailInspectorProps> = ({
       {/* Top Header Label */}
       <div className="h-4 bg-[#eaeaea] dark:bg-[#121212] px-2 flex items-center justify-between text-[10px] text-neutral-600 dark:text-neutral-400 border-b border-[#d8d8d8] dark:border-neutral-800 select-none">
         <span className="font-sans font-semibold uppercase tracking-wider text-[9px]">
-          Beyond Compare • Line Details
+          Line Inspection
         </span>
         <span className="text-[10px]">
           {hasDifference ? (

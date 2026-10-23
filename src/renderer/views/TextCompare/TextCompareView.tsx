@@ -33,6 +33,7 @@ import {
 } from '@shared/comparison-engine/diff-copy.js';
 import { ConfirmModalConfig } from '../../components/ConfirmModal.js';
 import { LineDetailInspector } from '../../components/LineDetailInspector.js';
+import { DiffOverviewMap } from '../../components/DiffOverviewMap.js';
 
 interface TextCompareViewProps {
   leftPath: string;
@@ -157,6 +158,52 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
   } | null>(null);
 
   const [copiedNotification, setCopiedNotification] = useState<string | null>(null);
+
+  // Drag and drop states
+  const [isDraggingLeft, setIsDraggingLeft] = useState(false);
+  const [isDraggingRight, setIsDraggingRight] = useState(false);
+
+  const extractDroppedPath = (e: React.DragEvent): string | null => {
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      return (file as any).path || file.name || null;
+    }
+    return null;
+  };
+
+  const handleDropLeft = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingLeft(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length >= 2) {
+      const p1 = (e.dataTransfer.files[0] as any).path || e.dataTransfer.files[0].name;
+      const p2 = (e.dataTransfer.files[1] as any).path || e.dataTransfer.files[1].name;
+      if (p1) onSetLeftPath(p1);
+      if (p2) onSetRightPath(p2);
+      return;
+    }
+
+    const p = extractDroppedPath(e);
+    if (p) onSetLeftPath(p);
+  };
+
+  const handleDropRight = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingRight(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length >= 2) {
+      const p1 = (e.dataTransfer.files[0] as any).path || e.dataTransfer.files[0].name;
+      const p2 = (e.dataTransfer.files[1] as any).path || e.dataTransfer.files[1].name;
+      if (p1) onSetLeftPath(p1);
+      if (p2) onSetRightPath(p2);
+      return;
+    }
+
+    const p = extractDroppedPath(e);
+    if (p) onSetRightPath(p);
+  };
 
   // Monaco references
   const diffEditorRef = useRef<any>(null);
@@ -429,6 +476,8 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             executeChunkCopyL2R(origEditor.getModel(), modEditor.getModel(), chunk);
             setRightEditorContent(modEditor.getValue());
             setRightDirty(true);
+            setCopiedNotification(`Copied chunk lines ${chunk.originalStart}–${chunk.originalEnd} Left ⇨ Right`);
+            setTimeout(() => setCopiedNotification(null), 2500);
             onUpdateStatus(`Copied diff paragraph (lines ${chunk.originalStart}–${chunk.originalEnd}) Left ⇨ Right`);
           }
         } else {
@@ -448,11 +497,27 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             executeChunkCopyR2L(origEditor.getModel(), modEditor.getModel(), chunk);
             setLeftEditorContent(origEditor.getValue());
             setLeftDirty(true);
+            setCopiedNotification(`Copied chunk lines ${chunk.modifiedStart}–${chunk.modifiedEnd} Right ⇦ Left`);
+            setTimeout(() => setCopiedNotification(null), 2500);
             onUpdateStatus(`Copied diff paragraph (lines ${chunk.modifiedStart}–${chunk.modifiedEnd}) Right ⇦ Left`);
           }
         } else {
           const chunk = findChunkAtLine(chunksRef.current, line, 'right');
           setActiveDiffChunk(chunk);
+        }
+      });
+
+      // Synchronize scroll with far-left overview map
+      origEditor.onDidScrollChange(() => {
+        const ranges = origEditor.getVisibleRanges();
+        if (ranges && ranges.length > 0) {
+          setCursorLineNumber(ranges[0].startLineNumber);
+        }
+      });
+      modEditor.onDidScrollChange(() => {
+        const ranges = modEditor.getVisibleRanges();
+        if (ranges && ranges.length > 0) {
+          setCursorLineNumber(ranges[0].startLineNumber);
         }
       });
 
@@ -496,16 +561,23 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     // If active user line selection exists on left
     if (activeSelection && activeSelection.side === 'left') {
       const text = activeSelection.text;
-      const targetLine = Math.min(activeSelection.startLine, modModel.getLineCount());
-      const range = {
-        startLineNumber: targetLine,
-        startColumn: 1,
-        endLineNumber: Math.min(activeSelection.endLine, modModel.getLineCount()),
-        endColumn: modModel.getLineMaxColumn(Math.min(activeSelection.endLine, modModel.getLineCount())),
-      };
-      modModel.pushEditOperations([], [{ range, text }], () => null);
+      const chunk = findChunkAtLine(chunksRef.current, activeSelection.startLine, 'left');
+      if (chunk) {
+        executeChunkCopyL2R(origModel, modModel, chunk);
+      } else {
+        const targetLine = Math.min(activeSelection.startLine, modModel.getLineCount());
+        const range = {
+          startLineNumber: targetLine,
+          startColumn: 1,
+          endLineNumber: Math.min(activeSelection.endLine, modModel.getLineCount()),
+          endColumn: modModel.getLineMaxColumn(Math.min(activeSelection.endLine, modModel.getLineCount())),
+        };
+        modModel.pushEditOperations([], [{ range, text }], () => null);
+      }
       setRightEditorContent(modModel.getValue());
       setRightDirty(true);
+      setCopiedNotification(`Copied lines ${activeSelection.startLine}–${activeSelection.endLine} Left ⇨ Right`);
+      setTimeout(() => setCopiedNotification(null), 2500);
       onUpdateStatus(`Copied lines ${activeSelection.startLine}–${activeSelection.endLine} Left ⇨ Right`);
       return;
     }
@@ -516,6 +588,8 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       executeChunkCopyL2R(origModel, modModel, chunk);
       setRightEditorContent(modModel.getValue());
       setRightDirty(true);
+      setCopiedNotification(`Copied diff paragraph (lines ${chunk.originalStart}–${chunk.originalEnd}) Left ⇨ Right`);
+      setTimeout(() => setCopiedNotification(null), 2500);
       onUpdateStatus(`Copied diff paragraph (lines ${chunk.originalStart}–${chunk.originalEnd}) Left ⇨ Right`);
     }
   };
@@ -531,16 +605,23 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
 
     if (activeSelection && activeSelection.side === 'right') {
       const text = activeSelection.text;
-      const targetLine = Math.min(activeSelection.startLine, origModel.getLineCount());
-      const range = {
-        startLineNumber: targetLine,
-        startColumn: 1,
-        endLineNumber: Math.min(activeSelection.endLine, origModel.getLineCount()),
-        endColumn: origModel.getLineMaxColumn(Math.min(activeSelection.endLine, origModel.getLineCount())),
-      };
-      origModel.pushEditOperations([], [{ range, text }], () => null);
+      const chunk = findChunkAtLine(chunksRef.current, activeSelection.startLine, 'right');
+      if (chunk) {
+        executeChunkCopyR2L(origModel, modModel, chunk);
+      } else {
+        const targetLine = Math.min(activeSelection.startLine, origModel.getLineCount());
+        const range = {
+          startLineNumber: targetLine,
+          startColumn: 1,
+          endLineNumber: Math.min(activeSelection.endLine, origModel.getLineCount()),
+          endColumn: origModel.getLineMaxColumn(Math.min(activeSelection.endLine, origModel.getLineCount())),
+        };
+        origModel.pushEditOperations([], [{ range, text }], () => null);
+      }
       setLeftEditorContent(origModel.getValue());
       setLeftDirty(true);
+      setCopiedNotification(`Copied lines ${activeSelection.startLine}–${activeSelection.endLine} Right ⇦ Left`);
+      setTimeout(() => setCopiedNotification(null), 2500);
       onUpdateStatus(`Copied lines ${activeSelection.startLine}–${activeSelection.endLine} Right ⇦ Left`);
       return;
     }
@@ -550,6 +631,8 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       executeChunkCopyR2L(origModel, modModel, chunk);
       setLeftEditorContent(origModel.getValue());
       setLeftDirty(true);
+      setCopiedNotification(`Copied diff paragraph (lines ${chunk.modifiedStart}–${chunk.modifiedEnd}) Right ⇦ Left`);
+      setTimeout(() => setCopiedNotification(null), 2500);
       onUpdateStatus(`Copied diff paragraph (lines ${chunk.modifiedStart}–${chunk.modifiedEnd}) Right ⇦ Left`);
     }
   };
@@ -903,10 +986,25 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
 
       {/* ================= 2. Beyond Compare Dual Address Header (Strict 50/50 Split) ================= */}
       <div className="bg-[#f6f6f6] dark:bg-[#0c0c0c] border-b border-[#d0d0d0] dark:border-neutral-800 p-1 flex items-center space-x-1.5 flex-shrink-0 w-full max-w-full overflow-hidden">
-        {/* Left Address Box with yellow folder browse button [📂] (Image 3) */}
+        {/* Left Address Box (supports drag & drop) */}
         <div
-          className="flex-1 min-w-0 flex items-center bg-white dark:bg-black border border-blue-400 dark:border-blue-900/70 rounded px-1.5 py-0.5 shadow-xs focus-within:ring-1 focus-within:ring-blue-500"
-          title={leftPath || 'Left file'}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDraggingLeft(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDraggingLeft(false);
+          }}
+          onDrop={handleDropLeft}
+          className={`flex-1 min-w-0 flex items-center bg-white dark:bg-black border ${
+            isDraggingLeft
+              ? 'border-blue-500 ring-2 ring-blue-500/50 bg-blue-50/20'
+              : 'border-blue-400 dark:border-blue-900/70'
+          } rounded px-1.5 py-0.5 shadow-xs focus-within:ring-1 focus-within:ring-blue-500 transition`}
+          title={leftPath || 'Left file (drop file here)'}
         >
           <span className="w-4 h-4 rounded bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center flex-shrink-0 shadow-xs mr-1.5">
             L
@@ -916,7 +1014,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             type="text"
             value={leftPath}
             onChange={(e) => onSetLeftPath(e.target.value)}
-            placeholder="Left file path..."
+            placeholder="Left file path (or drag & drop file here)..."
             className="bg-transparent text-[11px] w-full min-w-0 focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 truncate"
             title={leftPath || 'Left file path'}
           />
@@ -940,10 +1038,25 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
           <ArrowLeftRight className="w-3.5 h-3.5" />
         </button>
 
-        {/* Right Address Box with yellow folder browse button [📂] (Image 3) */}
+        {/* Right Address Box (supports drag & drop) */}
         <div
-          className="flex-1 min-w-0 flex items-center bg-white dark:bg-black border border-purple-400 dark:border-purple-900/70 rounded px-1.5 py-0.5 shadow-xs focus-within:ring-1 focus-within:ring-purple-500"
-          title={rightPath || 'Right file'}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDraggingRight(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDraggingRight(false);
+          }}
+          onDrop={handleDropRight}
+          className={`flex-1 min-w-0 flex items-center bg-white dark:bg-black border ${
+            isDraggingRight
+              ? 'border-purple-500 ring-2 ring-purple-500/50 bg-purple-50/20'
+              : 'border-purple-400 dark:border-purple-900/70'
+          } rounded px-1.5 py-0.5 shadow-xs focus-within:ring-1 focus-within:ring-purple-500 transition`}
+          title={rightPath || 'Right file (drop file here)'}
         >
           <span className="w-4 h-4 rounded bg-purple-600 text-white font-bold text-[10px] flex items-center justify-center flex-shrink-0 shadow-xs mr-1.5">
             R
@@ -953,7 +1066,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             type="text"
             value={rightPath}
             onChange={(e) => onSetRightPath(e.target.value)}
-            placeholder="Right file path..."
+            placeholder="Right file path (or drag & drop file here)..."
             className="bg-transparent text-[11px] w-full min-w-0 focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 truncate"
             title={rightPath || 'Right file path'}
           />
@@ -1095,86 +1208,112 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         </div>
       )}
 
-      {/* ================= 5. Monaco Diff Editor Canvas (Exact Beyond Compare Colors) ================= */}
-      <div className="flex-1 relative min-h-0 bg-white dark:bg-black w-full overflow-hidden">
-        {!leftPath && !rightPath ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-600 bg-white dark:bg-black p-8 text-center select-none">
-            <FileCheck2 className="w-12 h-12 mb-3 stroke-[1.2] text-blue-500" />
-            <h4 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-              No Files Loaded in Text Compare
-            </h4>
-            <p className="text-xs max-w-sm text-neutral-500 mb-4">
-              Click <strong>Browse</strong> above or double-click any file in Folder Compare to start comparing.
-            </p>
-          </div>
-        ) : (
-          <DiffEditor
-            height="100%"
-            language={language}
-            original={leftEditorContent}
-            modified={rightEditorContent}
-            theme={theme === 'dark' ? 'beyond-compare-dark' : 'beyond-compare-light'}
-            beforeMount={(monaco) => {
-              // Beyond Compare crisp light theme (soft, readable, pleasant diff background)
-              monaco.editor.defineTheme('beyond-compare-light', {
-                base: 'vs',
-                inherit: true,
-                rules: [
-                  { token: '', foreground: '000000' },
-                ],
-                colors: {
-                  'editor.background': '#ffffff',
-                  'editor.foreground': '#000000',
-                  'editorGutter.background': '#f6f6f6',
-                  'editorLineNumber.foreground': '#717171',
-                  'editorLineNumber.activeForeground': '#000000',
-                  'diffEditor.insertedTextBackground': '#dcfce7',
-                  'diffEditor.removedTextBackground': '#fde8e8',
-                  'diffEditor.insertedLineBackground': '#f0fdf4',
-                  'diffEditor.removedLineBackground': '#fff0f0',
-                  'diffEditor.diagonalFill': '#e5e5e5',
-                },
-              });
-
-              // Beyond Compare pitch black theme (dark subtle wine highlight, 100% readable text)
-              monaco.editor.defineTheme('beyond-compare-dark', {
-                base: 'vs-dark',
-                inherit: true,
-                rules: [],
-                colors: {
-                  'editor.background': '#000000',
-                  'editor.foreground': '#f3f4f6',
-                  'editorGutter.background': '#050505',
-                  'editorLineNumber.foreground': '#666666',
-                  'editorLineNumber.activeForeground': '#ffffff',
-                  'diffEditor.insertedTextBackground': '#14532d55',
-                  'diffEditor.removedTextBackground': '#7f1d1d44',
-                  'diffEditor.insertedLineBackground': '#14532d20',
-                  'diffEditor.removedLineBackground': '#7f1d1d20',
-                  'diffEditor.diagonalFill': '#222222',
-                },
-              });
+      {/* ================= 5. Monaco Diff Editor Canvas with Far-Left Overview Map ================= */}
+      <div className="flex-1 flex flex-row min-h-0 bg-white dark:bg-black w-full overflow-hidden">
+        {(leftPath || rightPath) && (
+          <DiffOverviewMap
+            chunks={diffChunks}
+            totalLines={Math.max(
+              1,
+              leftEditorContent.split('\n').length,
+              rightEditorContent.split('\n').length
+            )}
+            currentLine={cursorLineNumber || 1}
+            onScrollToLine={(line) => {
+              if (diffEditorRef.current) {
+                try {
+                  diffEditorRef.current.getOriginalEditor().revealLineInCenter(line);
+                  diffEditorRef.current.getModifiedEditor().revealLineInCenter(line);
+                  updateLineDetails(line);
+                } catch {
+                  // non-fatal
+                }
+              }
             }}
-            onMount={handleEditorDidMount}
-            options={{
-              renderSideBySide,
-              ignoreTrimWhitespace: options.ignoreWhitespace !== 'none',
-              readOnly: false,
-              originalEditable: true,
-              fontSize: 12,
-              fontFamily: "'Consolas', 'Courier New', 'SFMono-Regular', Menlo, Monaco, monospace",
-              minimap: { enabled: true },
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-              diffCodeLens: true,
-              renderOverviewRuler: true,
-              diffWordWrap: 'on',
-              glyphMargin: true,
-              stickyScroll: { enabled: false },
-              ...(activeFilter === 'diffs' ? ({ hideUnchangedRegions: { enabled: true } } as any) : {}),
-            } as any}
+            theme={theme}
           />
         )}
+
+        <div className="flex-1 relative h-full min-w-0 overflow-hidden">
+          {!leftPath && !rightPath ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-600 bg-white dark:bg-black p-8 text-center select-none">
+              <FileCheck2 className="w-12 h-12 mb-3 stroke-[1.2] text-blue-500" />
+              <h4 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                No Files Loaded in Text Compare
+              </h4>
+              <p className="text-xs max-w-sm text-neutral-500 mb-4">
+                Click <strong>Browse</strong> above, drag and drop files here, or double-click any file in Folder Compare to start comparing.
+              </p>
+            </div>
+          ) : (
+            <DiffEditor
+              height="100%"
+              language={language}
+              original={leftEditorContent}
+              modified={rightEditorContent}
+              theme={theme === 'dark' ? 'beyond-compare-dark' : 'beyond-compare-light'}
+              beforeMount={(monaco) => {
+                // Crisp light theme (soft, readable, pleasant diff background)
+                monaco.editor.defineTheme('beyond-compare-light', {
+                  base: 'vs',
+                  inherit: true,
+                  rules: [
+                    { token: '', foreground: '000000' },
+                  ],
+                  colors: {
+                    'editor.background': '#ffffff',
+                    'editor.foreground': '#000000',
+                    'editorGutter.background': '#f6f6f6',
+                    'editorLineNumber.foreground': '#717171',
+                    'editorLineNumber.activeForeground': '#000000',
+                    'diffEditor.insertedTextBackground': '#dcfce7',
+                    'diffEditor.removedTextBackground': '#fde8e8',
+                    'diffEditor.insertedLineBackground': '#f0fdf4',
+                    'diffEditor.removedLineBackground': '#fff0f0',
+                    'diffEditor.diagonalFill': '#e5e5e5',
+                  },
+                });
+
+                // Pitch black theme (dark subtle wine highlight, 100% readable text)
+                monaco.editor.defineTheme('beyond-compare-dark', {
+                  base: 'vs-dark',
+                  inherit: true,
+                  rules: [],
+                  colors: {
+                    'editor.background': '#000000',
+                    'editor.foreground': '#f3f4f6',
+                    'editorGutter.background': '#050505',
+                    'editorLineNumber.foreground': '#666666',
+                    'editorLineNumber.activeForeground': '#ffffff',
+                    'diffEditor.insertedTextBackground': '#14532d55',
+                    'diffEditor.removedTextBackground': '#7f1d1d44',
+                    'diffEditor.insertedLineBackground': '#14532d20',
+                    'diffEditor.removedLineBackground': '#7f1d1d20',
+                    'diffEditor.diagonalFill': '#222222',
+                  },
+                });
+              }}
+              onMount={handleEditorDidMount}
+              options={{
+                renderSideBySide,
+                ignoreTrimWhitespace: options.ignoreWhitespace !== 'none',
+                readOnly: false,
+                originalEditable: true,
+                fontSize: 12,
+                fontFamily: "'Consolas', 'Courier New', 'SFMono-Regular', Menlo, Monaco, monospace",
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                diffCodeLens: true,
+                renderOverviewRuler: false,
+                diffWordWrap: 'on',
+                glyphMargin: true,
+                stickyScroll: { enabled: false },
+                ...(activeFilter === 'diffs' ? ({ hideUnchangedRegions: { enabled: true } } as any) : {}),
+              } as any}
+            />
+          )}
+        </div>
       </div>
 
       {/* ================= 6. Beyond Compare Line Details Split Inspection Bar (Image 3) ================= */}

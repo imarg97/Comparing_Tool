@@ -4,6 +4,7 @@ import {
   findChunkAtLine,
   executeChunkCopyL2R,
   executeChunkCopyR2L,
+  spliceLines,
   DiffChunk,
 } from '../../src/shared/comparison-engine/diff-copy.js';
 
@@ -106,5 +107,21 @@ describe('Diff Copy Engine', () => {
     const res = executeChunkCopyR2L(mockOriginal, mockModified, chunk);
     expect(res).toBe(true);
     expect(pushedText).toBe('<diam_local_fqdn_port>right</diam_local_fqdn_port>');
+  });
+
+  describe('spliceLines direct string splicing', () => {
+    it('splices lines cleanly replacing matching line range', () => {
+      const left = 'line1\nline2\nline3\nline4';
+      const right = 'line1\nold2\nold3\nline4';
+      const res = spliceLines(left, right, 2, 3, 2, 3);
+      expect(res).toBe('line1\nline2\nline3\nline4');
+    });
+
+    it('inserts lines when target end is 0', () => {
+      const left = 'tagA\ntagB\ntagC';
+      const right = 'first\nlast';
+      const res = spliceLines(left, right, 1, 2, 2, 0);
+      expect(res).toBe('first\ntagA\ntagB\nlast');
+    });
   });
 });

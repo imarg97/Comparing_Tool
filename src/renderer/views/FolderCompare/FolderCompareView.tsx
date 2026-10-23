@@ -14,7 +14,6 @@ import {
   Search,
   Equal,
   ChevronLeft,
-  FolderTree,
   Home,
 } from 'lucide-react';
 import {
@@ -84,6 +83,52 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
   });
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [selectedEntry, setSelectedEntry] = useState<ComparisonEntry | null>(null);
+
+  // Drag and drop states
+  const [isDraggingLeft, setIsDraggingLeft] = useState(false);
+  const [isDraggingRight, setIsDraggingRight] = useState(false);
+
+  const extractDroppedPath = (e: React.DragEvent): string | null => {
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      return (file as any).path || file.name || null;
+    }
+    return null;
+  };
+
+  const handleDropLeft = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingLeft(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length >= 2) {
+      const p1 = (e.dataTransfer.files[0] as any).path || e.dataTransfer.files[0].name;
+      const p2 = (e.dataTransfer.files[1] as any).path || e.dataTransfer.files[1].name;
+      if (p1) onSetLeftFolder(p1);
+      if (p2) onSetRightFolder(p2);
+      return;
+    }
+
+    const p = extractDroppedPath(e);
+    if (p) onSetLeftFolder(p);
+  };
+
+  const handleDropRight = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingRight(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length >= 2) {
+      const p1 = (e.dataTransfer.files[0] as any).path || e.dataTransfer.files[0].name;
+      const p2 = (e.dataTransfer.files[1] as any).path || e.dataTransfer.files[1].name;
+      if (p1) onSetLeftFolder(p1);
+      if (p2) onSetRightFolder(p2);
+      return;
+    }
+
+    const p = extractDroppedPath(e);
+    if (p) onSetRightFolder(p);
+  };
 
   // Listen for scan progress from IPC
   useEffect(() => {
@@ -392,16 +437,16 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
             )}
           </div>
 
-          {/* ================= CENTER GUTTER (Comparison Status) ================= */}
-          <div className="w-10 h-full border-x border-neutral-300 dark:border-neutral-800 bg-neutral-50 dark:bg-black flex items-center justify-center flex-shrink-0 text-center font-bold text-xs">
+          {/* ================= CENTER GUTTER (Comparison Status - Bare Minimum Light Divider) ================= */}
+          <div className="w-6 h-full border-x border-[#e8e8e8] dark:border-neutral-800 bg-neutral-50/50 dark:bg-[#070707] flex items-center justify-center flex-shrink-0 text-center font-bold text-xs">
             {node.status === 'identical' && (
-              <span className="text-neutral-400 dark:text-neutral-600 font-sans" title="Identical contents">
+              <span className="text-neutral-400 dark:text-neutral-600 font-sans text-[11px]" title="Identical contents">
                 =
               </span>
             )}
             {node.status === 'modified' && (
               <span
-                className="w-full h-full flex items-center justify-center bg-red-500/10 text-red-600 dark:text-red-400 font-black text-sm"
+                className="w-full h-full flex items-center justify-center bg-red-500/10 text-red-600 dark:text-red-400 font-black text-xs"
                 title="Files differ in content"
               >
                 ≠
@@ -409,7 +454,7 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
             )}
             {node.status === 'left-only' && (
               <span
-                className="w-full h-full flex items-center justify-center bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                className="w-full h-full flex items-center justify-center bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs"
                 title="Orphan (exists on left only)"
               >
                 ←
@@ -417,14 +462,14 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
             )}
             {node.status === 'right-only' && (
               <span
-                className="w-full h-full flex items-center justify-center bg-purple-500/10 text-purple-600 dark:text-purple-400"
+                className="w-full h-full flex items-center justify-center bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs"
                 title="Orphan (exists on right only)"
               >
                 →
               </span>
             )}
             {node.status === 'error' && (
-              <span className="text-rose-500 font-black" title={node.left.error || node.right.error}>
+              <span className="text-rose-500 font-black text-xs" title={node.left.error || node.right.error}>
                 !
               </span>
             )}
@@ -501,10 +546,25 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
     <div className="flex-1 flex flex-col h-full bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 overflow-hidden font-sans">
       {/* 1. Iconic Beyond Compare Dual Address Bars (Strict 50/50 Split) */}
       <div className="bg-[#f6f6f6] dark:bg-[#0c0c0c] border-b border-[#d0d0d0] dark:border-neutral-800 p-1 flex items-center space-x-1.5 flex-shrink-0 w-full max-w-full overflow-hidden">
-        {/* Left Folder Address Box */}
+        {/* Left Folder Address Box (supports drag & drop) */}
         <div
-          className="flex-1 min-w-0 flex items-center bg-white dark:bg-black border border-blue-400 dark:border-blue-900/70 rounded px-1.5 py-0.5 shadow-xs focus-within:ring-1 focus-within:ring-blue-500"
-          title={leftFolder || 'Left directory'}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDraggingLeft(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDraggingLeft(false);
+          }}
+          onDrop={handleDropLeft}
+          className={`flex-1 min-w-0 flex items-center bg-white dark:bg-black border ${
+            isDraggingLeft
+              ? 'border-blue-500 ring-2 ring-blue-500/50 bg-blue-50/20'
+              : 'border-blue-400 dark:border-blue-900/70'
+          } rounded px-1.5 py-0.5 shadow-xs focus-within:ring-1 focus-within:ring-blue-500 transition`}
+          title={leftFolder || 'Left directory (drop folder here)'}
         >
           <span className="w-4 h-4 rounded bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center flex-shrink-0 shadow-xs mr-1">
             L
@@ -521,7 +581,7 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
             type="text"
             value={leftFolder}
             onChange={(e) => onSetLeftFolder(e.target.value)}
-            placeholder="Left directory path..."
+            placeholder="Left directory path (or drag & drop folder here)..."
             className="bg-transparent text-[11px] w-full min-w-0 focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 truncate"
             title={leftFolder || 'Left directory path'}
           />
@@ -557,10 +617,25 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
           </button>
         </div>
 
-        {/* Right Folder Address Box */}
+        {/* Right Folder Address Box (supports drag & drop) */}
         <div
-          className="flex-1 min-w-0 flex items-center bg-white dark:bg-black border border-purple-400 dark:border-purple-900/70 rounded px-1.5 py-0.5 shadow-xs focus-within:ring-1 focus-within:ring-purple-500"
-          title={rightFolder || 'Right directory'}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDraggingRight(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDraggingRight(false);
+          }}
+          onDrop={handleDropRight}
+          className={`flex-1 min-w-0 flex items-center bg-white dark:bg-black border ${
+            isDraggingRight
+              ? 'border-purple-500 ring-2 ring-purple-500/50 bg-purple-50/20'
+              : 'border-purple-400 dark:border-purple-900/70'
+          } rounded px-1.5 py-0.5 shadow-xs focus-within:ring-1 focus-within:ring-purple-500 transition`}
+          title={rightFolder || 'Right directory (drop folder here)'}
         >
           <span className="w-4 h-4 rounded bg-purple-600 text-white font-bold text-[10px] flex items-center justify-center flex-shrink-0 shadow-xs mr-1">
             R
@@ -577,7 +652,7 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
             type="text"
             value={rightFolder}
             onChange={(e) => onSetRightFolder(e.target.value)}
-            placeholder="Right directory path..."
+            placeholder="Right directory path (or drag & drop folder here)..."
             className="bg-transparent text-[11px] w-full min-w-0 focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 truncate"
             title={rightFolder || 'Right directory path'}
           />
@@ -804,9 +879,9 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
             </span>
           </div>
 
-          {/* Center Gutter Header */}
-          <div className="w-10 border-x border-neutral-300 dark:border-neutral-800 text-center text-[10px] text-neutral-400">
-            Diff
+          {/* Center Gutter Header - Bare Minimum Light Divider */}
+          <div className="w-6 border-x border-[#e8e8e8] dark:border-neutral-800 text-center text-[10px] text-neutral-400 select-none">
+            ≠
           </div>
 
           {/* Right Side Header */}
@@ -835,14 +910,77 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
         {/* Tree Rows Container */}
         <div className="flex-1 overflow-y-auto">
           {!result && !isScanning && (
-            <div className="h-full flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-600 p-8 text-center select-none">
-              <FolderTree className="w-12 h-12 mb-3 stroke-[1.2]" />
-              <h4 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                No Folder Comparison Loaded
-              </h4>
-              <p className="text-xs max-w-sm text-neutral-500 mb-4">
-                Select Left and Right directories above and click <strong>Compare</strong> to start.
-              </p>
+            <div className="h-full flex items-stretch select-none">
+              {/* Left Drop Target Zone */}
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingLeft(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingLeft(false);
+                }}
+                onDrop={handleDropLeft}
+                className={`flex-1 flex flex-col items-center justify-center p-8 text-center transition ${
+                  isDraggingLeft
+                    ? 'bg-blue-500/10 ring-2 ring-blue-500'
+                    : 'bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-950'
+                }`}
+              >
+                <FolderOpen className="w-10 h-10 mb-2 stroke-[1.2] text-blue-500" />
+                <h4 className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 mb-1">
+                  Left Directory
+                </h4>
+                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-3 max-w-[200px]">
+                  Drag & drop folder here or browse
+                </p>
+                <button
+                  onClick={handlePickLeft}
+                  className="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-medium shadow-xs transition"
+                >
+                  Browse Left Folder
+                </button>
+              </div>
+
+              {/* Bare Minimum Light Divider Line */}
+              <div className="w-px bg-[#e5e5e5] dark:bg-neutral-800 flex-shrink-0" />
+
+              {/* Right Drop Target Zone */}
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingRight(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingRight(false);
+                }}
+                onDrop={handleDropRight}
+                className={`flex-1 flex flex-col items-center justify-center p-8 text-center transition ${
+                  isDraggingRight
+                    ? 'bg-purple-500/10 ring-2 ring-purple-500'
+                    : 'bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-950'
+                }`}
+              >
+                <FolderOpen className="w-10 h-10 mb-2 stroke-[1.2] text-purple-500" />
+                <h4 className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 mb-1">
+                  Right Directory
+                </h4>
+                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-3 max-w-[200px]">
+                  Drag & drop folder here or browse
+                </p>
+                <button
+                  onClick={handlePickRight}
+                  className="px-2.5 py-1 rounded bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-medium shadow-xs transition"
+                >
+                  Browse Right Folder
+                </button>
+              </div>
             </div>
           )}
 

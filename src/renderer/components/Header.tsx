@@ -47,13 +47,13 @@ export const Header: React.FC<HeaderProps> = ({
     return () => window.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const tabs: { id: NavigationTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'folder', label: 'Folder Compare', icon: <FolderGit2 className="w-3.5 h-3.5" /> },
-    { id: 'text', label: 'Text Compare', icon: <FileCode2 className="w-3.5 h-3.5" /> },
-    { id: 'structured', label: 'Config & XML', icon: <Boxes className="w-3.5 h-3.5" /> },
-    { id: 'home', label: 'Sessions', icon: <Clock className="w-3.5 h-3.5" /> },
-    { id: 'settings', label: 'Preferences', icon: <Settings className="w-3.5 h-3.5" /> },
-  ];
+  const tabLabels: Record<NavigationTab, string> = {
+    folder: 'Folder Compare',
+    text: 'Text Compare',
+    structured: 'Config & XML',
+    home: 'Sessions',
+    settings: 'Preferences',
+  };
 
   const handleMenuClick = (menuName: string) => {
     setActiveMenu((prev) => (prev === menuName ? null : menuName));
@@ -73,15 +73,22 @@ export const Header: React.FC<HeaderProps> = ({
       >
         {/* Left: App Logo + Menu items */}
         <div className="flex items-center space-x-0.5">
-          {/* Logo badge */}
-          <div className="flex items-center space-x-1.5 mr-2 pl-1">
+          {/* Logo badge & session label */}
+          <button
+            onClick={() => onSelectTab('home')}
+            title="Open Sessions Launcher (Ctrl+4)"
+            className="flex items-center space-x-1.5 mr-2 pl-1 hover:opacity-80 transition cursor-pointer"
+          >
             <span className="w-3.5 h-3.5 rounded bg-blue-600 text-white font-bold text-[9px] flex items-center justify-center">
               DX
             </span>
             <span className="font-bold text-[11px] tracking-tight text-neutral-900 dark:text-neutral-100">
               DiffX
             </span>
-          </div>
+            <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-normal">
+              • {tabLabels[activeTab]}
+            </span>
+          </button>
 
           {/* Session Menu */}
           <div className="relative">
@@ -408,44 +415,20 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
                 <div className="my-1 border-t border-neutral-200 dark:border-neutral-800" />
                 <div className="px-3 py-1.5 text-[11px] text-neutral-500">
-                  DiffX Comparison Suite v1.2<br />
-                  Beyond Compare 5 Alignment
+                  DiffX Comparison Suite v1.4<br />
+                  High-Precision Comparison Engine
                 </div>
               </div>
             )}
           </div>
         </div>
-      </div>
-
-      {/* 2. Beyond Compare Session Tabs Row */}
-      <div className="h-9 px-2 flex items-end justify-between bg-[#f0f0f0] dark:bg-black pt-1">
-        {/* Navigation Tabs */}
-        <nav className="flex items-end space-x-1">
-          {tabs.map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => onSelectTab(tab.id)}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 text-xs rounded-t-md transition border-t border-l border-r ${
-                  isActive
-                    ? 'bg-white dark:bg-[#111111] text-blue-600 dark:text-blue-400 font-semibold border-[#c4c4c4] dark:border-neutral-700 -mb-px z-10 shadow-sm'
-                    : 'bg-[#e2e2e2] dark:bg-[#181818] text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 border-[#d0d0d0] dark:border-neutral-800'
-                }`}
-              >
-                {tab.icon}
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </nav>
 
         {/* Right Controls: Keyboard Shortcuts + Theme Toggle (Pitch Black / Light) */}
-        <div className="flex items-center space-x-2 pb-1.5">
+        <div className="flex items-center space-x-1.5">
           <button
             onClick={onOpenShortcuts}
             title="Keyboard Shortcuts (Cmd+/)"
-            className="p-1 rounded text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-900 transition"
+            className="p-1 rounded text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-800 transition"
           >
             <Keyboard className="w-3.5 h-3.5" />
           </button>
@@ -453,7 +436,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={onToggleTheme}
             title={`Switch to ${theme === 'dark' ? 'Light Mode' : 'Pitch Black'} mode`}
-            className="flex items-center space-x-1.5 px-2 py-0.5 rounded text-xs bg-neutral-200 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white transition shadow-sm"
+            className="flex items-center space-x-1.5 px-2 py-0.5 rounded text-xs bg-neutral-200 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white transition shadow-xs"
           >
             {theme === 'dark' ? (
               <>

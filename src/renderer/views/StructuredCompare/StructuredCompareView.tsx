@@ -40,6 +40,7 @@ import {
 } from '@shared/comparison-engine/diff-copy.js';
 import { ConfirmModalConfig } from '../../components/ConfirmModal.js';
 import { LineDetailInspector } from '../../components/LineDetailInspector.js';
+import { DiffOverviewMap } from '../../components/DiffOverviewMap.js';
 
 interface StructuredCompareViewProps {
   leftPath: string;
@@ -92,7 +93,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
   // Format & Options
   const [format, setFormat] = useState<StructuredFormat>('yaml');
   const [filterKubernetes, setFilterKubernetes] = useState(true);
-  const [ignoreKeysInput, setIgnoreKeysInput] = useState('metadata.resourceVersion, metadata.uid, status');
+  const [ignoreKeysInput, _setIgnoreKeysInput] = useState('metadata.resourceVersion, metadata.uid, status');
 
   // File Data
   const [leftData, setLeftData] = useState<FileContentResult | null>(null);
@@ -132,6 +133,52 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
   } | null>(null);
 
   const [copiedNotification, setCopiedNotification] = useState<string | null>(null);
+
+  // Drag and drop states
+  const [isDraggingLeft, setIsDraggingLeft] = useState(false);
+  const [isDraggingRight, setIsDraggingRight] = useState(false);
+
+  const extractDroppedPath = (e: React.DragEvent): string | null => {
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      return (file as any).path || file.name || null;
+    }
+    return null;
+  };
+
+  const handleDropLeft = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingLeft(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length >= 2) {
+      const p1 = (e.dataTransfer.files[0] as any).path || e.dataTransfer.files[0].name;
+      const p2 = (e.dataTransfer.files[1] as any).path || e.dataTransfer.files[1].name;
+      if (p1) onSetLeftPath(p1);
+      if (p2) onSetRightPath(p2);
+      return;
+    }
+
+    const p = extractDroppedPath(e);
+    if (p) onSetLeftPath(p);
+  };
+
+  const handleDropRight = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingRight(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length >= 2) {
+      const p1 = (e.dataTransfer.files[0] as any).path || e.dataTransfer.files[0].name;
+      const p2 = (e.dataTransfer.files[1] as any).path || e.dataTransfer.files[1].name;
+      if (p1) onSetLeftPath(p1);
+      if (p2) onSetRightPath(p2);
+      return;
+    }
+
+    const p = extractDroppedPath(e);
+    if (p) onSetRightPath(p);
+  };
 
   // Monaco Ref
   const diffEditorRef = useRef<any>(null);
@@ -230,6 +277,8 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
 
     const res = compareStructuredData(request);
     setDiffResult(res);
+    if (res.cleanLeft) setLeftEditorContent(res.cleanLeft);
+    if (res.cleanRight) setRightEditorContent(res.cleanRight);
 
     if (res.parseError) {
       setLoadError(res.parseError);
@@ -444,6 +493,8 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
             executeChunkCopyL2R(origEditor.getModel(), modEditor.getModel(), chunk);
             setRightEditorContent(modEditor.getValue());
             setRightDirty(true);
+            setCopiedNotification(`Copied chunk lines ${chunk.originalStart}–${chunk.originalEnd} Left ⇨ Right`);
+            setTimeout(() => setCopiedNotification(null), 2500);
             onUpdateStatus(`Copied diff paragraph (lines ${chunk.originalStart}–${chunk.originalEnd}) Left ⇨ Right`);
           }
         } else {
@@ -463,11 +514,27 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
             executeChunkCopyR2L(origEditor.getModel(), modEditor.getModel(), chunk);
             setLeftEditorContent(origEditor.getValue());
             setLeftDirty(true);
+            setCopiedNotification(`Copied chunk lines ${chunk.modifiedStart}–${chunk.modifiedEnd} Right ⇦ Left`);
+            setTimeout(() => setCopiedNotification(null), 2500);
             onUpdateStatus(`Copied diff paragraph (lines ${chunk.modifiedStart}–${chunk.modifiedEnd}) Right ⇦ Left`);
           }
         } else {
           const chunk = findChunkAtLine(chunksRef.current, line, 'right');
           setActiveDiffChunk(chunk);
+        }
+      });
+
+      // Synchronize scroll with far-left overview map
+      origEditor.onDidScrollChange(() => {
+        const ranges = origEditor.getVisibleRanges();
+        if (ranges && ranges.length > 0) {
+          setCursorLineNumber(ranges[0].startLineNumber);
+        }
+      });
+      modEditor.onDidScrollChange(() => {
+        const ranges = modEditor.getVisibleRanges();
+        if (ranges && ranges.length > 0) {
+          setCursorLineNumber(ranges[0].startLineNumber);
         }
       });
 
@@ -509,16 +576,24 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
 
     if (activeSelection && activeSelection.side === 'left') {
       const text = activeSelection.text;
-      const targetLine = Math.min(activeSelection.startLine, modModel.getLineCount());
-      const range = {
-        startLineNumber: targetLine,
-        startColumn: 1,
-        endLineNumber: Math.min(activeSelection.endLine, modModel.getLineCount()),
-        endColumn: modModel.getLineMaxColumn(Math.min(activeSelection.endLine, modModel.getLineCount())),
-      };
-      modModel.pushEditOperations([], [{ range, text }], () => null);
-      setRightEditorContent(modModel.getValue());
+      const chunk = findChunkAtLine(chunksRef.current, activeSelection.startLine, 'left');
+      if (chunk) {
+        executeChunkCopyL2R(origModel, modModel, chunk);
+      } else {
+        const targetLine = Math.min(activeSelection.startLine, modModel.getLineCount());
+        const range = {
+          startLineNumber: targetLine,
+          startColumn: 1,
+          endLineNumber: Math.min(activeSelection.endLine, modModel.getLineCount()),
+          endColumn: modModel.getLineMaxColumn(Math.min(activeSelection.endLine, modModel.getLineCount())),
+        };
+        modModel.pushEditOperations([], [{ range, text }], () => null);
+      }
+      const updated = modModel.getValue();
+      setRightEditorContent(updated);
       setRightDirty(true);
+      setCopiedNotification(`Copied lines ${activeSelection.startLine}–${activeSelection.endLine} Left ⇨ Right`);
+      setTimeout(() => setCopiedNotification(null), 2500);
       onUpdateStatus(`Copied lines ${activeSelection.startLine}–${activeSelection.endLine} Left ⇨ Right`);
       return;
     }
@@ -526,8 +601,11 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     const chunk = activeDiffChunk || (chunksRef.current.length > 0 ? chunksRef.current[0] : null);
     if (chunk) {
       executeChunkCopyL2R(origModel, modModel, chunk);
-      setRightEditorContent(modModel.getValue());
+      const updated = modModel.getValue();
+      setRightEditorContent(updated);
       setRightDirty(true);
+      setCopiedNotification(`Copied diff paragraph (lines ${chunk.originalStart}–${chunk.originalEnd}) Left ⇨ Right`);
+      setTimeout(() => setCopiedNotification(null), 2500);
       onUpdateStatus(`Copied diff paragraph (lines ${chunk.originalStart}–${chunk.originalEnd}) Left ⇨ Right`);
     }
   };
@@ -543,16 +621,24 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
 
     if (activeSelection && activeSelection.side === 'right') {
       const text = activeSelection.text;
-      const targetLine = Math.min(activeSelection.startLine, origModel.getLineCount());
-      const range = {
-        startLineNumber: targetLine,
-        startColumn: 1,
-        endLineNumber: Math.min(activeSelection.endLine, origModel.getLineCount()),
-        endColumn: origModel.getLineMaxColumn(Math.min(activeSelection.endLine, origModel.getLineCount())),
-      };
-      origModel.pushEditOperations([], [{ range, text }], () => null);
-      setLeftEditorContent(origModel.getValue());
+      const chunk = findChunkAtLine(chunksRef.current, activeSelection.startLine, 'right');
+      if (chunk) {
+        executeChunkCopyR2L(origModel, modModel, chunk);
+      } else {
+        const targetLine = Math.min(activeSelection.startLine, origModel.getLineCount());
+        const range = {
+          startLineNumber: targetLine,
+          startColumn: 1,
+          endLineNumber: Math.min(activeSelection.endLine, origModel.getLineCount()),
+          endColumn: origModel.getLineMaxColumn(Math.min(activeSelection.endLine, origModel.getLineCount())),
+        };
+        origModel.pushEditOperations([], [{ range, text }], () => null);
+      }
+      const updated = origModel.getValue();
+      setLeftEditorContent(updated);
       setLeftDirty(true);
+      setCopiedNotification(`Copied lines ${activeSelection.startLine}–${activeSelection.endLine} Right ⇦ Left`);
+      setTimeout(() => setCopiedNotification(null), 2500);
       onUpdateStatus(`Copied lines ${activeSelection.startLine}–${activeSelection.endLine} Right ⇦ Left`);
       return;
     }
@@ -560,8 +646,11 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     const chunk = activeDiffChunk || (chunksRef.current.length > 0 ? chunksRef.current[0] : null);
     if (chunk) {
       executeChunkCopyR2L(origModel, modModel, chunk);
-      setLeftEditorContent(origModel.getValue());
+      const updated = origModel.getValue();
+      setLeftEditorContent(updated);
       setLeftDirty(true);
+      setCopiedNotification(`Copied diff paragraph (lines ${chunk.modifiedStart}–${chunk.modifiedEnd}) Right ⇦ Left`);
+      setTimeout(() => setCopiedNotification(null), 2500);
       onUpdateStatus(`Copied diff paragraph (lines ${chunk.modifiedStart}–${chunk.modifiedEnd}) Right ⇦ Left`);
     }
   };
@@ -970,10 +1059,25 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
 
       {/* ================= 2. Beyond Compare Dual Address Header (Strict 50/50 Split) ================= */}
       <div className="bg-[#f6f6f6] dark:bg-[#0c0c0c] border-b border-[#d0d0d0] dark:border-neutral-800 p-1 flex items-center space-x-1.5 flex-shrink-0 w-full max-w-full overflow-hidden">
-        {/* Left Address Box with yellow folder browse button [📂] (Image 3) */}
+        {/* Left Address Box (supports drag & drop) */}
         <div
-          className="flex-1 min-w-0 flex items-center bg-white dark:bg-black border border-blue-400 dark:border-blue-900/70 rounded px-1.5 py-0.5 shadow-xs focus-within:ring-1 focus-within:ring-blue-500"
-          title={leftPath || 'Left file'}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDraggingLeft(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDraggingLeft(false);
+          }}
+          onDrop={handleDropLeft}
+          className={`flex-1 min-w-0 flex items-center bg-white dark:bg-black border ${
+            isDraggingLeft
+              ? 'border-blue-500 ring-2 ring-blue-500/50 bg-blue-50/20'
+              : 'border-blue-400 dark:border-blue-900/70'
+          } rounded px-1.5 py-0.5 shadow-xs focus-within:ring-1 focus-within:ring-blue-500 transition`}
+          title={leftPath || 'Left file (drop file here)'}
         >
           <span className="w-4 h-4 rounded bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center flex-shrink-0 shadow-xs mr-1.5">
             L
@@ -983,7 +1087,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
             type="text"
             value={leftPath}
             onChange={(e) => onSetLeftPath(e.target.value)}
-            placeholder="Left config/XML path (e.g. site1.xml)..."
+            placeholder="Left config/XML path (or drag & drop file here)..."
             className="bg-transparent text-[11px] w-full min-w-0 focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 truncate"
             title={leftPath || 'Left file path'}
           />
@@ -1007,10 +1111,25 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
           <ArrowLeftRight className="w-3.5 h-3.5" />
         </button>
 
-        {/* Right Address Box with yellow folder browse button [📂] (Image 3) */}
+        {/* Right Address Box (supports drag & drop) */}
         <div
-          className="flex-1 min-w-0 flex items-center bg-white dark:bg-black border border-purple-400 dark:border-purple-900/70 rounded px-1.5 py-0.5 shadow-xs focus-within:ring-1 focus-within:ring-purple-500"
-          title={rightPath || 'Right file'}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDraggingRight(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDraggingRight(false);
+          }}
+          onDrop={handleDropRight}
+          className={`flex-1 min-w-0 flex items-center bg-white dark:bg-black border ${
+            isDraggingRight
+              ? 'border-purple-500 ring-2 ring-purple-500/50 bg-purple-50/20'
+              : 'border-purple-400 dark:border-purple-900/70'
+          } rounded px-1.5 py-0.5 shadow-xs focus-within:ring-1 focus-within:ring-purple-500 transition`}
+          title={rightPath || 'Right file (drop file here)'}
         >
           <span className="w-4 h-4 rounded bg-purple-600 text-white font-bold text-[10px] flex items-center justify-center flex-shrink-0 shadow-xs mr-1.5">
             R
@@ -1020,7 +1139,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
             type="text"
             value={rightPath}
             onChange={(e) => onSetRightPath(e.target.value)}
-            placeholder="Right config/XML path (e.g. site2.xml)..."
+            placeholder="Right config/XML path (or drag & drop file here)..."
             className="bg-transparent text-[11px] w-full min-w-0 focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 truncate"
             title={rightPath || 'Right file path'}
           />
@@ -1143,20 +1262,6 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         </div>
       )}
 
-      {/* Ignored Keys Sub-bar */}
-      <div className="bg-neutral-50 dark:bg-neutral-950 border-b border-neutral-200 dark:border-neutral-900 px-3 py-1 flex items-center space-x-2 text-xs flex-shrink-0">
-        <span className="font-mono text-[11px] text-neutral-500 flex-shrink-0">
-          Ignored Keys / Paths:
-        </span>
-        <input
-          type="text"
-          value={ignoreKeysInput}
-          onChange={(e) => setIgnoreKeysInput(e.target.value)}
-          placeholder="e.g. metadata.resourceVersion, status, @timestamp, checksum"
-          className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-2 py-0.5 text-xs w-full font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none focus:border-blue-500"
-        />
-      </div>
-
       {/* Error / Warning Banner */}
       {loadError && (
         <div className="bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900 px-3 py-1 text-xs text-amber-800 dark:text-amber-300 flex items-center justify-between">
@@ -1170,83 +1275,109 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         </div>
       )}
 
-      {/* ================= 5. Monaco Diff Editor Canvas (Exact Beyond Compare Colors) ================= */}
-      <div className="flex-1 relative min-h-0 bg-white dark:bg-black w-full overflow-hidden">
-        {!leftPath && !rightPath ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-600 bg-white dark:bg-black p-8 text-center select-none">
-            <Boxes className="w-12 h-12 mb-3 stroke-[1.2] text-blue-500" />
-            <h4 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-              No Files Loaded in Config & XML Compare
-            </h4>
-            <p className="text-xs max-w-sm text-neutral-500 mb-4">
-              Click <strong>Browse</strong> above to select XML or YAML files (e.g. <strong>site1.xml vs site2.xml</strong>, Helm <strong>values.yaml</strong>).
-            </p>
-          </div>
-        ) : (
-          <DiffEditor
-            height="100%"
-            language={editorLanguage}
-            original={diffResult ? diffResult.cleanLeft : leftEditorContent}
-            modified={diffResult ? diffResult.cleanRight : rightEditorContent}
-            theme={theme === 'dark' ? 'beyond-compare-dark' : 'beyond-compare-light'}
-            beforeMount={(monaco) => {
-              monaco.editor.defineTheme('beyond-compare-light', {
-                base: 'vs',
-                inherit: true,
-                rules: [
-                  { token: '', foreground: '000000' },
-                ],
-                colors: {
-                  'editor.background': '#ffffff',
-                  'editor.foreground': '#000000',
-                  'editorGutter.background': '#f6f6f6',
-                  'editorLineNumber.foreground': '#717171',
-                  'editorLineNumber.activeForeground': '#000000',
-                  'diffEditor.insertedTextBackground': '#dcfce7',
-                  'diffEditor.removedTextBackground': '#fde8e8',
-                  'diffEditor.insertedLineBackground': '#f0fdf4',
-                  'diffEditor.removedLineBackground': '#fff0f0',
-                  'diffEditor.diagonalFill': '#e5e5e5',
-                },
-              });
-
-              monaco.editor.defineTheme('beyond-compare-dark', {
-                base: 'vs-dark',
-                inherit: true,
-                rules: [],
-                colors: {
-                  'editor.background': '#000000',
-                  'editor.foreground': '#f3f4f6',
-                  'editorGutter.background': '#050505',
-                  'editorLineNumber.foreground': '#666666',
-                  'editorLineNumber.activeForeground': '#ffffff',
-                  'diffEditor.insertedTextBackground': '#14532d55',
-                  'diffEditor.removedTextBackground': '#7f1d1d44',
-                  'diffEditor.insertedLineBackground': '#14532d20',
-                  'diffEditor.removedLineBackground': '#7f1d1d20',
-                  'diffEditor.diagonalFill': '#222222',
-                },
-              });
+      {/* ================= 5. Monaco Diff Editor Canvas with Far-Left Overview Map ================= */}
+      <div className="flex-1 flex flex-row min-h-0 bg-white dark:bg-black w-full overflow-hidden">
+        {(leftPath || rightPath) && (
+          <DiffOverviewMap
+            chunks={diffChunks}
+            totalLines={Math.max(
+              1,
+              leftEditorContent.split('\n').length,
+              rightEditorContent.split('\n').length
+            )}
+            currentLine={cursorLineNumber || 1}
+            onScrollToLine={(line) => {
+              if (diffEditorRef.current) {
+                try {
+                  diffEditorRef.current.getOriginalEditor().revealLineInCenter(line);
+                  diffEditorRef.current.getModifiedEditor().revealLineInCenter(line);
+                  updateLineDetails(line);
+                } catch {
+                  // non-fatal
+                }
+              }
             }}
-            onMount={handleEditorDidMount}
-            options={{
-              renderSideBySide,
-              readOnly: false,
-              originalEditable: true,
-              fontSize: 12,
-              fontFamily: "'Consolas', 'Courier New', 'SFMono-Regular', Menlo, Monaco, monospace",
-              minimap: { enabled: true },
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-              diffCodeLens: true,
-              renderOverviewRuler: true,
-              diffWordWrap: 'on',
-              glyphMargin: true,
-              stickyScroll: { enabled: false },
-              ...(activeFilter === 'diffs' ? ({ hideUnchangedRegions: { enabled: true } } as any) : {}),
-            } as any}
+            theme={theme}
           />
         )}
+
+        <div className="flex-1 relative h-full min-w-0 overflow-hidden">
+          {!leftPath && !rightPath ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-600 bg-white dark:bg-black p-8 text-center select-none">
+              <Boxes className="w-12 h-12 mb-3 stroke-[1.2] text-blue-500" />
+              <h4 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                No Files Loaded in Config & XML Compare
+              </h4>
+              <p className="text-xs max-w-sm text-neutral-500 mb-4">
+                Click <strong>Browse</strong> above or drag and drop files here (e.g. <strong>site1.xml vs site2.xml</strong>, Helm <strong>values.yaml</strong>).
+              </p>
+            </div>
+          ) : (
+            <DiffEditor
+              height="100%"
+              language={editorLanguage}
+              original={leftEditorContent}
+              modified={rightEditorContent}
+              theme={theme === 'dark' ? 'beyond-compare-dark' : 'beyond-compare-light'}
+              beforeMount={(monaco) => {
+                monaco.editor.defineTheme('beyond-compare-light', {
+                  base: 'vs',
+                  inherit: true,
+                  rules: [
+                    { token: '', foreground: '000000' },
+                  ],
+                  colors: {
+                    'editor.background': '#ffffff',
+                    'editor.foreground': '#000000',
+                    'editorGutter.background': '#f6f6f6',
+                    'editorLineNumber.foreground': '#717171',
+                    'editorLineNumber.activeForeground': '#000000',
+                    'diffEditor.insertedTextBackground': '#dcfce7',
+                    'diffEditor.removedTextBackground': '#fde8e8',
+                    'diffEditor.insertedLineBackground': '#f0fdf4',
+                    'diffEditor.removedLineBackground': '#fff0f0',
+                    'diffEditor.diagonalFill': '#e5e5e5',
+                  },
+                });
+
+                monaco.editor.defineTheme('beyond-compare-dark', {
+                  base: 'vs-dark',
+                  inherit: true,
+                  rules: [],
+                  colors: {
+                    'editor.background': '#000000',
+                    'editor.foreground': '#f3f4f6',
+                    'editorGutter.background': '#050505',
+                    'editorLineNumber.foreground': '#666666',
+                    'editorLineNumber.activeForeground': '#ffffff',
+                    'diffEditor.insertedTextBackground': '#14532d55',
+                    'diffEditor.removedTextBackground': '#7f1d1d44',
+                    'diffEditor.insertedLineBackground': '#14532d20',
+                    'diffEditor.removedLineBackground': '#7f1d1d20',
+                    'diffEditor.diagonalFill': '#222222',
+                  },
+                });
+              }}
+              onMount={handleEditorDidMount}
+              options={{
+                renderSideBySide,
+                readOnly: false,
+                originalEditable: true,
+                fontSize: 12,
+                fontFamily: "'Consolas', 'Courier New', 'SFMono-Regular', Menlo, Monaco, monospace",
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                diffCodeLens: true,
+                renderOverviewRuler: false,
+                diffWordWrap: 'on',
+                glyphMargin: true,
+                stickyScroll: { enabled: false },
+                ...(activeFilter === 'diffs' ? ({ hideUnchangedRegions: { enabled: true } } as any) : {}),
+              } as any}
+            />
+          )}
+        </div>
       </div>
 
       {/* ================= 6. Beyond Compare Line Details Split Inspection Bar (Image 3) ================= */}

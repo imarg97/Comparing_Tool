@@ -49,6 +49,40 @@ export function findChunkAtLine(
 }
 
 /**
+ * Splices lines from source text into target text at exact 1-based line positions.
+ * Used for direct paragraph copy and mouse range selections.
+ */
+export function spliceLines(
+  sourceText: string,
+  targetText: string,
+  sourceStartLine: number,
+  sourceEndLine: number,
+  targetStartLine: number,
+  targetEndLine: number
+): string {
+  const sourceLines = sourceText.split(/\r?\n/);
+  const targetLines = targetText.split(/\r?\n/);
+
+  // Extract source lines (1-based to 0-based)
+  const actualSourceEnd = sourceEndLine >= sourceStartLine && sourceStartLine > 0 ? sourceEndLine : sourceStartLine;
+  const startIdx = Math.max(0, sourceStartLine - 1);
+  const endIdx = Math.max(startIdx, actualSourceEnd);
+  const extracted = sourceStartLine > 0 ? sourceLines.slice(startIdx, endIdx) : [];
+
+  // Determine target splice index and delete count
+  const insertIndex = targetStartLine > 0 ? Math.min(targetStartLine - 1, targetLines.length) : targetLines.length;
+  const deleteCount =
+    targetEndLine >= targetStartLine && targetStartLine > 0
+      ? targetEndLine - targetStartLine + 1
+      : targetEndLine === 0
+      ? 0
+      : 1;
+
+  targetLines.splice(insertIndex, deleteCount, ...extracted);
+  return targetLines.join('\n');
+}
+
+/**
  * Executes Left-to-Right chunk copy directly within Monaco editor models
  */
 export function executeChunkCopyL2R(originalModel: any, modifiedModel: any, chunk: DiffChunk): boolean {
