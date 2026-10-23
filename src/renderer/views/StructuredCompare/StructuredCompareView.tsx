@@ -13,6 +13,14 @@ import {
   AlertCircle,
   ChevronDown,
   ListFilter,
+  Home,
+  FolderOpen,
+  Calendar,
+  Database,
+  ArrowRight,
+  ArrowLeft,
+  Columns,
+  Rows,
 } from 'lucide-react';
 import {
   FileContentResult,
@@ -22,6 +30,7 @@ import {
 } from '@shared/types.js';
 import { compareStructuredData } from '@shared/comparison-engine/structured.js';
 import { ConfirmModalConfig } from '../../components/ConfirmModal.js';
+import { LineDetailInspector } from '../../components/LineDetailInspector.js';
 
 interface StructuredCompareViewProps {
   leftPath: string;
@@ -29,6 +38,7 @@ interface StructuredCompareViewProps {
   theme?: 'dark' | 'light';
   onSetLeftPath: (p: string) => void;
   onSetRightPath: (p: string) => void;
+  onNavigateHome?: () => void;
   onRequestConfirm: (config: ConfirmModalConfig) => void;
   onUpdateStatus: (text: string, count?: number, durationMs?: number) => void;
 }
@@ -42,12 +52,28 @@ export function detectFormatFromPath(filePath: string): StructuredFormat {
   return 'yaml';
 }
 
+function formatFileMetadata(data: FileContentResult | null, filePath: string, format: string) {
+  if (!filePath) return null;
+  const bytes = data?.size ?? data?.content.length ?? 0;
+  const formattedBytes = `${bytes.toLocaleString()} bytes`;
+  const lineEnding = data?.content.includes('\r\n') ? 'CRLF' : 'UNIX (LF)';
+  const now = new Date();
+  const dateStr = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  return {
+    dateStr,
+    formattedBytes,
+    spec: `${format.toUpperCase()} • UTF-8 • ${lineEnding}`,
+  };
+}
+
 export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
   leftPath,
   rightPath,
   theme = 'dark',
   onSetLeftPath,
   onSetRightPath,
+  onNavigateHome,
   onRequestConfirm,
   onUpdateStatus,
 }) => {
@@ -66,6 +92,10 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
   const [leftDirty, setLeftDirty] = useState(false);
   const [rightDirty, setRightDirty] = useState(false);
 
+  // Beyond Compare View Filters: 'all' | 'diffs' | 'same'
+  const [activeFilter, setActiveFilter] = useState<'all' | 'diffs' | 'same'>('all');
+  const [renderSideBySide, setRenderSideBySide] = useState(true);
+
   // Status & Error
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -73,6 +103,11 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
   // Structured Diff Result & Inspector
   const [diffResult, setDiffResult] = useState<StructuredDiffResult | null>(null);
   const [showInspector, setShowInspector] = useState(false);
+
+  // Cursor & Line Detail Tracking
+  const [cursorLineNumber, setCursorLineNumber] = useState<number | null>(1);
+  const [activeLeftLineText, setActiveLeftLineText] = useState<string>('');
+  const [activeRightLineText, setActiveRightLineText] = useState<string>('');
 
   // Monaco Ref
   const diffEditorRef = useRef<any>(null);
@@ -212,6 +247,28 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     }
   }, [format, filterKubernetes, ignoreKeysInput]);
 
+  // Update line details when cursor moves or content updates
+  const updateLineDetails = (lineNum: number) => {
+    setCursorLineNumber(lineNum);
+    if (!diffEditorRef.current) return;
+    try {
+      const origModel = diffEditorRef.current.getOriginalEditor().getModel();
+      const modModel = diffEditorRef.current.getModifiedEditor().getModel();
+      if (origModel && lineNum <= origModel.getLineCount()) {
+        setActiveLeftLineText(origModel.getLineContent(lineNum));
+      } else {
+        setActiveLeftLineText('');
+      }
+      if (modModel && lineNum <= modModel.getLineCount()) {
+        setActiveRightLineText(modModel.getLineContent(lineNum));
+      } else {
+        setActiveRightLineText('');
+      }
+    } catch {
+      // non-fatal
+    }
+  };
+
   // Monaco Diff Editor Mounting
   const handleEditorDidMount = (editor: any) => {
     diffEditorRef.current = editor;
@@ -222,6 +279,12 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         const val = modifiedEditor.getValue();
         setRightEditorContent(val);
         setRightDirty(val !== (rightData?.content ?? ''));
+        const pos = modifiedEditor.getPosition();
+        if (pos) updateLineDetails(pos.lineNumber);
+      });
+
+      modifiedEditor.onDidChangeCursorPosition((e: any) => {
+        updateLineDetails(e.position.lineNumber);
       });
 
       const originalEditor = editor.getOriginalEditor();
@@ -229,7 +292,15 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         const val = originalEditor.getValue();
         setLeftEditorContent(val);
         setLeftDirty(val !== (leftData?.content ?? ''));
+        const pos = originalEditor.getPosition();
+        if (pos) updateLineDetails(pos.lineNumber);
       });
+
+      originalEditor.onDidChangeCursorPosition((e: any) => {
+        updateLineDetails(e.position.lineNumber);
+      });
+
+      updateLineDetails(1);
     } catch {
       // non-fatal
     }
@@ -238,13 +309,153 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
   const handleNextDiff = () => {
     if (diffEditorRef.current && typeof diffEditorRef.current.goToDiff === 'function') {
       diffEditorRef.current.goToDiff('next');
+      setTimeout(() => {
+        const pos = diffEditorRef.current.getModifiedEditor().getPosition();
+        if (pos) updateLineDetails(pos.lineNumber);
+      }, 50);
     }
   };
 
   const handlePrevDiff = () => {
     if (diffEditorRef.current && typeof diffEditorRef.current.goToDiff === 'function') {
       diffEditorRef.current.goToDiff('previous');
+      setTimeout(() => {
+        const pos = diffEditorRef.current.getModifiedEditor().getPosition();
+        if (pos) updateLineDetails(pos.lineNumber);
+      }, 50);
     }
+  };
+
+  // Section-Level Copy Left-to-Right
+  const handleCopySectionL2R = () => {
+    if (!diffEditorRef.current) return;
+    const editor = diffEditorRef.current;
+    const lineChanges = editor.getLineChanges();
+    if (!lineChanges || lineChanges.length === 0) return;
+
+    const modifiedEditor = editor.getModifiedEditor();
+    const originalEditor = editor.getOriginalEditor();
+    const currentLine = modifiedEditor.getPosition()?.lineNumber || originalEditor.getPosition()?.lineNumber || 1;
+
+    let targetChange = lineChanges.find(
+      (c: any) =>
+        (currentLine >= c.originalStartLineNumber && currentLine <= (c.originalEndLineNumber || c.originalStartLineNumber)) ||
+        (currentLine >= c.modifiedStartLineNumber && currentLine <= (c.modifiedEndLineNumber || c.modifiedStartLineNumber))
+    );
+
+    if (!targetChange) targetChange = lineChanges[0];
+
+    const origModel = originalEditor.getModel();
+    const modModel = modifiedEditor.getModel();
+    if (!origModel || !modModel) return;
+
+    const origText =
+      targetChange.originalEndLineNumber >= targetChange.originalStartLineNumber && targetChange.originalStartLineNumber > 0
+        ? origModel.getValueInRange({
+            startLineNumber: targetChange.originalStartLineNumber,
+            startColumn: 1,
+            endLineNumber: targetChange.originalEndLineNumber,
+            endColumn: origModel.getLineMaxColumn(targetChange.originalEndLineNumber),
+          })
+        : '';
+
+    const modRange = {
+      startLineNumber: targetChange.modifiedStartLineNumber > 0 ? targetChange.modifiedStartLineNumber : 1,
+      startColumn: 1,
+      endLineNumber: targetChange.modifiedEndLineNumber > 0 ? targetChange.modifiedEndLineNumber : 1,
+      endColumn: modModel.getLineMaxColumn(targetChange.modifiedEndLineNumber > 0 ? targetChange.modifiedEndLineNumber : 1),
+    };
+
+    modModel.pushEditOperations([], [{ range: modRange, text: origText }], () => null);
+    setRightEditorContent(modModel.getValue());
+    setRightDirty(true);
+    onUpdateStatus('Diff section copied Left ⇨ Right');
+  };
+
+  // Section-Level Copy Right-to-Left
+  const handleCopySectionR2L = () => {
+    if (!diffEditorRef.current) return;
+    const editor = diffEditorRef.current;
+    const lineChanges = editor.getLineChanges();
+    if (!lineChanges || lineChanges.length === 0) return;
+
+    const modifiedEditor = editor.getModifiedEditor();
+    const originalEditor = editor.getOriginalEditor();
+    const currentLine = originalEditor.getPosition()?.lineNumber || modifiedEditor.getPosition()?.lineNumber || 1;
+
+    let targetChange = lineChanges.find(
+      (c: any) =>
+        (currentLine >= c.originalStartLineNumber && currentLine <= (c.originalEndLineNumber || c.originalStartLineNumber)) ||
+        (currentLine >= c.modifiedStartLineNumber && currentLine <= (c.modifiedEndLineNumber || c.modifiedStartLineNumber))
+    );
+
+    if (!targetChange) targetChange = lineChanges[0];
+
+    const origModel = originalEditor.getModel();
+    const modModel = modifiedEditor.getModel();
+    if (!origModel || !modModel) return;
+
+    const modText =
+      targetChange.modifiedEndLineNumber >= targetChange.modifiedStartLineNumber && targetChange.modifiedStartLineNumber > 0
+        ? modModel.getValueInRange({
+            startLineNumber: targetChange.modifiedStartLineNumber,
+            startColumn: 1,
+            endLineNumber: targetChange.modifiedEndLineNumber,
+            endColumn: modModel.getLineMaxColumn(targetChange.modifiedEndLineNumber),
+          })
+        : '';
+
+    const origRange = {
+      startLineNumber: targetChange.originalStartLineNumber > 0 ? targetChange.originalStartLineNumber : 1,
+      startColumn: 1,
+      endLineNumber: targetChange.originalEndLineNumber > 0 ? targetChange.originalEndLineNumber : 1,
+      endColumn: origModel.getLineMaxColumn(targetChange.originalEndLineNumber > 0 ? targetChange.originalEndLineNumber : 1),
+    };
+
+    origModel.pushEditOperations([], [{ range: origRange, text: modText }], () => null);
+    setLeftEditorContent(origModel.getValue());
+    setLeftDirty(true);
+    onUpdateStatus('Diff section copied Right ⇦ Left');
+  };
+
+  // Single active line copy L -> R
+  const handleCopyActiveLineL2R = () => {
+    if (!diffEditorRef.current || cursorLineNumber === null) return;
+    const modModel = diffEditorRef.current.getModifiedEditor().getModel();
+    const origModel = diffEditorRef.current.getOriginalEditor().getModel();
+    if (!modModel || !origModel) return;
+
+    const leftLine = cursorLineNumber <= origModel.getLineCount() ? origModel.getLineContent(cursorLineNumber) : '';
+    const rightLineNum = Math.min(cursorLineNumber, modModel.getLineCount());
+    const range = {
+      startLineNumber: rightLineNum,
+      startColumn: 1,
+      endLineNumber: rightLineNum,
+      endColumn: modModel.getLineMaxColumn(rightLineNum),
+    };
+    modModel.pushEditOperations([], [{ range, text: leftLine }], () => null);
+    setRightEditorContent(modModel.getValue());
+    setRightDirty(true);
+  };
+
+  // Single active line copy R -> L
+  const handleCopyActiveLineR2L = () => {
+    if (!diffEditorRef.current || cursorLineNumber === null) return;
+    const modModel = diffEditorRef.current.getModifiedEditor().getModel();
+    const origModel = diffEditorRef.current.getOriginalEditor().getModel();
+    if (!modModel || !origModel) return;
+
+    const rightLine = cursorLineNumber <= modModel.getLineCount() ? modModel.getLineContent(cursorLineNumber) : '';
+    const leftLineNum = Math.min(cursorLineNumber, origModel.getLineCount());
+    const range = {
+      startLineNumber: leftLineNum,
+      startColumn: 1,
+      endLineNumber: leftLineNum,
+      endColumn: origModel.getLineMaxColumn(leftLineNum),
+    };
+    origModel.pushEditOperations([], [{ range, text: rightLine }], () => null);
+    setLeftEditorContent(origModel.getValue());
+    setLeftDirty(true);
   };
 
   // Safe Save Operations
@@ -326,86 +537,27 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
   };
 
   const editorLanguage = format === 'xml' ? 'xml' : format === 'json' ? 'json' : 'yaml';
+  const leftMeta = formatFileMetadata(leftData, leftPath, format);
+  const rightMeta = formatFileMetadata(rightData, rightPath, format);
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-white dark:bg-black overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans w-full max-w-full">
-      {/* 1. Beyond Compare Dual Address Header (Strict 50/50 Split) */}
-      <div className="bg-neutral-100 dark:bg-neutral-950 border-b border-neutral-300 dark:border-neutral-800 p-1 flex items-center space-x-1.5 flex-shrink-0 w-full max-w-full overflow-hidden">
-        {/* Left Address Box */}
-        <div
-          className="flex-1 min-w-0 flex items-center bg-white dark:bg-black border border-blue-300 dark:border-blue-900/60 rounded px-1.5 py-0.5 shadow-sm focus-within:ring-1 focus-within:ring-blue-500"
-          title={leftPath || 'Left file'}
-        >
-          <span className="w-4 h-4 rounded bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center flex-shrink-0 shadow-sm mr-1.5">
-            L
-          </span>
-          <FileCode className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 mr-1 flex-shrink-0" />
-          <input
-            type="text"
-            value={leftPath}
-            onChange={(e) => onSetLeftPath(e.target.value)}
-            placeholder="Left file path..."
-            className="bg-transparent text-[11px] w-full min-w-0 focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 truncate"
-            title={leftPath || 'Left file path'}
-          />
-          <button
-            onClick={handlePickLeft}
-            className="ml-1 text-[11px] font-medium px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition flex-shrink-0"
-          >
-            Browse...
-          </button>
-        </div>
+    <div className="flex-1 flex flex-col h-full bg-white dark:bg-black overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans select-none w-full max-w-full">
+      {/* ================= 1. Beyond Compare Action Toolbar (Image 2 & 3) ================= */}
+      <div className="bg-[#f0f0f0] dark:bg-[#0a0a0a] border-b border-[#c8c8c8] dark:border-neutral-800 px-2 py-1 flex items-center justify-between text-xs flex-shrink-0 select-none shadow-xs">
+        {/* Left Toolbar Items */}
+        <div className="flex items-center space-x-1">
+          {onNavigateHome && (
+            <button
+              onClick={onNavigateHome}
+              title="Return to Sessions Home"
+              className="p-1 rounded bg-white dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-800 transition shadow-xs"
+            >
+              <Home className="w-3.5 h-3.5" />
+            </button>
+          )}
 
-        {/* Swap Button */}
-        <button
-          onClick={handleSwap}
-          title="Swap Left and Right Files"
-          className="p-1 rounded bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-800 transition flex-shrink-0"
-        >
-          <ArrowLeftRight className="w-3.5 h-3.5" />
-        </button>
-
-        {/* Right Address Box */}
-        <div
-          className="flex-1 min-w-0 flex items-center bg-white dark:bg-black border border-purple-300 dark:border-purple-900/60 rounded px-1.5 py-0.5 shadow-sm focus-within:ring-1 focus-within:ring-purple-500"
-          title={rightPath || 'Right file'}
-        >
-          <span className="w-4 h-4 rounded bg-purple-600 text-white font-bold text-[10px] flex items-center justify-center flex-shrink-0 shadow-sm mr-1.5">
-            R
-          </span>
-          <FileCode className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 mr-1 flex-shrink-0" />
-          <input
-            type="text"
-            value={rightPath}
-            onChange={(e) => onSetRightPath(e.target.value)}
-            placeholder="Right file path..."
-            className="bg-transparent text-[11px] w-full min-w-0 focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 truncate"
-            title={rightPath || 'Right file path'}
-          />
-          <button
-            onClick={handlePickRight}
-            className="ml-1 text-[11px] font-medium px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition flex-shrink-0"
-          >
-            Browse...
-          </button>
-        </div>
-
-        {/* Refresh Button */}
-        <button
-          onClick={loadFiles}
-          disabled={isLoading}
-          title="Refresh comparison (Cmd+R)"
-          className="p-1 rounded bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-800 transition flex-shrink-0"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-        </button>
-      </div>
-
-      {/* 2. Structured Comparison Controls Toolbar */}
-      <div className="bg-neutral-100 dark:bg-black border-b border-neutral-300 dark:border-neutral-800 px-2 py-1 flex items-center justify-between text-xs flex-shrink-0 select-none w-full max-w-full overflow-hidden">
-        <div className="flex items-center space-x-1.5 min-w-0 overflow-hidden">
           {/* Format Selector: XML, YAML, JSON */}
-          <div className="flex items-center bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 rounded p-0.5 flex-shrink-0">
+          <div className="flex items-center bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 rounded p-0.5 shadow-xs">
             <button
               onClick={() => setFormat('xml')}
               className={`px-2 py-0.5 rounded text-[11px] transition ${
@@ -438,27 +590,95 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
             </button>
           </div>
 
-          <span className="h-3.5 w-px bg-neutral-300 dark:bg-neutral-800 mx-0.5 flex-shrink-0" />
+          <span className="h-4 w-px bg-neutral-300 dark:bg-neutral-800 mx-0.5" />
 
           {/* Jumpers */}
           <button
             onClick={handlePrevDiff}
+            data-action="prev-diff"
             title="Previous Difference"
-            className="flex items-center space-x-1 px-1.5 py-0.5 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 text-[11px] flex-shrink-0"
+            className="flex items-center space-x-1 px-2 py-1 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 text-[11px] shadow-xs"
           >
-            <ArrowUp className="w-3 h-3 text-red-500" />
+            <ArrowUp className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
             <span>Prev</span>
           </button>
           <button
             onClick={handleNextDiff}
+            data-action="next-diff"
             title="Next Difference"
-            className="flex items-center space-x-1 px-1.5 py-0.5 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 text-[11px] flex-shrink-0"
+            className="flex items-center space-x-1 px-2 py-1 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 text-[11px] shadow-xs"
           >
-            <ArrowDown className="w-3 h-3 text-red-500" />
+            <ArrowDown className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
             <span>Next</span>
           </button>
 
-          {/* Semantic differences summary pill */}
+          <span className="h-4 w-px bg-neutral-300 dark:bg-neutral-800 mx-0.5" />
+
+          {/* Beyond Compare View Filter Trio */}
+          <div className="flex items-center bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 rounded p-0.5 shadow-xs">
+            <button
+              onClick={() => setActiveFilter('all')}
+              data-action="filter-all"
+              title="Show All (*)"
+              className={`px-2 py-0.5 rounded text-[11px] font-medium transition ${
+                activeFilter === 'all'
+                  ? 'bg-blue-600 text-white font-bold'
+                  : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+              }`}
+            >
+              * All
+            </button>
+            <button
+              onClick={() => setActiveFilter('diffs')}
+              data-action="filter-diffs"
+              title="Show Differences Only (≠)"
+              className={`px-2 py-0.5 rounded text-[11px] font-medium transition ${
+                activeFilter === 'diffs'
+                  ? 'bg-red-600 text-white font-bold'
+                  : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+              }`}
+            >
+              ≠ Diffs
+            </button>
+            <button
+              onClick={() => setActiveFilter('same')}
+              data-action="filter-same"
+              title="Show Same Only (=)"
+              className={`px-2 py-0.5 rounded text-[11px] font-medium transition ${
+                activeFilter === 'same'
+                  ? 'bg-emerald-600 text-white font-bold'
+                  : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+              }`}
+            >
+              = Same
+            </button>
+          </div>
+
+          <span className="h-4 w-px bg-neutral-300 dark:bg-neutral-800 mx-0.5" />
+
+          {/* Section-Level Copy Actions (Image 3) */}
+          <button
+            onClick={handleCopySectionL2R}
+            data-action="copy-l2r"
+            title="Copy diff section Left to Right (Alt+Right)"
+            disabled={!leftPath || !rightPath}
+            className="flex items-center space-x-1 px-2 py-1 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 disabled:opacity-40 transition font-semibold text-[11px] shadow-xs"
+          >
+            <ArrowRight className="w-3.5 h-3.5" />
+            <span>Copy L→R</span>
+          </button>
+          <button
+            onClick={handleCopySectionR2L}
+            data-action="copy-r2l"
+            title="Copy diff section Right to Left (Alt+Left)"
+            disabled={!leftPath || !rightPath}
+            className="flex items-center space-x-1 px-2 py-1 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40 disabled:opacity-40 transition font-semibold text-[11px] shadow-xs"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Copy R→L</span>
+          </button>
+
+          {/* Semantic summary pill */}
           {diffResult && !diffResult.parseError && (
             <span
               className={`font-mono text-[10px] px-1.5 py-0.5 rounded font-medium border flex-shrink-0 ${
@@ -471,8 +691,8 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
             </span>
           )}
 
-          {/* Infrastructure Noise Filter checkbox */}
-          <label className="flex items-center space-x-1 cursor-pointer bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 px-1.5 py-0.5 rounded text-[11px] flex-shrink-0">
+          {/* Infrastructure Noise Filter */}
+          <label className="flex items-center space-x-1 cursor-pointer bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 px-1.5 py-0.5 rounded text-[11px] flex-shrink-0 shadow-xs">
             <input
               type="checkbox"
               checked={filterKubernetes}
@@ -489,7 +709,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
           {/* Toggle Inspector Table */}
           <button
             onClick={() => setShowInspector((prev) => !prev)}
-            className={`flex items-center space-x-1 px-2 py-0.5 rounded border text-[11px] transition ${
+            className={`flex items-center space-x-1 px-2 py-0.5 rounded border text-[11px] transition shadow-xs ${
               showInspector
                 ? 'bg-blue-600 text-white border-blue-600 font-medium'
                 : 'bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100'
@@ -498,6 +718,32 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
             <ListFilter className="w-3 h-3" />
             <span>Inspector {diffResult ? `(${diffResult.items.length})` : ''}</span>
           </button>
+
+          {/* View mode toggle */}
+          <div className="flex items-center bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 rounded p-0.5 shadow-xs">
+            <button
+              onClick={() => setRenderSideBySide(true)}
+              title="Side-by-Side View"
+              className={`p-1 rounded transition ${
+                renderSideBySide
+                  ? 'bg-neutral-200 dark:bg-neutral-800 text-blue-600 dark:text-blue-400 font-bold'
+                  : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
+              }`}
+            >
+              <Columns className="w-3 h-3" />
+            </button>
+            <button
+              onClick={() => setRenderSideBySide(false)}
+              title="Inline Unified View"
+              className={`p-1 rounded transition ${
+                !renderSideBySide
+                  ? 'bg-neutral-200 dark:bg-neutral-800 text-blue-600 dark:text-blue-400 font-bold'
+                  : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
+              }`}
+            >
+              <Rows className="w-3 h-3" />
+            </button>
+          </div>
 
           {/* Save Left */}
           {leftDirty && (
@@ -535,7 +781,132 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         </div>
       </div>
 
-      {/* 3. Ignored Keys Sub-bar */}
+      {/* ================= 2. Beyond Compare Dual Address Header (Strict 50/50 Split) ================= */}
+      <div className="bg-[#f6f6f6] dark:bg-[#0c0c0c] border-b border-[#d0d0d0] dark:border-neutral-800 p-1 flex items-center space-x-1.5 flex-shrink-0 w-full max-w-full overflow-hidden">
+        {/* Left Address Box with yellow folder browse button [📂] (Image 3) */}
+        <div
+          className="flex-1 min-w-0 flex items-center bg-white dark:bg-black border border-blue-400 dark:border-blue-900/70 rounded px-1.5 py-0.5 shadow-xs focus-within:ring-1 focus-within:ring-blue-500"
+          title={leftPath || 'Left file'}
+        >
+          <span className="w-4 h-4 rounded bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center flex-shrink-0 shadow-xs mr-1.5">
+            L
+          </span>
+          <FileCode className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 mr-1.5 flex-shrink-0" />
+          <input
+            type="text"
+            value={leftPath}
+            onChange={(e) => onSetLeftPath(e.target.value)}
+            placeholder="Left config/XML path (e.g. site1.xml)..."
+            className="bg-transparent text-[11px] w-full min-w-0 focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 truncate"
+            title={leftPath || 'Left file path'}
+          />
+          <button
+            onClick={handlePickLeft}
+            title="Browse Left File (Yellow Folder)"
+            className="ml-1 p-1 rounded bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 transition flex-shrink-0 flex items-center space-x-1 shadow-xs"
+          >
+            <FolderOpen className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
+            <span className="text-[10px] font-semibold pr-0.5">Browse</span>
+          </button>
+        </div>
+
+        {/* Swap Button */}
+        <button
+          onClick={handleSwap}
+          data-action="swap"
+          title="Swap Left and Right Files"
+          className="p-1 rounded bg-[#eaeaea] dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-800 transition flex-shrink-0 shadow-xs"
+        >
+          <ArrowLeftRight className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Right Address Box with yellow folder browse button [📂] (Image 3) */}
+        <div
+          className="flex-1 min-w-0 flex items-center bg-white dark:bg-black border border-purple-400 dark:border-purple-900/70 rounded px-1.5 py-0.5 shadow-xs focus-within:ring-1 focus-within:ring-purple-500"
+          title={rightPath || 'Right file'}
+        >
+          <span className="w-4 h-4 rounded bg-purple-600 text-white font-bold text-[10px] flex items-center justify-center flex-shrink-0 shadow-xs mr-1.5">
+            R
+          </span>
+          <FileCode className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 mr-1.5 flex-shrink-0" />
+          <input
+            type="text"
+            value={rightPath}
+            onChange={(e) => onSetRightPath(e.target.value)}
+            placeholder="Right config/XML path (e.g. site2.xml)..."
+            className="bg-transparent text-[11px] w-full min-w-0 focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 truncate"
+            title={rightPath || 'Right file path'}
+          />
+          <button
+            onClick={handlePickRight}
+            title="Browse Right File (Yellow Folder)"
+            className="ml-1 p-1 rounded bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 transition flex-shrink-0 flex items-center space-x-1 shadow-xs"
+          >
+            <FolderOpen className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
+            <span className="text-[10px] font-semibold pr-0.5">Browse</span>
+          </button>
+        </div>
+
+        {/* Refresh Button */}
+        <button
+          onClick={loadFiles}
+          data-action="reload"
+          disabled={isLoading}
+          title="Reload comparison (Ctrl+R)"
+          className="p-1 rounded bg-[#eaeaea] dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-800 transition flex-shrink-0 shadow-xs"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
+
+      {/* ================= 3. Beyond Compare Dedicated Metadata Line (Image 3) ================= */}
+      {(leftPath || rightPath) && (
+        <div className="flex items-center bg-[#eaeaea] dark:bg-[#111111] border-b border-[#d8d8d8] dark:border-neutral-800 text-[10px] font-mono px-3 py-0.5 flex-shrink-0 select-none w-full max-w-full overflow-hidden text-neutral-600 dark:text-neutral-400">
+          <div className="w-1/2 flex items-center space-x-3 truncate pr-2">
+            {leftMeta ? (
+              <>
+                <span className="flex items-center space-x-1 truncate text-neutral-800 dark:text-neutral-200">
+                  <Calendar className="w-3 h-3 text-neutral-400 flex-shrink-0" />
+                  <span>{leftMeta.dateStr}</span>
+                </span>
+                <span className="flex items-center space-x-1 text-neutral-700 dark:text-neutral-300 font-semibold">
+                  <Database className="w-3 h-3 text-neutral-400 flex-shrink-0" />
+                  <span>{leftMeta.formattedBytes}</span>
+                </span>
+                <span className="text-[9px] uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                  {leftMeta.spec}
+                </span>
+              </>
+            ) : (
+              <span className="italic text-neutral-400">No config file on Left</span>
+            )}
+          </div>
+
+          <div className="h-3 w-px bg-neutral-300 dark:bg-neutral-800 mx-1 flex-shrink-0" />
+
+          <div className="w-1/2 flex items-center space-x-3 truncate pl-2">
+            {rightMeta ? (
+              <>
+                <span className="flex items-center space-x-1 truncate text-neutral-800 dark:text-neutral-200">
+                  <Calendar className="w-3 h-3 text-neutral-400 flex-shrink-0" />
+                  <span>{rightMeta.dateStr}</span>
+                </span>
+                <span className="flex items-center space-x-1 text-neutral-700 dark:text-neutral-300 font-semibold">
+                  <Database className="w-3 h-3 text-neutral-400 flex-shrink-0" />
+                  <span>{rightMeta.formattedBytes}</span>
+                </span>
+                <span className="text-[9px] uppercase tracking-wider text-purple-600 dark:text-purple-400">
+                  {rightMeta.spec}
+                </span>
+              </>
+            ) : (
+              <span className="italic text-neutral-400">No config file on Right</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Ignored Keys Sub-bar */}
       <div className="bg-neutral-50 dark:bg-neutral-950 border-b border-neutral-200 dark:border-neutral-900 px-3 py-1 flex items-center space-x-2 text-xs flex-shrink-0">
         <span className="font-mono text-[11px] text-neutral-500 flex-shrink-0">
           Ignored Keys / Paths:
@@ -549,7 +920,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         />
       </div>
 
-      {/* 4. Error / Warning Banner */}
+      {/* Error / Warning Banner */}
       {loadError && (
         <div className="bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900 px-3 py-1 text-xs text-amber-800 dark:text-amber-300 flex items-center justify-between">
           <div className="flex items-center space-x-2">
@@ -562,24 +933,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         </div>
       )}
 
-      {/* 5. Beyond Compare Synchronized Split Header Banner (Strict 50/50 Split) */}
-      {(leftPath || rightPath) && (
-        <div className="flex items-center bg-neutral-200/70 dark:bg-neutral-900/90 border-b border-neutral-300 dark:border-neutral-800 text-[11px] font-mono px-2 py-0.5 flex-shrink-0 select-none w-full max-w-full overflow-hidden">
-          <div className="w-1/2 flex items-center space-x-1.5 truncate pr-2 text-blue-700 dark:text-blue-300 min-w-0" title={leftPath}>
-            <span className="w-2 h-2 rounded-full bg-blue-500 inline-block flex-shrink-0"></span>
-            <span className="font-bold text-[10px] uppercase tracking-wider text-blue-600 dark:text-blue-400 flex-shrink-0">L:</span>
-            <span className="truncate font-semibold">{leftPath || '(none)'}</span>
-          </div>
-          <div className="h-3.5 w-px bg-neutral-300 dark:bg-neutral-800 mx-1 flex-shrink-0"></div>
-          <div className="w-1/2 flex items-center space-x-1.5 truncate pl-2 text-purple-700 dark:text-purple-300 min-w-0" title={rightPath}>
-            <span className="w-2 h-2 rounded-full bg-purple-500 inline-block flex-shrink-0"></span>
-            <span className="font-bold text-[10px] uppercase tracking-wider text-purple-600 dark:text-purple-400 flex-shrink-0">R:</span>
-            <span className="truncate font-semibold">{rightPath || '(none)'}</span>
-          </div>
-        </div>
-      )}
-
-      {/* 6. Monaco Diff Editor Canvas (Pitch black in dark mode, crisp white in light mode) */}
+      {/* ================= 4. Monaco Diff Editor Canvas (Exact Beyond Compare Colors) ================= */}
       <div className="flex-1 relative min-h-0 bg-white dark:bg-black w-full overflow-hidden">
         {!leftPath && !rightPath ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-600 bg-white dark:bg-black p-8 text-center select-none">
@@ -588,7 +942,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
               No Files Loaded in Config & XML Compare
             </h4>
             <p className="text-xs max-w-sm text-neutral-500 mb-4">
-              Select Left and Right configuration files above (such as <strong>site1.xml vs site2.xml</strong>, or Helm <strong>values.yaml</strong>) to inspect side-by-side differences.
+              Click <strong>Browse</strong> above to select XML or YAML files (e.g. <strong>site1.xml vs site2.xml</strong>, Helm <strong>values.yaml</strong>).
             </p>
           </div>
         ) : (
@@ -597,39 +951,77 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
             language={editorLanguage}
             original={diffResult ? diffResult.cleanLeft : leftEditorContent}
             modified={diffResult ? diffResult.cleanRight : rightEditorContent}
-            theme={theme === 'dark' ? 'pitch-black' : 'vs'}
+            theme={theme === 'dark' ? 'beyond-compare-dark' : 'beyond-compare-light'}
             beforeMount={(monaco) => {
-              monaco.editor.defineTheme('pitch-black', {
+              monaco.editor.defineTheme('beyond-compare-light', {
+                base: 'vs',
+                inherit: true,
+                rules: [
+                  { token: '', foreground: '000000' },
+                ],
+                colors: {
+                  'editor.background': '#ffffff',
+                  'editor.foreground': '#000000',
+                  'editorGutter.background': '#f6f6f6',
+                  'editorLineNumber.foreground': '#717171',
+                  'editorLineNumber.activeForeground': '#000000',
+                  'diffEditor.insertedTextBackground': 'rgba(239, 68, 68, 0.12)',
+                  'diffEditor.removedTextBackground': 'rgba(239, 68, 68, 0.18)',
+                  'diffEditor.insertedLineBackground': 'rgba(239, 68, 68, 0.08)',
+                  'diffEditor.removedLineBackground': 'rgba(239, 68, 68, 0.12)',
+                  'diffEditor.diagonalFill': '#e5e5e5',
+                },
+              });
+
+              monaco.editor.defineTheme('beyond-compare-dark', {
                 base: 'vs-dark',
                 inherit: true,
                 rules: [],
                 colors: {
                   'editor.background': '#000000',
+                  'editor.foreground': '#f3f4f6',
                   'editorGutter.background': '#050505',
-                  'diffEditor.insertedTextBackground': 'rgba(34, 197, 94, 0.20)',
+                  'diffEditor.insertedTextBackground': 'rgba(239, 68, 68, 0.22)',
                   'diffEditor.removedTextBackground': 'rgba(239, 68, 68, 0.25)',
+                  'diffEditor.insertedLineBackground': 'rgba(239, 68, 68, 0.15)',
+                  'diffEditor.removedLineBackground': 'rgba(239, 68, 68, 0.18)',
+                  'diffEditor.diagonalFill': '#222222',
                 },
               });
             }}
             onMount={handleEditorDidMount}
             options={{
-              renderSideBySide: true,
+              renderSideBySide,
               readOnly: false,
               originalEditable: true,
               fontSize: 12,
-              fontFamily: "'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', monospace",
+              fontFamily: "'Consolas', 'Courier New', 'SFMono-Regular', Menlo, Monaco, monospace",
               minimap: { enabled: true },
               scrollBeyondLastLine: false,
               automaticLayout: true,
               diffCodeLens: true,
               renderOverviewRuler: true,
               diffWordWrap: 'on',
-            }}
+              ...(activeFilter === 'diffs' ? ({ hideUnchangedRegions: { enabled: true } } as any) : {}),
+            } as any}
           />
         )}
       </div>
 
-      {/* 7. Collapsible Semantic Inspector Drawer */}
+      {/* ================= 5. Beyond Compare Line Details Split Inspection Bar (Image 3) ================= */}
+      {(leftPath || rightPath) && (
+        <LineDetailInspector
+          leftLineNumber={cursorLineNumber}
+          rightLineNumber={cursorLineNumber}
+          leftText={activeLeftLineText}
+          rightText={activeRightLineText}
+          onCopyLeftToRight={handleCopyActiveLineL2R}
+          onCopyRightToLeft={handleCopyActiveLineR2L}
+          theme={theme}
+        />
+      )}
+
+      {/* Collapsible Semantic Inspector Drawer */}
       {showInspector && diffResult && (
         <div className="h-48 border-t border-neutral-300 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 flex flex-col flex-shrink-0">
           <div className="flex items-center justify-between px-3 py-1 bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-xs font-medium">

@@ -15,6 +15,7 @@ import {
   Equal,
   ChevronLeft,
   FolderTree,
+  Home,
 } from 'lucide-react';
 import {
   ComparisonEntry,
@@ -36,6 +37,7 @@ interface FolderCompareViewProps {
   onSetLeftFolder: (path: string) => void;
   onSetRightFolder: (path: string) => void;
   onOpenInTextCompare: (leftFile: string, rightFile: string) => void;
+  onNavigateHome?: () => void;
   onRequestConfirm: (config: ConfirmModalConfig) => void;
   onUpdateStatus: (text: string, count?: number, durationMs?: number) => void;
 }
@@ -46,6 +48,7 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
   onSetLeftFolder,
   onSetRightFolder,
   onOpenInTextCompare,
+  onNavigateHome,
   onRequestConfirm,
   onUpdateStatus,
 }) => {
@@ -497,13 +500,13 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
   return (
     <div className="flex-1 flex flex-col h-full bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 overflow-hidden font-sans">
       {/* 1. Iconic Beyond Compare Dual Address Bars (Strict 50/50 Split) */}
-      <div className="bg-neutral-100 dark:bg-neutral-950 border-b border-neutral-300 dark:border-neutral-800 p-1 flex items-center space-x-1.5 flex-shrink-0 w-full max-w-full overflow-hidden">
+      <div className="bg-[#f6f6f6] dark:bg-[#0c0c0c] border-b border-[#d0d0d0] dark:border-neutral-800 p-1 flex items-center space-x-1.5 flex-shrink-0 w-full max-w-full overflow-hidden">
         {/* Left Folder Address Box */}
         <div
-          className="flex-1 min-w-0 flex items-center bg-white dark:bg-black border border-blue-300 dark:border-blue-900/60 rounded px-1.5 py-0.5 shadow-sm focus-within:ring-1 focus-within:ring-blue-500"
+          className="flex-1 min-w-0 flex items-center bg-white dark:bg-black border border-blue-400 dark:border-blue-900/70 rounded px-1.5 py-0.5 shadow-xs focus-within:ring-1 focus-within:ring-blue-500"
           title={leftFolder || 'Left directory'}
         >
-          <span className="w-4 h-4 rounded bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center flex-shrink-0 shadow-sm mr-1">
+          <span className="w-4 h-4 rounded bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center flex-shrink-0 shadow-xs mr-1">
             L
           </span>
           <button
@@ -524,9 +527,11 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
           />
           <button
             onClick={handlePickLeft}
-            className="ml-1 text-[11px] font-medium px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition flex-shrink-0"
+            title="Browse Left Directory (Yellow Folder)"
+            className="ml-1 p-1 rounded bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 transition flex-shrink-0 flex items-center space-x-1 shadow-xs"
           >
-            Browse...
+            <FolderOpen className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
+            <span className="text-[10px] font-semibold pr-0.5">Browse</span>
           </button>
         </div>
 
@@ -534,8 +539,9 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
         <div className="flex items-center space-x-1 flex-shrink-0">
           <button
             onClick={handleSwap}
+            data-action="swap"
             title="Swap Left and Right Folders"
-            className="p-1 rounded bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-800 transition"
+            className="p-1 rounded bg-[#eaeaea] dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-800 transition shadow-xs"
           >
             <ArrowLeftRight className="w-3.5 h-3.5" />
           </button>
@@ -544,7 +550,7 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
             onClick={handleStartCompare}
             disabled={isScanning}
             title="Compare Folders (Refresh)"
-            className="flex items-center space-x-1 px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-sm transition"
+            className="flex items-center space-x-1 px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-xs transition"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
             <span>Compare</span>
@@ -553,10 +559,10 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
 
         {/* Right Folder Address Box */}
         <div
-          className="flex-1 min-w-0 flex items-center bg-white dark:bg-black border border-purple-300 dark:border-purple-900/60 rounded px-1.5 py-0.5 shadow-sm focus-within:ring-1 focus-within:ring-purple-500"
+          className="flex-1 min-w-0 flex items-center bg-white dark:bg-black border border-purple-400 dark:border-purple-900/70 rounded px-1.5 py-0.5 shadow-xs focus-within:ring-1 focus-within:ring-purple-500"
           title={rightFolder || 'Right directory'}
         >
-          <span className="w-4 h-4 rounded bg-purple-600 text-white font-bold text-[10px] flex items-center justify-center flex-shrink-0 shadow-sm mr-1">
+          <span className="w-4 h-4 rounded bg-purple-600 text-white font-bold text-[10px] flex items-center justify-center flex-shrink-0 shadow-xs mr-1">
             R
           </span>
           <button
@@ -577,17 +583,28 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
           />
           <button
             onClick={handlePickRight}
-            className="ml-1 text-[11px] font-medium px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition flex-shrink-0"
+            title="Browse Right Directory (Yellow Folder)"
+            className="ml-1 p-1 rounded bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 transition flex-shrink-0 flex items-center space-x-1 shadow-xs"
           >
-            Browse...
+            <FolderOpen className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
+            <span className="text-[10px] font-semibold pr-0.5">Browse</span>
           </button>
         </div>
       </div>
 
       {/* 2. Iconic Beyond Compare Action & Filter Bar */}
-      <div className="bg-neutral-100 dark:bg-black border-b border-neutral-300 dark:border-neutral-800 px-3 py-1 flex items-center justify-between text-xs flex-shrink-0 select-none">
+      <div className="bg-[#f0f0f0] dark:bg-[#0a0a0a] border-b border-[#c8c8c8] dark:border-neutral-800 px-3 py-1 flex items-center justify-between text-xs flex-shrink-0 select-none shadow-xs">
         {/* Left: The Famous Beyond Compare View Filter Buttons */}
         <div className="flex items-center space-x-1">
+          {onNavigateHome && (
+            <button
+              onClick={onNavigateHome}
+              title="Return to Sessions Home"
+              className="p-1 rounded bg-white dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-800 transition shadow-xs mr-1"
+            >
+              <Home className="w-3.5 h-3.5" />
+            </button>
+          )}
           {/* Show All */}
           <button
             onClick={() => setStatusFilter('all')}

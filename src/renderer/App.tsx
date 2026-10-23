@@ -229,6 +229,7 @@ export const App: React.FC = () => {
               if (folderLeftPath && path) addRecent('folder', folderLeftPath, path);
             }}
             onOpenInTextCompare={handleOpenInTextCompare}
+            onNavigateHome={() => setActiveTab('home')}
             onRequestConfirm={(cfg) => setConfirmConfig(cfg)}
             onUpdateStatus={handleUpdateStatus}
           />
@@ -247,6 +248,7 @@ export const App: React.FC = () => {
               setTextRightPath(path);
               if (textLeftPath && path) addRecent('text', textLeftPath, path);
             }}
+            onNavigateHome={() => setActiveTab('home')}
             onRequestConfirm={(cfg) => setConfirmConfig(cfg)}
             onUpdateStatus={handleUpdateStatus}
           />
@@ -265,6 +267,7 @@ export const App: React.FC = () => {
               setStructuredRightPath(path);
               if (structuredLeftPath && path) addRecent('structured', structuredLeftPath, path);
             }}
+            onNavigateHome={() => setActiveTab('home')}
             onRequestConfirm={(cfg) => setConfirmConfig(cfg)}
             onUpdateStatus={handleUpdateStatus}
           />
