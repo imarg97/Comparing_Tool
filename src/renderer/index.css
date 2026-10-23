@@ -63,13 +63,11 @@
 
 /* Neutral line numbers margin without red/green/yellow background wash */
 .monaco-diff-editor .margin,
-.monaco-diff-editor .margin *,
-.monaco-diff-editor .margin-view-overlays,
-.monaco-diff-editor .margin-view-overlays *,
 .monaco-diff-editor .line-numbers,
-.monaco-diff-editor .line-numbers *,
-.monaco-diff-editor .diffx-copied-highlight-gutter {
-  background: transparent !important;
+.monaco-diff-editor .diffEditorGutter,
+.dark .monaco-diff-editor .margin,
+.dark .monaco-diff-editor .line-numbers,
+.dark .monaco-diff-editor .diffEditorGutter {
   background-color: transparent !important;
   box-shadow: none !important;
   border-left: none !important;
@@ -80,40 +78,62 @@
   color: #6b7280 !important;
 }
 
-.dark .monaco-diff-editor .margin,
-.dark .monaco-diff-editor .margin *,
-.dark .monaco-diff-editor .margin-view-overlays,
-.dark .monaco-diff-editor .margin-view-overlays *,
-.dark .monaco-diff-editor .line-numbers,
-.dark .monaco-diff-editor .line-numbers *,
-.dark .monaco-diff-editor .diffx-copied-highlight-gutter {
-  background: transparent !important;
-  background-color: transparent !important;
-  box-shadow: none !important;
-  border-left: none !important;
-  border-right: none !important;
-}
-
 .dark .monaco-diff-editor .line-numbers {
   color: #71717a !important;
 }
 
-/* Text Selection Highlight with strong contrast in both themes */
-.monaco-editor .selected-text {
-  background-color: #bfdbfe !important; /* Soft blue in light mode */
-}
-.dark .monaco-editor .selected-text {
-  background-color: #1d4ed8 !important; /* Vivid royal blue in dark mode */
+/* Text Selection Highlight: high contrast over BOTH normal and red diff backgrounds */
+.monaco-editor .selected-text,
+.monaco-diff-editor .selected-text,
+.monaco-diff-editor .lines-content .selected-text,
+.monaco-editor .view-overlays .selected-text,
+.monaco-diff-editor .view-overlays .selected-text {
+  background-color: #60a5fa !important; /* Bright sky blue in light mode */
+  color: #0f172a !important;
+  opacity: 1 !important;
+  z-index: 40 !important;
+  border-radius: 2px !important;
+  box-shadow: 0 0 0 1px #3b82f6 !important;
 }
 
-/* Light Mode: Beyond Compare high-contrast red wash on BOTH sides with deep ruby tokens */
+.dark .monaco-editor .selected-text,
+.dark .monaco-diff-editor .selected-text,
+.dark .monaco-diff-editor .lines-content .selected-text,
+.dark .monaco-editor .view-overlays .selected-text,
+.dark .monaco-diff-editor .view-overlays .selected-text {
+  background-color: #2563eb !important; /* Vivid electric royal blue in dark mode */
+  color: #ffffff !important;
+  opacity: 1 !important;
+  z-index: 40 !important;
+  border-radius: 2px !important;
+  box-shadow: 0 0 0 1px #60a5fa !important;
+}
+
+/* Active User Selection Line Range Highlight (1 line or 5 lines) */
+.diffx-active-selection-range {
+  background-color: rgba(59, 130, 246, 0.25) !important;
+  border-top: 1px dashed #3b82f6 !important;
+  border-bottom: 1px dashed #3b82f6 !important;
+  box-shadow: inset 4px 0 0 #2563eb !important;
+  z-index: 25 !important;
+}
+
+.dark .diffx-active-selection-range {
+  background-color: rgba(37, 99, 235, 0.40) !important;
+  border-top: 1px dashed #60a5fa !important;
+  border-bottom: 1px dashed #60a5fa !important;
+  box-shadow: inset 4px 0 0 #60a5fa !important;
+  z-index: 25 !important;
+}
+
+/* Light Mode: Beyond Compare calibrated rose wash with crisp dark text */
 .monaco-diff-editor .lines-content .line-delete,
 .monaco-diff-editor .lines-content .ced-line-delete,
 .monaco-diff-editor .lines-content .diff-line-delete,
 .monaco-diff-editor .lines-content .line-insert,
 .monaco-diff-editor .lines-content .ced-line-insert,
 .monaco-diff-editor .lines-content .diff-line-insert {
-  background-color: #fecaca !important; /* Vivid Beyond Compare light red/pink wash */
+  background-color: #ffe4e6 !important; /* Soft, clean Beyond Compare light rose wash */
   border-left: 4px solid #ef4444 !important;
 }
 
@@ -121,7 +141,7 @@
 .monaco-diff-editor .ced-char-delete,
 .monaco-diff-editor .char-insert,
 .monaco-diff-editor .ced-char-insert {
-  background-color: #f87171 !important; /* High-contrast rose highlight for changed tokens */
+  background-color: #fca5a5 !important; /* High-contrast rose highlight for changed tokens */
   color: #7f1d1d !important;            /* High-contrast deep ruby red text */
   font-weight: 700 !important;
   border: 1px solid #ef4444 !important;
@@ -133,22 +153,22 @@
   background-color: #f1f5f9 !important;
 }
 
-/* Dark Mode: Minimalist deep crimson with bright crisp text */
+/* Dark Mode: Calibrated deep crimson with bright crisp text (no glare, WCAG AAA contrast) */
 .dark .monaco-diff-editor .lines-content .line-delete,
 .dark .monaco-diff-editor .lines-content .ced-line-delete,
 .dark .monaco-diff-editor .lines-content .diff-line-delete,
 .dark .monaco-diff-editor .lines-content .line-insert,
 .dark .monaco-diff-editor .lines-content .ced-line-insert,
 .dark .monaco-diff-editor .lines-content .diff-line-insert {
-  background-color: #450a0a !important; /* Deep crimson background */
-  border-left: 4px solid #f43f5e !important;
+  background-color: #380c0c !important; /* Deep crimson background */
+  border-left: 4px solid #ef4444 !important;
 }
 
 .dark .monaco-diff-editor .char-delete,
 .dark .monaco-diff-editor .ced-char-delete,
 .dark .monaco-diff-editor .char-insert,
 .dark .monaco-diff-editor .ced-char-insert {
-  background-color: #b91c1c !important;
+  background-color: #dc2626 !important;
   color: #ffffff !important;            /* Bright white text against red */
   font-weight: 700 !important;
   border: 1px solid #f87171 !important;
@@ -209,26 +229,46 @@
 }
 
 /* Beyond Compare Gold Gutter Arrow Badges for Copy Left-to-Right (⇨) and Right-to-Left (⇦) */
-.diffx-glyph-copy-l2r {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='%23fef08a' stroke='%23ca8a04' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14'/%3E%3Cpath d='m12 5 7 7-7 7'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 15px 15px;
+.diffx-glyph-copy-l2r,
+.diffx-line-copy-l2r {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='%23fde047' stroke='%23854d0e' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12h16'/%3E%3Cpath d='m13 5 7 7-7 7'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: 15px 15px !important;
   cursor: pointer !important;
-  transition: transform 0.15s ease;
+  display: block !important;
+  width: 16px !important;
+  height: 100% !important;
+  min-height: 16px !important;
+  z-index: 99 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  transition: transform 0.15s ease !important;
 }
-.diffx-glyph-copy-l2r:hover {
-  transform: scale(1.25);
+.diffx-glyph-copy-l2r:hover,
+.diffx-line-copy-l2r:hover {
+  transform: scale(1.3) !important;
+  filter: drop-shadow(0 0 4px rgba(234, 179, 8, 1)) !important;
 }
 
-.diffx-glyph-copy-r2l {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='%23fef08a' stroke='%23ca8a04' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 19-7-7 7-7'/%3E%3Cpath d='M19 12H5'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 15px 15px;
+.diffx-glyph-copy-r2l,
+.diffx-line-copy-r2l {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='%23fde047' stroke='%23854d0e' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m11 19-7-7 7-7'/%3E%3Cpath d='M20 12H4'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: 15px 15px !important;
   cursor: pointer !important;
-  transition: transform 0.15s ease;
+  display: block !important;
+  width: 16px !important;
+  height: 100% !important;
+  min-height: 16px !important;
+  z-index: 99 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  transition: transform 0.15s ease !important;
 }
-.diffx-glyph-copy-r2l:hover {
-  transform: scale(1.25);
+.diffx-glyph-copy-r2l:hover,
+.diffx-line-copy-r2l:hover {
+  transform: scale(1.3) !important;
+  filter: drop-shadow(0 0 4px rgba(234, 179, 8, 1)) !important;
 }

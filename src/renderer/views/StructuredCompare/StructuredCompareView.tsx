@@ -573,86 +573,91 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       const newLeftDecs: any[] = [];
       const newRightDecs: any[] = [];
 
-      // If user has actively selected specific line(s) on Left, place the arrow directly at the selection!
+      // 1. ALWAYS render diff chunk arrows for all differences across the files
+      const activeList = canonicalChunksRef.current.length ? canonicalChunksRef.current : chunks;
+      for (const chunk of activeList) {
+        // Show Right Arrow (⇨) on Left only if Left has real lines to copy!
+        if (chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart) {
+          newLeftDecs.push({
+            range: {
+              startLineNumber: chunk.originalStart,
+              startColumn: 1,
+              endLineNumber: chunk.originalStart,
+              endColumn: 1,
+            },
+            options: {
+              isWholeLine: false,
+              glyphMarginClassName: 'diffx-glyph-copy-l2r',
+              linesDecorationsClassName: 'diffx-line-copy-l2r',
+              glyphMarginHoverMessage: {
+                value: `**⇨ Copy Lines ${chunk.originalStart}–${chunk.originalEnd} to Right**`,
+              },
+            },
+          });
+        }
+
+        // Show Left Arrow (⇦) on Right only if Right has real lines to copy!
+        if (chunk.modifiedStart > 0 && chunk.modifiedEnd >= chunk.modifiedStart) {
+          newRightDecs.push({
+            range: {
+              startLineNumber: chunk.modifiedStart,
+              startColumn: 1,
+              endLineNumber: chunk.modifiedStart,
+              endColumn: 1,
+            },
+            options: {
+              isWholeLine: false,
+              glyphMarginClassName: 'diffx-glyph-copy-r2l',
+              linesDecorationsClassName: 'diffx-line-copy-r2l',
+              glyphMarginHoverMessage: {
+                value: `**⇦ Copy Lines ${chunk.modifiedStart}–${chunk.modifiedEnd} to Left**`,
+              },
+            },
+          });
+        }
+      }
+
+      // 2. If user has actively selected specific line(s) (1 line, 5 lines, etc.), highlight the selected lines & place gutter arrow!
       if (currentSelection && currentSelection.side === 'left') {
+        const origModel = origEditor.getModel();
+        const maxCol = origModel ? origModel.getLineMaxColumn(currentSelection.endLine) : 1;
         newLeftDecs.push({
           range: {
             startLineNumber: currentSelection.startLine,
             startColumn: 1,
-            endLineNumber: currentSelection.startLine,
-            endColumn: 1,
+            endLineNumber: currentSelection.endLine,
+            endColumn: maxCol,
           },
           options: {
-            isWholeLine: false,
+            isWholeLine: true,
+            className: 'diffx-active-selection-range',
             glyphMarginClassName: 'diffx-glyph-copy-l2r',
+            linesDecorationsClassName: 'diffx-line-copy-l2r',
             glyphMarginHoverMessage: {
               value: `**⇨ Copy Selected Lines ${currentSelection.startLine}–${currentSelection.endLine} to Right**`,
             },
           },
         });
-      } else {
-        const activeList = canonicalChunksRef.current.length ? canonicalChunksRef.current : chunks;
-        for (const chunk of activeList) {
-          // Show Right Arrow (⇨) on Left only if Left has real lines to copy!
-          if (chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart) {
-            newLeftDecs.push({
-              range: {
-                startLineNumber: chunk.originalStart,
-                startColumn: 1,
-                endLineNumber: chunk.originalStart,
-                endColumn: 1,
-              },
-              options: {
-                isWholeLine: false,
-                glyphMarginClassName: 'diffx-glyph-copy-l2r',
-                glyphMarginHoverMessage: {
-                  value: `**⇨ Copy Lines ${chunk.originalStart}–${chunk.originalEnd} to Right**`,
-                },
-              },
-            });
-          }
-        }
-      }
-
-      // If user has actively selected specific line(s) on Right, place the arrow directly at the selection!
-      if (currentSelection && currentSelection.side === 'right') {
+      } else if (currentSelection && currentSelection.side === 'right') {
+        const modModel = modEditor.getModel();
+        const maxCol = modModel ? modModel.getLineMaxColumn(currentSelection.endLine) : 1;
         newRightDecs.push({
           range: {
             startLineNumber: currentSelection.startLine,
             startColumn: 1,
-            endLineNumber: currentSelection.startLine,
-            endColumn: 1,
+            endLineNumber: currentSelection.endLine,
+            endColumn: maxCol,
           },
           options: {
-            isWholeLine: false,
+            isWholeLine: true,
+            className: 'diffx-active-selection-range',
             glyphMarginClassName: 'diffx-glyph-copy-r2l',
+            linesDecorationsClassName: 'diffx-line-copy-r2l',
             glyphMarginHoverMessage: {
               value: `**⇦ Copy Selected Lines ${currentSelection.startLine}–${currentSelection.endLine} to Left**`,
             },
           },
         });
-      } else {
-        const activeList = canonicalChunksRef.current.length ? canonicalChunksRef.current : chunks;
-        for (const chunk of activeList) {
-          // Show Left Arrow (⇦) on Right only if Right has real lines to copy!
-          if (chunk.modifiedStart > 0 && chunk.modifiedEnd >= chunk.modifiedStart) {
-            newRightDecs.push({
-              range: {
-                startLineNumber: chunk.modifiedStart,
-                startColumn: 1,
-                endLineNumber: chunk.modifiedStart,
-                endColumn: 1,
-              },
-              options: {
-                isWholeLine: false,
-                glyphMarginClassName: 'diffx-glyph-copy-r2l',
-                glyphMarginHoverMessage: {
-                  value: `**⇦ Copy Lines ${chunk.modifiedStart}–${chunk.modifiedEnd} to Left**`,
-                },
-              },
-            });
-          }
-        }
       }
 
       leftDecorationsRef.current = origEditor.deltaDecorations(leftDecorationsRef.current, newLeftDecs);
@@ -670,9 +675,9 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       const origEditor = editor.getOriginalEditor();
       const modEditor = editor.getModifiedEditor();
 
-      // Explicitly disable sticky scroll on both panes
-      origEditor.updateOptions({ stickyScroll: { enabled: false }, glyphMargin: true });
-      modEditor.updateOptions({ stickyScroll: { enabled: false }, glyphMargin: true });
+      // Explicitly configure line decorations width and glyph margin on both panes
+      origEditor.updateOptions({ stickyScroll: { enabled: false }, glyphMargin: true, lineDecorationsWidth: 20 });
+      modEditor.updateOptions({ stickyScroll: { enabled: false }, glyphMargin: true, lineDecorationsWidth: 20 });
 
       // Track active focus side
       origEditor.onDidFocusEditorText(() => setActiveFocusSide('left'));
@@ -773,13 +778,15 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         const line = e.target?.position?.lineNumber;
         if (!line) return;
 
-        // ONLY trigger transfer when clicking the glyph margin arrow (type 2) - NEVER on line numbers (type 3)
+        // Trigger transfer when clicking the glyph margin arrow (type 2) or line decorations arrow (type 4) - NEVER on line numbers (type 3)
         const isGlyphArrowClick =
           (e.target?.type === 2 ||
+            e.target?.type === 4 ||
             e.target?.element?.classList?.contains('diffx-glyph-copy-l2r') ||
-            Boolean(e.target?.element?.closest?.('.diffx-glyph-copy-l2r'))) &&
-          e.target?.type !== 3 &&
-          e.target?.type !== 4;
+            e.target?.element?.classList?.contains('diffx-line-copy-l2r') ||
+            Boolean(e.target?.element?.closest?.('.diffx-glyph-copy-l2r')) ||
+            Boolean(e.target?.element?.closest?.('.diffx-line-copy-l2r'))) &&
+          e.target?.type !== 3;
 
         const chunk = findChunkAtLine(chunksRef.current, line, 'left') || findClosestChunk(chunksRef.current, line, 'left');
         if (chunk || activeSelection) {
@@ -819,13 +826,15 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         const line = e.target?.position?.lineNumber;
         if (!line) return;
 
-        // ONLY trigger transfer when clicking the glyph margin arrow (type 2) - NEVER on line numbers (type 3)
+        // Trigger transfer when clicking the glyph margin arrow (type 2) or line decorations arrow (type 4) - NEVER on line numbers (type 3)
         const isGlyphArrowClick =
           (e.target?.type === 2 ||
+            e.target?.type === 4 ||
             e.target?.element?.classList?.contains('diffx-glyph-copy-r2l') ||
-            Boolean(e.target?.element?.closest?.('.diffx-glyph-copy-r2l'))) &&
-          e.target?.type !== 3 &&
-          e.target?.type !== 4;
+            e.target?.element?.classList?.contains('diffx-line-copy-r2l') ||
+            Boolean(e.target?.element?.closest?.('.diffx-glyph-copy-r2l')) ||
+            Boolean(e.target?.element?.closest?.('.diffx-line-copy-r2l'))) &&
+          e.target?.type !== 3;
 
         const chunk = findChunkAtLine(chunksRef.current, line, 'right') || findClosestChunk(chunksRef.current, line, 'right');
         if (chunk || activeSelection) {
@@ -1609,12 +1618,12 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
                     'editorGutter.background': '#f8fafc',
                     'editorLineNumber.foreground': '#94a3b8',
                     'editorLineNumber.activeForeground': '#0f172a',
-                    'editor.selectionBackground': '#bfdbfe',
-                    'editor.selectionHighlightBackground': '#dbeafe',
-                    'diffEditor.insertedTextBackground': '#f87171',
-                    'diffEditor.removedTextBackground': '#f87171',
-                    'diffEditor.insertedLineBackground': '#fecaca',
-                    'diffEditor.removedLineBackground': '#fecaca',
+                    'editor.selectionBackground': '#60a5fa',
+                    'editor.selectionHighlightBackground': '#93c5fd',
+                    'diffEditor.insertedTextBackground': '#fca5a5',
+                    'diffEditor.removedTextBackground': '#fca5a5',
+                    'diffEditor.insertedLineBackground': '#ffe4e6',
+                    'diffEditor.removedLineBackground': '#ffe4e6',
                     'diffEditor.diagonalFill': '#f1f5f9',
                     'diffEditorGutter.insertedLineBackground': '#00000000',
                     'diffEditorGutter.removedLineBackground': '#00000000',
@@ -1633,12 +1642,12 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
                     'editorGutter.background': '#050505',
                     'editorLineNumber.foreground': '#52525b',
                     'editorLineNumber.activeForeground': '#ffffff',
-                    'editor.selectionBackground': '#1d4ed8',
-                    'editor.selectionHighlightBackground': '#1e3a8a88',
-                    'diffEditor.insertedTextBackground': '#b91c1c',
-                    'diffEditor.removedTextBackground': '#b91c1c',
-                    'diffEditor.insertedLineBackground': '#450a0a',
-                    'diffEditor.removedLineBackground': '#450a0a',
+                    'editor.selectionBackground': '#2563eb',
+                    'editor.selectionHighlightBackground': '#3b82f6',
+                    'diffEditor.insertedTextBackground': '#dc2626',
+                    'diffEditor.removedTextBackground': '#dc2626',
+                    'diffEditor.insertedLineBackground': '#380c0c',
+                    'diffEditor.removedLineBackground': '#380c0c',
                     'diffEditor.diagonalFill': '#18181b',
                     'diffEditorGutter.insertedLineBackground': '#00000000',
                     'diffEditorGutter.removedLineBackground': '#00000000',
@@ -1662,6 +1671,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
                 renderOverviewRuler: false,
                 diffWordWrap: 'on',
                 glyphMargin: true,
+                lineDecorationsWidth: 20,
                 stickyScroll: { enabled: false },
                 maxComputationTime: 0,
                 diffAlgorithm: 'advanced',
