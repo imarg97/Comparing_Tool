@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg-grad-4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#09090b" />
+      <stop offset="100%" stop-color="#000000" />
+    </linearGradient>
+    <linearGradient id="facet-left" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+    <linearGradient id="facet-right" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+    <linearGradient id="facet-top" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <filter id="glow-4" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="24" flood-color="#2563eb" flood-opacity="0.35" />
+    </filter>
+  </defs>
+
+  <!-- App Tile Background -->
+  <rect width="512" height="512" rx="112" fill="url(#bg-grad-4)" />
+  <rect width="508" height="508" x="2" y="2" rx="110" fill="none" stroke="#27272a" stroke-width="3" />
+
+  <!-- Isometric Faceted Diff Prism -->
+  <g filter="url(#glow-4)">
+    <!-- Top Face -->
+    <polygon points="256,100 376,170 256,240 136,170" fill="url(#facet-top)" />
+
+    <!-- Left Compare Face (Electric Blue) -->
+    <polygon points="136,170 256,240 256,380 136,310" fill="url(#facet-left)" stroke="#38bdf8" stroke-width="2" />
+
+    <!-- Right Compare Face (Dark Graphite) -->
+    <polygon points="256,240 376,170 376,310 256,380" fill="url(#facet-right)" stroke="#475569" stroke-width="2" />
+
+    <!-- Luminous Central Split Laser / Gutter -->
+    <line x1="256" y1="100" x2="256" y2="410" stroke="#ffffff" stroke-width="5" stroke-linecap="round" />
+    <circle cx="256" cy="240" r="14" fill="#ffffff" />
+    <circle cx="256" cy="240" r="7" fill="#0284c7" />
+
+    <!-- Chevron accents on faces -->
+    <path d="M 180 250 L 210 268 L 180 286" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M 332 250 L 302 268 L 332 286" fill="none" stroke="#94a3b8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+</svg>

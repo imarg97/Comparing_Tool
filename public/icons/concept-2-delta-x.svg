@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg-grad-2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#18181b" />
+      <stop offset="100%" stop-color="#09090b" />
+    </linearGradient>
+    <linearGradient id="blue-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <linearGradient id="violet-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a78bfa" />
+      <stop offset="100%" stop-color="#6366f1" />
+    </linearGradient>
+    <linearGradient id="emerald-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <filter id="shadow-2" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="20" flood-color="#000000" flood-opacity="0.6" />
+      <feDropShadow dx="0" dy="4" stdDeviation="10" flood-color="#38bdf8" flood-opacity="0.25" />
+    </filter>
+  </defs>
+
+  <!-- App Tile Background -->
+  <rect width="512" height="512" rx="112" fill="url(#bg-grad-2)" />
+  <rect width="508" height="508" x="2" y="2" rx="110" fill="none" stroke="#27272a" stroke-width="3" />
+
+  <!-- Outer Stylized "D" & "X" Chevron Wing Left (Pointing Right ⇨) -->
+  <g filter="url(#shadow-2)">
+    <!-- Top-Left to Center-Right Arrow Blade -->
+    <path d="M 120 120 L 220 120 L 310 230 L 250 230 Z" fill="url(#blue-grad)" />
+    <!-- Bottom-Left to Center-Right Arrow Blade -->
+    <path d="M 120 392 L 220 392 L 310 282 L 250 282 Z" fill="url(#blue-grad)" />
+
+    <!-- Top-Right to Center-Left Arrow Blade (Pointing Left ⇦) -->
+    <path d="M 392 120 L 292 120 L 202 230 L 262 230 Z" fill="url(#violet-grad)" />
+    <!-- Bottom-Right to Center-Left Arrow Blade -->
+    <path d="M 392 392 L 292 392 L 202 282 L 262 282 Z" fill="url(#violet-grad)" />
+
+    <!-- Central Delta Diamond Intersection Core -->
+    <polygon points="256,220 286,256 256,292 226,256" fill="#f8fafc" opacity="0.95" />
+  </g>
+</svg>
