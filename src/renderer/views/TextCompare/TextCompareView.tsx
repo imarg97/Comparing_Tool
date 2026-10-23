@@ -112,7 +112,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
   onSetLeftPath,
   onSetRightPath,
   onNavigateHome,
-  onRequestConfirm,
+  onRequestConfirm: _onRequestConfirm,
   onUpdateStatus,
 }) => {
   // File Content State
@@ -186,15 +186,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
           }
         }
         if (!p) {
-          p = (file as any).path || '';
-        }
-        // Construct full Beyond Compare Downloads path if bare filename
-        if (!p || (!p.includes('/') && !p.includes('\\'))) {
-          const dir = (leftPath && (leftPath.includes('/') || leftPath.includes('\\')))
-            ? leftPath.substring(0, Math.max(leftPath.lastIndexOf('/'), leftPath.lastIndexOf('\\')))
-            : 'C:\\Users\\naira\\Downloads';
-          const sep = dir.includes('/') ? '/' : '\\';
-          p = `${dir}${sep}${file.name}`;
+          p = (file as any).path || file.webkitRelativePath || file.name;
         }
         items.push({ path: p, file });
       }
@@ -333,7 +325,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
   };
 
   // Flash highlight on copied differences (L2R or R2L) with Beyond Compare smooth animation
-  const flashCopiedHighlight = (side: 'left' | 'right', startLine: number, endLine: number) => {
+  const flashCopiedHighlight = (side: 'left' | 'right', startLine: number, endLine: number, shouldFocus: boolean = true) => {
     if (!diffEditorRef.current) return;
     try {
       const editor = side === 'left' ? diffEditorRef.current.getOriginalEditor() : diffEditorRef.current.getModifiedEditor();
@@ -355,7 +347,6 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
           options: {
             isWholeLine: true,
             className: 'diffx-copied-highlight-line',
-            marginClassName: 'diffx-copied-highlight-gutter',
           },
         },
       ];
@@ -367,8 +358,10 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       }
 
       editor.revealLinesInCenter(s, e);
-      editor.setPosition({ lineNumber: s, column: 1 });
-      editor.focus();
+      if (shouldFocus) {
+        editor.setPosition({ lineNumber: s, column: 1 });
+        editor.focus();
+      }
 
       setTimeout(() => {
         if (!diffEditorRef.current) return;
@@ -381,7 +374,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         } catch {
           // ignore
         }
-      }, 1800);
+      }, 2200);
     } catch {
       // ignore
     }
@@ -811,8 +804,9 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             setRightDirty(true);
             setLastModifiedSide('right');
             setActiveFocusSide('right');
+            flashCopiedHighlight('left', chunk.originalStart, chunk.originalEnd || chunk.originalStart, false);
             if (outRange.startLine > 0) {
-              flashCopiedHighlight('right', outRange.startLine, outRange.endLine);
+              flashCopiedHighlight('right', outRange.startLine, outRange.endLine, true);
             }
             onUpdateStatus(`Copied diff lines ${chunk.originalStart}–${chunk.originalEnd || chunk.originalStart} Left ⇨ Right`);
           }
@@ -839,8 +833,9 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             setLeftDirty(true);
             setLastModifiedSide('left');
             setActiveFocusSide('left');
+            flashCopiedHighlight('right', chunk.modifiedStart, chunk.modifiedEnd || chunk.modifiedStart, false);
             if (outRange.startLine > 0) {
-              flashCopiedHighlight('left', outRange.startLine, outRange.endLine);
+              flashCopiedHighlight('left', outRange.startLine, outRange.endLine, true);
             }
             onUpdateStatus(`Copied diff lines ${chunk.modifiedStart}–${chunk.modifiedEnd || chunk.modifiedStart} Right ⇦ Left`);
           }
@@ -910,8 +905,9 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       setRightDirty(true);
       setLastModifiedSide('right');
       setActiveFocusSide('right');
+      flashCopiedHighlight('left', chunk.originalStart, chunk.originalEnd || chunk.originalStart, false);
       if (outRange.startLine > 0) {
-        flashCopiedHighlight('right', outRange.startLine, outRange.endLine);
+        flashCopiedHighlight('right', outRange.startLine, outRange.endLine, true);
       }
       onUpdateStatus(`Copied diff lines ${chunk.originalStart}–${chunk.originalEnd || chunk.originalStart} Left ⇨ Right`);
     } else if (activeSelection && activeSelection.side === 'left') {
@@ -931,7 +927,8 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       setRightDirty(true);
       setLastModifiedSide('right');
       setActiveFocusSide('right');
-      flashCopiedHighlight('right', outRange.startLine, outRange.endLine);
+      flashCopiedHighlight('left', activeSelection.startLine, activeSelection.endLine, false);
+      flashCopiedHighlight('right', outRange.startLine, outRange.endLine, true);
       onUpdateStatus(`Copied selected lines ${activeSelection.startLine}–${activeSelection.endLine} Left ⇨ Right`);
     }
   };
@@ -957,8 +954,9 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       setLeftDirty(true);
       setLastModifiedSide('left');
       setActiveFocusSide('left');
+      flashCopiedHighlight('right', chunk.modifiedStart, chunk.modifiedEnd || chunk.modifiedStart, false);
       if (outRange.startLine > 0) {
-        flashCopiedHighlight('left', outRange.startLine, outRange.endLine);
+        flashCopiedHighlight('left', outRange.startLine, outRange.endLine, true);
       }
       onUpdateStatus(`Copied diff lines ${chunk.modifiedStart}–${chunk.modifiedEnd || chunk.modifiedStart} Right ⇦ Left`);
     } else if (activeSelection && activeSelection.side === 'right') {
@@ -978,7 +976,8 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       setLeftDirty(true);
       setLastModifiedSide('left');
       setActiveFocusSide('left');
-      flashCopiedHighlight('left', outRange.startLine, outRange.endLine);
+      flashCopiedHighlight('right', activeSelection.startLine, activeSelection.endLine, false);
+      flashCopiedHighlight('left', outRange.startLine, outRange.endLine, true);
       onUpdateStatus(`Copied selected lines ${activeSelection.startLine}–${activeSelection.endLine} Right ⇦ Left`);
     }
   };
@@ -1028,6 +1027,9 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     modModel.pushEditOperations([], [{ range, text: leftLine }], () => null);
     setRightEditorContent(modModel.getValue());
     setRightDirty(true);
+    flashCopiedHighlight('left', cursorLineNumber, cursorLineNumber, false);
+    flashCopiedHighlight('right', rightLineNum, rightLineNum, true);
+    onUpdateStatus(`Copied line ${cursorLineNumber} Left ⇨ Right`);
   };
 
   // Single active line copy R -> L
@@ -1048,67 +1050,50 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     origModel.pushEditOperations([], [{ range, text: rightLine }], () => null);
     setLeftEditorContent(origModel.getValue());
     setLeftDirty(true);
+    flashCopiedHighlight('right', cursorLineNumber, cursorLineNumber, false);
+    flashCopiedHighlight('left', leftLineNum, leftLineNum, true);
+    onUpdateStatus(`Copied line ${cursorLineNumber} Right ⇦ Left`);
   };
 
-  // Safe Save Operations
-  const handleSaveLeft = () => {
+  // Safe Save Operations (Direct save without modal popups - Beyond Compare style)
+  const handleSaveLeft = async () => {
     if (!leftPath) return;
-
-    onRequestConfirm({
-      isOpen: true,
-      title: 'Save Left File Changes',
-      actionType: 'save',
-      destinationPath: leftPath,
-      isDestinationExisting: true,
-      message: `Save modified contents back to '${leftPath.split('/').pop()}'?`,
-      detail: 'This will write your unsaved edits to disk.',
-      onConfirm: async ({ createBackup }) => {
-        if (window.diffxAPI) {
-          const res = await window.diffxAPI.saveFile({
-            filePath: leftPath,
-            content: leftEditorContent,
-            createBackup,
-          });
-          if (res.success) {
-            setLeftDirty(false);
-            loadFiles();
-          } else {
-            setDiffError(`Save failed: ${res.error}`);
-          }
+    if (window.diffxAPI) {
+      const res = await window.diffxAPI.saveFile({
+        filePath: leftPath,
+        content: leftEditorContent,
+        createBackup: false,
+      });
+      if (res.success) {
+        setLeftDirty(false);
+        if (leftData) {
+          setLeftData({ ...leftData, content: leftEditorContent });
         }
-      },
-      onCancel: () => {},
-    });
+        onUpdateStatus(`Saved left file: ${leftPath.split(/[/\\]/).pop()}`);
+      } else {
+        setDiffError(`Save failed: ${res.error}`);
+      }
+    }
   };
 
-  const handleSaveRight = () => {
+  const handleSaveRight = async () => {
     if (!rightPath) return;
-
-    onRequestConfirm({
-      isOpen: true,
-      title: 'Save Right File Changes',
-      actionType: 'save',
-      destinationPath: rightPath,
-      isDestinationExisting: true,
-      message: `Save modified contents back to '${rightPath.split('/').pop()}'?`,
-      detail: 'This will write your unsaved edits to disk.',
-      onConfirm: async ({ createBackup }) => {
-        if (window.diffxAPI) {
-          const res = await window.diffxAPI.saveFile({
-            filePath: rightPath,
-            content: rightEditorContent,
-            createBackup,
-          });
-          if (res.success) {
-            setRightDirty(false);
-            loadFiles();
-          } else {
-            setDiffError(`Save failed: ${res.error}`);
-          }
+    if (window.diffxAPI) {
+      const res = await window.diffxAPI.saveFile({
+        filePath: rightPath,
+        content: rightEditorContent,
+        createBackup: false,
+      });
+      if (res.success) {
+        setRightDirty(false);
+        if (rightData) {
+          setRightData({ ...rightData, content: rightEditorContent });
         }
-      },
-      onCancel: () => {},
-    });
+        onUpdateStatus(`Saved right file: ${rightPath.split(/[/\\]/).pop()}`);
+      } else {
+        setDiffError(`Save failed: ${res.error}`);
+      }
+    }
   };
 
   const handleRevertAll = () => {
@@ -1175,11 +1160,19 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         return;
       }
 
-      // Save: Ctrl+S / Cmd+S based on focus with popup confirmation
+      // Save: Ctrl+S / Cmd+S (Direct save without popup)
       if (isCtrlOrCmd && e.key.toLowerCase() === 's') {
         if (!diffEditorRef.current) return;
         e.preventDefault();
-        const targetSide = origEditor?.hasTextFocus() ? 'left' : modEditor?.hasTextFocus() ? 'right' : activeFocusSide;
+        const targetSide = origEditor?.hasTextFocus()
+          ? 'left'
+          : modEditor?.hasTextFocus()
+          ? 'right'
+          : rightDirty && !leftDirty
+          ? 'right'
+          : leftDirty && !rightDirty
+          ? 'left'
+          : activeFocusSide || lastModifiedSide || 'right';
         if (targetSide === 'left') {
           handleSaveLeft();
         } else {
@@ -1451,6 +1444,16 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             className="bg-transparent text-[11px] w-full min-w-0 focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 truncate"
             title={leftPath || 'Left file path'}
           />
+          {leftDirty && (
+            <button
+              onClick={handleSaveLeft}
+              title="Save Left File Changes (Ctrl+S)"
+              className="ml-1 px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-semibold text-[10px] flex items-center space-x-1 shadow-xs transition flex-shrink-0 animate-pulse"
+            >
+              <Save className="w-3 h-3" />
+              <span>Save</span>
+            </button>
+          )}
           <button
             onClick={handlePickLeft}
             title="Browse Left File (Yellow Folder)"
@@ -1503,6 +1506,16 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             className="bg-transparent text-[11px] w-full min-w-0 focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 truncate"
             title={rightPath || 'Right file path'}
           />
+          {rightDirty && (
+            <button
+              onClick={handleSaveRight}
+              title="Save Right File Changes (Ctrl+S)"
+              className="ml-1 px-2 py-0.5 rounded bg-purple-600 hover:bg-purple-500 text-white font-semibold text-[10px] flex items-center space-x-1 shadow-xs transition flex-shrink-0 animate-pulse"
+            >
+              <Save className="w-3 h-3" />
+              <span>Save</span>
+            </button>
+          )}
           <button
             onClick={handlePickRight}
             title="Browse Right File (Yellow Folder)"
@@ -1770,7 +1783,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
                 stickyScroll: { enabled: false },
                 maxComputationTime: 0,
                 diffAlgorithm: 'advanced',
-                renderIndicators: true,
+                renderIndicators: false,
                 renderMarginRevertIcon: false,
                 hideUnchangedRegions: { enabled: false },
               } as any}

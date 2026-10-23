@@ -104,10 +104,7 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
           }
         }
         if (!p) {
-          p = (file as any).path || '';
-        }
-        if (!p || (!p.includes('/') && !p.includes('\\'))) {
-          p = `C:\\Users\\naira\\Downloads\\${file.name}`;
+          p = (file as any).path || file.webkitRelativePath || file.name;
         }
         if (p) paths.push(p);
       }

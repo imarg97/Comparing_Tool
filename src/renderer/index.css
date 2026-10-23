@@ -61,29 +61,40 @@
    Line numbers remain clean and neutral without any colored wash.
    ========================================================================= */
 
-/* Neutral line numbers margin without red/green background wash */
+/* Neutral line numbers margin without red/green/yellow background wash */
 .monaco-diff-editor .margin,
+.monaco-diff-editor .margin *,
 .monaco-diff-editor .margin-view-overlays,
-.monaco-diff-editor .margin .line-numbers,
-.monaco-diff-editor .margin-view-overlays .line-numbers,
-.monaco-diff-editor .margin .line-delete,
-.monaco-diff-editor .margin .line-insert,
-.monaco-diff-editor .margin-view-overlays .line-delete,
-.monaco-diff-editor .margin-view-overlays .line-insert {
+.monaco-diff-editor .margin-view-overlays *,
+.monaco-diff-editor .line-numbers,
+.monaco-diff-editor .line-numbers *,
+.monaco-diff-editor .diffx-copied-highlight-gutter {
+  background: transparent !important;
   background-color: transparent !important;
+  box-shadow: none !important;
   border-left: none !important;
+  border-right: none !important;
+}
+
+.monaco-diff-editor .line-numbers {
   color: #6b7280 !important;
 }
+
 .dark .monaco-diff-editor .margin,
+.dark .monaco-diff-editor .margin *,
 .dark .monaco-diff-editor .margin-view-overlays,
-.dark .monaco-diff-editor .margin .line-numbers,
-.dark .monaco-diff-editor .margin-view-overlays .line-numbers,
-.dark .monaco-diff-editor .margin .line-delete,
-.dark .monaco-diff-editor .margin .line-insert,
-.dark .monaco-diff-editor .margin-view-overlays .line-delete,
-.dark .monaco-diff-editor .margin-view-overlays .line-insert {
+.dark .monaco-diff-editor .margin-view-overlays *,
+.dark .monaco-diff-editor .line-numbers,
+.dark .monaco-diff-editor .line-numbers *,
+.dark .monaco-diff-editor .diffx-copied-highlight-gutter {
+  background: transparent !important;
   background-color: transparent !important;
+  box-shadow: none !important;
   border-left: none !important;
+  border-right: none !important;
+}
+
+.dark .monaco-diff-editor .line-numbers {
   color: #71717a !important;
 }
 
@@ -155,7 +166,8 @@
 }
 
 .diffx-copied-highlight-gutter {
-  background-color: #eab308 !important;
+  background: transparent !important;
+  background-color: transparent !important;
 }
 
 @keyframes diffx-copy-pulse {

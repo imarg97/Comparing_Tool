@@ -49,7 +49,11 @@ function selectViaBrowserInput(directory: boolean): Promise<{ files: File[]; roo
       input.multiple = false;
     }
 
+    let resolved = false;
+
     input.onchange = () => {
+      if (resolved) return;
+      resolved = true;
       if (!input.files || input.files.length === 0) {
         resolve(null);
         return;
@@ -61,18 +65,12 @@ function selectViaBrowserInput(directory: boolean): Promise<{ files: File[]; roo
       resolve({ files, rootName });
     };
 
-    // If cancelled
-    window.addEventListener(
-      'focus',
-      () => {
-        setTimeout(() => {
-          if (!input.files || input.files.length === 0) {
-            resolve(null);
-          }
-        }, 800);
-      },
-      { once: true }
-    );
+    // Standard HTML5 cancel event when user cancels the native file dialog
+    input.addEventListener('cancel', () => {
+      if (resolved) return;
+      resolved = true;
+      resolve(null);
+    });
 
     input.click();
   });
@@ -83,8 +81,6 @@ export function registerBrowserFile(pathKey: string, file: File, side?: 'left' |
   browserFolderStore.singleFiles.set(file.name, file);
   browserFolderStore.singleFiles.set(`file://${pathKey}`, file);
   browserFolderStore.singleFiles.set(`browser://${pathKey}`, file);
-  // Also register with Windows Downloads default path so lookups succeed with both
-  browserFolderStore.singleFiles.set(`C:\\Users\\naira\\Downloads\\${file.name}`, file);
   if (side === 'left') {
     browserFolderStore.leftFile = file;
   } else if (side === 'right') {
@@ -98,16 +94,14 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
   return {
     getPathForFile: (file: File) => {
       const explicit = (file as any).path;
-      if (explicit && (explicit.includes('/') || explicit.includes('\\'))) {
-        return explicit;
-      }
-      return `C:\\Users\\naira\\Downloads\\${file.name}`;
+      if (explicit) return explicit;
+      return file.webkitRelativePath || file.name;
     },
 
     selectDirectory: async (_defaultPath?: string, side?: 'left' | 'right') => {
       const res = await selectViaBrowserInput(true);
       if (!res) return null;
-      const dirUri = `browser://${res.rootName}`;
+      const dirUri = res.rootName;
       const filesMap = new Map<string, File>();
 
       for (const f of res.files) {
@@ -118,6 +112,7 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
       }
 
       browserFolderStore.directories.set(dirUri, filesMap);
+      browserFolderStore.directories.set(`browser://${dirUri}`, filesMap);
 
       if (side === 'left') {
         browserFolderStore.leftFiles = filesMap;
@@ -157,14 +152,13 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
         if (file.webkitRelativePath && file.webkitRelativePath.includes('/')) {
           returnedPath = file.webkitRelativePath;
         } else {
-          returnedPath = `C:\\Users\\naira\\Downloads\\${file.name}`;
+          returnedPath = file.name;
         }
       }
 
       // Index file under multiple possible lookup paths for seamless loading
       browserFolderStore.singleFiles.set(returnedPath, file);
       browserFolderStore.singleFiles.set(file.name, file);
-      browserFolderStore.singleFiles.set(`C:\\Users\\naira\\Downloads\\${file.name}`, file);
       if (side) {
         browserFolderStore.singleFiles.set(`${side}/${file.name}`, file);
         browserFolderStore.singleFiles.set(`${side === 'left' ? 'L' : 'R'}/${file.name}`, file);
@@ -340,13 +334,21 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
 
     saveFile: async (request: SaveRequest) => {
       // In browser, trigger a download of the modified file
+      const cleanName = request.filePath.split(/[/\\]/).pop() || 'file.txt';
       const blob = new Blob([request.content], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = request.filePath.split('/').pop() || 'file.txt';
+      a.download = cleanName;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
+
+      // Also update in-memory cache
+      const updatedFile = new File([request.content], cleanName);
+      browserFolderStore.singleFiles.set(request.filePath, updatedFile);
+      browserFolderStore.singleFiles.set(cleanName, updatedFile);
 
       return {
         success: true,
