@@ -415,11 +415,6 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </div>
         </div>
-
-        {/* Right side status / hint */}
-        <div className="flex items-center space-x-2 text-[10px] text-neutral-500">
-          <span className="font-mono">Beyond Compare Layout</span>
-        </div>
       </div>
 
       {/* 2. Beyond Compare Session Tabs Row */}

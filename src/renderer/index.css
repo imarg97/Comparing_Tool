@@ -44,3 +44,81 @@
 .monaco-diff-editor, .monaco-editor {
   padding-top: 1px;
 }
+
+/* Disable Monaco Sticky Scroll globally so lines never stick to top while scrolling */
+.monaco-editor .sticky-widget,
+.monaco-diff-editor .sticky-widget {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  max-height: 0 !important;
+}
+
+/* =========================================================================
+   Beyond Compare Soft Diff Highlighting (Prevents jarring solid red blocks)
+   ========================================================================= */
+
+/* Light Mode: Soft, pastel, pleasant Beyond Compare colors */
+.monaco-diff-editor .line-delete {
+  background-color: #fde8e8 !important; /* Soft rose / pink tint */
+}
+.monaco-diff-editor .char-delete {
+  background-color: #fca5a5 !important; /* Pastel red for changed words */
+  color: #991b1b !important;            /* High-contrast dark red text */
+  font-weight: 600 !important;
+  border-radius: 2px;
+}
+.monaco-diff-editor .line-insert {
+  background-color: #f0fdf4 !important; /* Soft mint green */
+}
+.monaco-diff-editor .char-insert {
+  background-color: #bbf7d0 !important;
+  color: #166534 !important;
+  font-weight: 600 !important;
+  border-radius: 2px;
+}
+
+/* Dark Mode: Subtle wine/crimson tint on pitch black (No neon red glare) */
+.dark .monaco-diff-editor .line-delete {
+  background-color: rgba(220, 38, 38, 0.18) !important; /* Subtle dark red */
+}
+.dark .monaco-diff-editor .char-delete {
+  background-color: rgba(239, 68, 68, 0.35) !important;
+  color: #fca5a5 !important;                           /* Crisp readable light red text */
+  font-weight: 600 !important;
+  border-radius: 2px;
+}
+.dark .monaco-diff-editor .line-insert {
+  background-color: rgba(34, 197, 94, 0.15) !important;
+}
+.dark .monaco-diff-editor .char-insert {
+  background-color: rgba(34, 197, 94, 0.35) !important;
+  color: #86efac !important;
+  font-weight: 600 !important;
+  border-radius: 2px;
+}
+
+/* Gutter Arrow Glyphs for Copy Left-to-Right (⇨) and Right-to-Left (⇦) */
+.diffx-glyph-copy-l2r {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14'/%3E%3Cpath d='m12 5 7 7-7 7'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 14px 14px;
+  cursor: pointer !important;
+  transition: transform 0.15s ease;
+}
+.diffx-glyph-copy-l2r:hover {
+  transform: scale(1.25);
+}
+
+.diffx-glyph-copy-r2l {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239333ea' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 19-7-7 7-7'/%3E%3Cpath d='M19 12H5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 14px 14px;
+  cursor: pointer !important;
+  transition: transform 0.15s ease;
+}
+.diffx-glyph-copy-r2l:hover {
+  transform: scale(1.25);
+}
