@@ -21,9 +21,10 @@ let activeScanContext: ScanContext | null = null;
 
 export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   // Folder Selection
-  ipcMain.handle('dialog:select-directory', async (_event, defaultPath?: string) => {
+  ipcMain.handle('dialog:select-directory', async (_event, defaultPath?: string, side?: string) => {
+    const title = side ? `Select ${side.toUpperCase()} Directory to Compare` : 'Select Directory to Compare';
     const result = await dialog.showOpenDialog(mainWindow, {
-      title: 'Select Directory to Compare',
+      title,
       defaultPath: defaultPath || undefined,
       properties: ['openDirectory', 'createDirectory'],
     });
@@ -34,9 +35,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   });
 
   // File Selection
-  ipcMain.handle('dialog:select-file', async (_event, defaultPath?: string) => {
+  ipcMain.handle('dialog:select-file', async (_event, defaultPath?: string, side?: string) => {
+    const title = side ? `Select ${side.toUpperCase()} File to Compare` : 'Select File to Compare';
     const result = await dialog.showOpenDialog(mainWindow, {
-      title: 'Select File to Compare',
+      title,
       defaultPath: defaultPath || undefined,
       properties: ['openFile'],
     });

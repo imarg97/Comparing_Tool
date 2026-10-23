@@ -98,10 +98,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 <Boxes className="w-4 h-4" />
               </div>
               <h3 className="font-semibold text-xs text-neutral-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition">
-                K8s & Config Compare
+                Config & XML Compare
               </h3>
               <p className="text-[11px] text-neutral-500 mt-1 leading-relaxed">
-                Semantic AST comparison with Kubernetes runtime noise suppression (resourceVersion, status, uid).
+                Semantic AST comparison for XML configs (e.g. site1.xml vs site2.xml), YAML Helm values, and JSON data with noise suppression.
               </p>
             </div>
             <div className="mt-3 flex items-center text-xs font-medium text-emerald-600 dark:text-emerald-400 group-hover:translate-x-1 transition-transform">

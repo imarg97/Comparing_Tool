@@ -166,14 +166,14 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
 
   const handlePickLeft = async () => {
     if (window.diffxAPI) {
-      const selected = await window.diffxAPI.selectFile(leftPath);
+      const selected = await window.diffxAPI.selectFile(leftPath, 'left');
       if (selected) onSetLeftPath(selected);
     }
   };
 
   const handlePickRight = async () => {
     if (window.diffxAPI) {
-      const selected = await window.diffxAPI.selectFile(rightPath);
+      const selected = await window.diffxAPI.selectFile(rightPath, 'right');
       if (selected) onSetRightPath(selected);
     }
   };
@@ -382,26 +382,29 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
 
   return (
     <div className="flex-1 flex flex-col h-full bg-white dark:bg-black overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans">
-      {/* 1. Beyond Compare Dual Address Header */}
+      {/* 1. Beyond Compare Dual Address Header with Clear Left/Right Visual Distinction */}
       <div className="bg-neutral-100 dark:bg-neutral-950 border-b border-neutral-300 dark:border-neutral-800 p-1.5 flex items-center space-x-2 flex-shrink-0">
         {/* Left File Address Box */}
-        <div className="flex-1 flex items-center bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-2 py-1">
-          <FileCode className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 mr-2 flex-shrink-0" />
+        <div className="flex-1 flex items-center bg-white dark:bg-black border border-blue-300 dark:border-blue-900/60 rounded px-2 py-1 shadow-sm focus-within:ring-1 focus-within:ring-blue-500">
+          <span className="px-2 py-0.5 rounded bg-blue-600 text-white font-bold text-[10px] tracking-wider uppercase mr-2 flex-shrink-0 shadow-sm">
+            Left
+          </span>
+          <FileCode className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 mr-1.5 flex-shrink-0" />
           <input
             type="text"
             value={leftPath}
             onChange={(e) => onSetLeftPath(e.target.value)}
-            placeholder="Left file path..."
+            placeholder="Left file path (e.g. az1/values.yaml)..."
             className="bg-transparent text-xs w-full focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400"
           />
           {leftData && !leftData.error && (
-            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-neutral-100 dark:bg-neutral-900 text-neutral-500 border border-neutral-300 dark:border-neutral-700 ml-1.5 flex-shrink-0">
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 text-neutral-500 border border-neutral-300 dark:border-neutral-700 ml-1.5 flex-shrink-0">
               {leftData.encoding.toUpperCase()} • {(leftData.size / 1024).toFixed(1)} KB
             </span>
           )}
           <button
             onClick={handlePickLeft}
-            className="ml-1 text-[11px] px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-700 transition"
+            className="ml-1 text-[11px] font-medium px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition flex-shrink-0"
           >
             Browse...
           </button>
@@ -417,13 +420,16 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         </button>
 
         {/* Right File Address Box */}
-        <div className="flex-1 flex items-center bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-2 py-1">
-          <FileCode className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 mr-2 flex-shrink-0" />
+        <div className="flex-1 flex items-center bg-white dark:bg-black border border-purple-300 dark:border-purple-900/60 rounded px-2 py-1 shadow-sm focus-within:ring-1 focus-within:ring-purple-500">
+          <span className="px-2 py-0.5 rounded bg-purple-600 text-white font-bold text-[10px] tracking-wider uppercase mr-2 flex-shrink-0 shadow-sm">
+            Right
+          </span>
+          <FileCode className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 mr-1.5 flex-shrink-0" />
           <input
             type="text"
             value={rightPath}
             onChange={(e) => onSetRightPath(e.target.value)}
-            placeholder="Right file path..."
+            placeholder="Right file path (e.g. az2/values.yaml)..."
             className="bg-transparent text-xs w-full focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400"
           />
           {rightData && !rightData.error && (
@@ -433,7 +439,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
           )}
           <button
             onClick={handlePickRight}
-            className="ml-1 text-[11px] px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-700 transition"
+            className="ml-1 text-[11px] font-medium px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition flex-shrink-0"
           >
             Browse...
           </button>
@@ -620,7 +626,24 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         </div>
       )}
 
-      {/* 4. Monaco Diff Editor Canvas (Pitch black in dark mode, crisp white in light mode) */}
+      {/* 4. Beyond Compare Synchronized Split Header Banner */}
+      {(leftPath || rightPath) && (
+        <div className="flex items-center justify-between bg-neutral-200/70 dark:bg-neutral-900/90 border-b border-neutral-300 dark:border-neutral-800 text-[11px] font-mono px-3 py-1 flex-shrink-0 select-none">
+          <div className="flex-1 flex items-center space-x-1.5 truncate pr-3 text-blue-700 dark:text-blue-300">
+            <span className="w-2 h-2 rounded-full bg-blue-500 inline-block flex-shrink-0"></span>
+            <span className="font-bold text-[10px] uppercase tracking-wider text-blue-600 dark:text-blue-400">Left File:</span>
+            <span className="truncate font-semibold">{leftPath || '(none)'}</span>
+          </div>
+          <div className="h-3.5 w-px bg-neutral-300 dark:bg-neutral-800 mx-2 flex-shrink-0"></div>
+          <div className="flex-1 flex items-center space-x-1.5 truncate pl-3 text-purple-700 dark:text-purple-300">
+            <span className="w-2 h-2 rounded-full bg-purple-500 inline-block flex-shrink-0"></span>
+            <span className="font-bold text-[10px] uppercase tracking-wider text-purple-600 dark:text-purple-400">Right File:</span>
+            <span className="truncate font-semibold">{rightPath || '(none)'}</span>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Monaco Diff Editor Canvas (Pitch black in dark mode, crisp white in light mode) */}
       <div className="flex-1 relative min-h-0 bg-white dark:bg-black">
         {!leftPath && !rightPath ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-600 bg-white dark:bg-black p-8 text-center select-none">

@@ -30,6 +30,7 @@ const browserFolderStore = {
   leftFolderName: 'Left Folder',
   rightFolderName: 'Right Folder',
   singleFiles: new Map<string, File>(),
+  directories: new Map<string, Map<string, File>>(),
 };
 
 /**
@@ -75,22 +76,69 @@ function selectViaBrowserInput(directory: boolean): Promise<{ files: File[]; roo
   });
 }
 
+export function registerBrowserFile(pathKey: string, file: File): void {
+  browserFolderStore.singleFiles.set(pathKey, file);
+  browserFolderStore.singleFiles.set(`file://${pathKey}`, file);
+  browserFolderStore.singleFiles.set(`browser://${pathKey}`, file);
+}
+
 export function createBrowserFallbackAPI(): DiffxPreloadAPI {
   let progressListener: ((progress: ScanProgress) => void) | null = null;
 
   return {
-    selectDirectory: async (_defaultPath?: string) => {
+    selectDirectory: async (_defaultPath?: string, side?: 'left' | 'right') => {
       const res = await selectViaBrowserInput(true);
       if (!res) return null;
-      return `browser://${res.rootName}`;
+      const dirUri = `browser://${res.rootName}`;
+      const filesMap = new Map<string, File>();
+
+      for (const f of res.files) {
+        const rel = f.webkitRelativePath
+          ? f.webkitRelativePath.split('/').slice(1).join('/')
+          : f.name;
+        filesMap.set(rel, f);
+      }
+
+      browserFolderStore.directories.set(dirUri, filesMap);
+
+      if (side === 'left') {
+        browserFolderStore.leftFiles = filesMap;
+        browserFolderStore.leftFolderName = res.rootName;
+      } else if (side === 'right') {
+        browserFolderStore.rightFiles = filesMap;
+        browserFolderStore.rightFolderName = res.rootName;
+      }
+
+      return dirUri;
     },
 
-    selectFile: async (_defaultPath?: string) => {
+    selectFile: async (_defaultPath?: string, side?: 'left' | 'right') => {
       const res = await selectViaBrowserInput(false);
       if (!res || res.files.length === 0) return null;
       const file = res.files[0];
-      const key = `file://${file.name}`;
+
+      // Determine folder / environment context to prevent name collisions
+      let folderTag = '';
+      if (file.webkitRelativePath && file.webkitRelativePath.includes('/')) {
+        folderTag = file.webkitRelativePath.split('/')[0];
+      } else {
+        const defaultTag = side === 'left' ? 'az1' : side === 'right' ? 'az2' : 'config';
+        const inputTag = window.prompt(
+          `DiffX — Enter folder or environment name for this ${side ? side.toUpperCase() : ''} file:\n(e.g., az1, az2, site1, site2, production)`,
+          defaultTag
+        );
+        folderTag = inputTag && inputTag.trim() ? inputTag.trim() : defaultTag;
+      }
+
+      // Format distinct, descriptive path key
+      const key = `${folderTag}/${file.name}`;
       browserFolderStore.singleFiles.set(key, file);
+      browserFolderStore.singleFiles.set(`file://${key}`, file);
+      browserFolderStore.singleFiles.set(`browser://${key}`, file);
+      if (side) {
+        browserFolderStore.singleFiles.set(`${side}/${file.name}`, file);
+      }
+
       return key;
     },
 
@@ -184,7 +232,38 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
     },
 
     readFile: async (filePath: string) => {
-      const stored = browserFolderStore.singleFiles.get(filePath);
+      // 1. Direct match in singleFiles
+      let stored = browserFolderStore.singleFiles.get(filePath);
+
+      // 2. Normalized match (strip leading prefixes or slashes)
+      if (!stored) {
+        const normalized = filePath.replace(/^(file:\/\/|browser:\/\/)/, '').replace(/^\/+/, '');
+        stored = browserFolderStore.singleFiles.get(normalized);
+      }
+
+      // 3. Search directory stores if selected via folder picker
+      if (!stored) {
+        for (const [dirUri, map] of browserFolderStore.directories.entries()) {
+          if (filePath.startsWith(dirUri)) {
+            const sub = filePath.replace(dirUri, '').replace(/^\/+/, '');
+            if (map.has(sub)) {
+              stored = map.get(sub);
+              break;
+            }
+          }
+        }
+      }
+
+      // 4. Fallback lookup by relative segment
+      if (!stored) {
+        for (const [key, f] of browserFolderStore.singleFiles.entries()) {
+          if (filePath.endsWith(key) || key.endsWith(filePath)) {
+            stored = f;
+            break;
+          }
+        }
+      }
+
       if (stored) {
         const text = await stored.text();
         const hash = await computeBrowserHash(stored);
@@ -199,15 +278,16 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
         };
       }
 
-      // If sample demo path
+      // If empty or unfound, return clean empty content or note
       return {
         path: filePath,
-        content: `// DiffX Web Preview — Loaded from ${filePath}\nexport const serviceConfig = {\n  port: 8080,\n  environment: "production",\n};\n`,
+        content: ``,
         encoding: 'utf-8',
-        size: 120,
+        size: 0,
         mtime: Date.now(),
         isTruncated: false,
         hash: 'demo-hash',
+        error: filePath ? `File '${filePath}' not found in browser storage.` : undefined,
       };
     },
 

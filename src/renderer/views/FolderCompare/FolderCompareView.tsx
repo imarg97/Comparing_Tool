@@ -94,14 +94,14 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
 
   const handlePickLeft = async () => {
     if (window.diffxAPI) {
-      const selected = await window.diffxAPI.selectDirectory(leftFolder);
+      const selected = await window.diffxAPI.selectDirectory(leftFolder, 'left');
       if (selected) onSetLeftFolder(selected);
     }
   };
 
   const handlePickRight = async () => {
     if (window.diffxAPI) {
-      const selected = await window.diffxAPI.selectDirectory(rightFolder);
+      const selected = await window.diffxAPI.selectDirectory(rightFolder, 'right');
       if (selected) onSetRightFolder(selected);
     }
   };

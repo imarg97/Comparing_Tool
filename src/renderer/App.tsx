@@ -47,6 +47,8 @@ export const App: React.FC = () => {
   const [folderRightPath, setFolderRightPath] = useState('');
   const [textLeftPath, setTextLeftPath] = useState('');
   const [textRightPath, setTextRightPath] = useState('');
+  const [structuredLeftPath, setStructuredLeftPath] = useState('');
+  const [structuredRightPath, setStructuredRightPath] = useState('');
 
   // Status Bar State
   const [statusText, setStatusText] = useState('DiffX Ready');
@@ -142,6 +144,8 @@ export const App: React.FC = () => {
       setTextRightPath(item.rightPath);
       setActiveTab('text');
     } else {
+      setStructuredLeftPath(item.leftPath);
+      setStructuredRightPath(item.rightPath);
       setActiveTab('structured');
     }
   };
@@ -250,7 +254,18 @@ export const App: React.FC = () => {
 
         {activeTab === 'structured' && (
           <StructuredCompareView
+            leftPath={structuredLeftPath}
+            rightPath={structuredRightPath}
             theme={theme}
+            onSetLeftPath={(path) => {
+              setStructuredLeftPath(path);
+              if (path && structuredRightPath) addRecent('structured', path, structuredRightPath);
+            }}
+            onSetRightPath={(path) => {
+              setStructuredRightPath(path);
+              if (structuredLeftPath && path) addRecent('structured', structuredLeftPath, path);
+            }}
+            onRequestConfirm={(cfg) => setConfirmConfig(cfg)}
             onUpdateStatus={handleUpdateStatus}
           />
         )}

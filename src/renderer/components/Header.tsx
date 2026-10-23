@@ -30,7 +30,7 @@ export const Header: React.FC<HeaderProps> = ({
   const tabs: { id: NavigationTab; label: string; icon: React.ReactNode }[] = [
     { id: 'folder', label: 'Folder Compare', icon: <FolderGit2 className="w-3.5 h-3.5" /> },
     { id: 'text', label: 'Text Compare', icon: <FileCode2 className="w-3.5 h-3.5" /> },
-    { id: 'structured', label: 'K8s & Config', icon: <Boxes className="w-3.5 h-3.5" /> },
+    { id: 'structured', label: 'Config & XML', icon: <Boxes className="w-3.5 h-3.5" /> },
     { id: 'home', label: 'Recent Sessions', icon: <Clock className="w-3.5 h-3.5" /> },
     { id: 'settings', label: 'Preferences', icon: <Settings className="w-3.5 h-3.5" /> },
   ];

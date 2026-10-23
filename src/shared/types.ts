@@ -110,7 +110,7 @@ export interface SaveResult {
   error?: string;
 }
 
-export type StructuredFormat = 'yaml' | 'json';
+export type StructuredFormat = 'yaml' | 'json' | 'xml';
 
 export interface StructuredDiffRequest {
   leftContent: string;
@@ -159,8 +159,8 @@ export interface AppSettings {
  */
 export interface DiffxPreloadAPI {
   // Dialogs
-  selectDirectory: (defaultPath?: string) => Promise<string | null>;
-  selectFile: (defaultPath?: string) => Promise<string | null>;
+  selectDirectory: (defaultPath?: string, side?: 'left' | 'right') => Promise<string | null>;
+  selectFile: (defaultPath?: string, side?: 'left' | 'right') => Promise<string | null>;
   showConfirmDialog: (options: { title: string; message: string; detail?: string; type?: 'info' | 'warning' | 'question' }) => Promise<boolean>;
 
   // Folder Compare

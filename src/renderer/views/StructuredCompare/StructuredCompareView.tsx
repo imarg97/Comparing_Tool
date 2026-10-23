@@ -1,120 +1,428 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { DiffEditor } from '@monaco-editor/react';
 import {
   Boxes,
-  Play,
+  FileCode,
+  ArrowLeftRight,
+  RefreshCw,
+  Save,
+  RotateCcw,
+  ArrowUp,
+  ArrowDown,
   ShieldCheck,
-  CheckCircle2,
   AlertCircle,
-  Filter,
-  FileEdit,
+  ChevronDown,
+  ListFilter,
 } from 'lucide-react';
 import {
-  StructuredDiffItem,
+  FileContentResult,
   StructuredDiffRequest,
   StructuredDiffResult,
   StructuredFormat,
 } from '@shared/types.js';
 import { compareStructuredData } from '@shared/comparison-engine/structured.js';
+import { ConfirmModalConfig } from '../../components/ConfirmModal.js';
 
 interface StructuredCompareViewProps {
+  leftPath: string;
+  rightPath: string;
   theme?: 'dark' | 'light';
-  onUpdateStatus: (text: string) => void;
+  onSetLeftPath: (p: string) => void;
+  onSetRightPath: (p: string) => void;
+  onRequestConfirm: (config: ConfirmModalConfig) => void;
+  onUpdateStatus: (text: string, count?: number, durationMs?: number) => void;
+}
+
+export function detectFormatFromPath(filePath: string): StructuredFormat {
+  if (!filePath) return 'yaml';
+  const lower = filePath.toLowerCase();
+  if (lower.endsWith('.xml')) return 'xml';
+  if (lower.endsWith('.json')) return 'json';
+  if (lower.endsWith('.yaml') || lower.endsWith('.yml')) return 'yaml';
+  return 'yaml';
 }
 
 export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
+  leftPath,
+  rightPath,
   theme = 'dark',
+  onSetLeftPath,
+  onSetRightPath,
+  onRequestConfirm,
   onUpdateStatus,
 }) => {
+  // Format & Options
   const [format, setFormat] = useState<StructuredFormat>('yaml');
   const [filterKubernetes, setFilterKubernetes] = useState(true);
   const [ignoreKeysInput, setIgnoreKeysInput] = useState('metadata.resourceVersion, metadata.uid, status');
 
-  const [leftContent, setLeftContent] = useState<string>(`apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: telecom-core-gateway
-  namespace: production
-  resourceVersion: "1893420"
-  uid: "7e92ab01-445a-4b62-9e0c-03ef4d193a02"
-  creationTimestamp: "2026-08-12T04:20:00Z"
-spec:
-  replicas: 4
-  strategy:
-    type: RollingUpdate
-  template:
-    spec:
-      containers:
-        - name: gateway
-          image: registry.telecom.internal/core/gateway:v2.4.1
-          resources:
-            requests:
-              cpu: 500m
-              memory: 1Gi
-status:
-  availableReplicas: 4
-  readyReplicas: 4
-`);
+  // File Data
+  const [leftData, setLeftData] = useState<FileContentResult | null>(null);
+  const [rightData, setRightData] = useState<FileContentResult | null>(null);
+  const [leftEditorContent, setLeftEditorContent] = useState<string>('');
+  const [rightEditorContent, setRightEditorContent] = useState<string>('');
 
-  const [rightContent, setRightContent] = useState<string>(`apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: telecom-core-gateway
-  namespace: production
-  resourceVersion: "1940124"
-  uid: "8b12ca99-999a-4c12-8888-12aa9900bb11"
-  creationTimestamp: "2026-09-01T08:15:30Z"
-spec:
-  replicas: 6
-  strategy:
-    type: RollingUpdate
-  template:
-    spec:
-      containers:
-        - name: gateway
-          image: registry.telecom.internal/core/gateway:v2.5.0
-          resources:
-            requests:
-              cpu: 1000m
-              memory: 2Gi
-status:
-  availableReplicas: 6
-  readyReplicas: 6
-`);
+  // Dirty State
+  const [leftDirty, setLeftDirty] = useState(false);
+  const [rightDirty, setRightDirty] = useState(false);
 
-  const [result, setResult] = useState<StructuredDiffResult | null>(null);
+  // Status & Error
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const handleRunStructuredCompare = () => {
-    onUpdateStatus('Analyzing structured semantics...');
+  // Structured Diff Result & Inspector
+  const [diffResult, setDiffResult] = useState<StructuredDiffResult | null>(null);
+  const [showInspector, setShowInspector] = useState(false);
+
+  // Monaco Ref
+  const diffEditorRef = useRef<any>(null);
+
+  // Auto-detect format whenever paths change
+  useEffect(() => {
+    const candidatePath = leftPath || rightPath;
+    if (candidatePath) {
+      const detected = detectFormatFromPath(candidatePath);
+      setFormat(detected);
+    }
+  }, [leftPath, rightPath]);
+
+  // Load files whenever paths change
+  useEffect(() => {
+    if (leftPath || rightPath) {
+      loadFiles();
+    } else {
+      setLeftData(null);
+      setRightData(null);
+      setLeftEditorContent('');
+      setRightEditorContent('');
+      setDiffResult(null);
+    }
+  }, [leftPath, rightPath]);
+
+  const loadFiles = async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    onUpdateStatus('Loading config file contents...');
+
+    try {
+      if (window.diffxAPI) {
+        let leftRes: FileContentResult | null = null;
+        let rightRes: FileContentResult | null = null;
+
+        if (leftPath) {
+          leftRes = await window.diffxAPI.readFile(leftPath);
+          setLeftData(leftRes);
+          setLeftEditorContent(leftRes.content);
+          setLeftDirty(false);
+        } else {
+          setLeftData(null);
+          setLeftEditorContent('');
+        }
+
+        if (rightPath) {
+          rightRes = await window.diffxAPI.readFile(rightPath);
+          setRightData(rightRes);
+          setRightEditorContent(rightRes.content);
+          setRightDirty(false);
+        } else {
+          setRightData(null);
+          setRightEditorContent('');
+        }
+
+        // Run structured comparison
+        if (leftRes?.content && rightRes?.content) {
+          runStructuredDiff(leftRes.content, rightRes.content, format);
+        } else {
+          setDiffResult(null);
+        }
+
+        onUpdateStatus('Config files loaded');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setLoadError(`Failed to load config files: ${msg}`);
+      onUpdateStatus('Error loading config files');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const runStructuredDiff = (
+    leftTxt: string,
+    rightTxt: string,
+    activeFormat: StructuredFormat
+  ) => {
     const ignoreKeys = ignoreKeysInput
       .split(',')
       .map((k) => k.trim())
       .filter(Boolean);
 
     const request: StructuredDiffRequest = {
-      leftContent,
-      rightContent,
-      format,
+      leftContent: leftTxt,
+      rightContent: rightTxt,
+      format: activeFormat,
       ignoreKeys,
       filterKubernetesNoise: filterKubernetes,
     };
 
     const res = compareStructuredData(request);
-    setResult(res);
-    onUpdateStatus(res.identical ? 'Structured entities are semantically identical' : `${res.items.length} semantic changes detected`);
+    setDiffResult(res);
+
+    if (res.parseError) {
+      setLoadError(res.parseError);
+      onUpdateStatus(`Parse warning: ${res.parseError}`);
+    } else {
+      setLoadError(null);
+      onUpdateStatus(
+        res.identical
+          ? `${activeFormat.toUpperCase()} entities are semantically identical`
+          : `${res.items.length} semantic changes detected`
+      );
+    }
   };
+
+  const handlePickLeft = async () => {
+    if (window.diffxAPI) {
+      const selected = await window.diffxAPI.selectFile(leftPath, 'left');
+      if (selected) {
+        onSetLeftPath(selected);
+      }
+    }
+  };
+
+  const handlePickRight = async () => {
+    if (window.diffxAPI) {
+      const selected = await window.diffxAPI.selectFile(rightPath, 'right');
+      if (selected) {
+        onSetRightPath(selected);
+      }
+    }
+  };
+
+  const handleSwap = () => {
+    const tempP = leftPath;
+    onSetLeftPath(rightPath);
+    onSetRightPath(tempP);
+  };
+
+  // Re-run semantic diff whenever format or noise filter or editor edits change
+  useEffect(() => {
+    if (leftEditorContent && rightEditorContent) {
+      runStructuredDiff(leftEditorContent, rightEditorContent, format);
+    }
+  }, [format, filterKubernetes, ignoreKeysInput]);
+
+  // Monaco Diff Editor Mounting
+  const handleEditorDidMount = (editor: any) => {
+    diffEditorRef.current = editor;
+
+    try {
+      const modifiedEditor = editor.getModifiedEditor();
+      modifiedEditor.onDidChangeModelContent(() => {
+        const val = modifiedEditor.getValue();
+        setRightEditorContent(val);
+        setRightDirty(val !== (rightData?.content ?? ''));
+      });
+
+      const originalEditor = editor.getOriginalEditor();
+      originalEditor.onDidChangeModelContent(() => {
+        const val = originalEditor.getValue();
+        setLeftEditorContent(val);
+        setLeftDirty(val !== (leftData?.content ?? ''));
+      });
+    } catch {
+      // non-fatal
+    }
+  };
+
+  const handleNextDiff = () => {
+    if (diffEditorRef.current && typeof diffEditorRef.current.goToDiff === 'function') {
+      diffEditorRef.current.goToDiff('next');
+    }
+  };
+
+  const handlePrevDiff = () => {
+    if (diffEditorRef.current && typeof diffEditorRef.current.goToDiff === 'function') {
+      diffEditorRef.current.goToDiff('previous');
+    }
+  };
+
+  // Safe Save Operations
+  const handleSaveLeft = () => {
+    if (!leftPath) return;
+
+    onRequestConfirm({
+      isOpen: true,
+      title: 'Save Left File Changes',
+      actionType: 'save',
+      destinationPath: leftPath,
+      isDestinationExisting: true,
+      message: `Save modified contents back to '${leftPath.split('/').pop()}'?`,
+      detail: 'This will write your edits to disk.',
+      onConfirm: async ({ createBackup }) => {
+        if (window.diffxAPI) {
+          const res = await window.diffxAPI.saveFile({
+            filePath: leftPath,
+            content: leftEditorContent,
+            createBackup,
+          });
+          if (res.success) {
+            setLeftDirty(false);
+            loadFiles();
+          } else {
+            setLoadError(`Save failed: ${res.error}`);
+          }
+        }
+      },
+      onCancel: () => {},
+    });
+  };
+
+  const handleSaveRight = () => {
+    if (!rightPath) return;
+
+    onRequestConfirm({
+      isOpen: true,
+      title: 'Save Right File Changes',
+      actionType: 'save',
+      destinationPath: rightPath,
+      isDestinationExisting: true,
+      message: `Save modified contents back to '${rightPath.split('/').pop()}'?`,
+      detail: 'This will write your edits to disk.',
+      onConfirm: async ({ createBackup }) => {
+        if (window.diffxAPI) {
+          const res = await window.diffxAPI.saveFile({
+            filePath: rightPath,
+            content: rightEditorContent,
+            createBackup,
+          });
+          if (res.success) {
+            setRightDirty(false);
+            loadFiles();
+          } else {
+            setLoadError(`Save failed: ${res.error}`);
+          }
+        }
+      },
+      onCancel: () => {},
+    });
+  };
+
+  const handleRevertAll = () => {
+    if (leftData) {
+      setLeftEditorContent(leftData.content);
+      if (diffEditorRef.current) {
+        diffEditorRef.current.getOriginalEditor().setValue(leftData.content);
+      }
+      setLeftDirty(false);
+    }
+    if (rightData) {
+      setRightEditorContent(rightData.content);
+      if (diffEditorRef.current) {
+        diffEditorRef.current.getModifiedEditor().setValue(rightData.content);
+      }
+      setRightDirty(false);
+    }
+  };
+
+  const editorLanguage = format === 'xml' ? 'xml' : format === 'json' ? 'json' : 'yaml';
 
   return (
     <div className="flex-1 flex flex-col h-full bg-white dark:bg-black overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans">
-      {/* 1. Configuration Toolbar */}
-      <div className="bg-neutral-100 dark:bg-neutral-950 border-b border-neutral-300 dark:border-neutral-800 p-2 flex items-center justify-between flex-shrink-0 text-xs">
-        <div className="flex items-center space-x-3">
-          <div className="flex items-center space-x-1.5 font-medium">
-            <Boxes className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            <span>Structured Mode:</span>
+      {/* 1. Beyond Compare Dual Address Header with Clear Left/Right Badges */}
+      <div className="bg-neutral-100 dark:bg-neutral-950 border-b border-neutral-300 dark:border-neutral-800 p-1.5 flex items-center space-x-2 flex-shrink-0">
+        {/* Left Address Box */}
+        <div className="flex-1 flex items-center bg-white dark:bg-black border border-blue-300 dark:border-blue-900/60 rounded px-2 py-1 shadow-sm focus-within:ring-1 focus-within:ring-blue-500">
+          <span className="px-2 py-0.5 rounded bg-blue-600 text-white font-bold text-[10px] tracking-wider uppercase mr-2 flex-shrink-0 shadow-sm">
+            Left
+          </span>
+          <FileCode className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 mr-1.5 flex-shrink-0" />
+          <input
+            type="text"
+            value={leftPath}
+            onChange={(e) => onSetLeftPath(e.target.value)}
+            placeholder="Left config/XML path (e.g. site1.xml, az1/values.yaml)..."
+            className="bg-transparent text-xs w-full focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400"
+          />
+          {leftData && !leftData.error && (
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 text-neutral-500 border border-neutral-300 dark:border-neutral-700 ml-1.5 flex-shrink-0">
+              {leftData.encoding.toUpperCase()} • {(leftData.size / 1024).toFixed(1)} KB
+            </span>
+          )}
+          <button
+            onClick={handlePickLeft}
+            className="ml-1 text-[11px] font-medium px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition flex-shrink-0"
+          >
+            Browse...
+          </button>
+        </div>
+
+        {/* Swap Button */}
+        <button
+          onClick={handleSwap}
+          title="Swap Left and Right Files"
+          className="p-1.5 rounded bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-800 transition flex-shrink-0"
+        >
+          <ArrowLeftRight className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Right Address Box */}
+        <div className="flex-1 flex items-center bg-white dark:bg-black border border-purple-300 dark:border-purple-900/60 rounded px-2 py-1 shadow-sm focus-within:ring-1 focus-within:ring-purple-500">
+          <span className="px-2 py-0.5 rounded bg-purple-600 text-white font-bold text-[10px] tracking-wider uppercase mr-2 flex-shrink-0 shadow-sm">
+            Right
+          </span>
+          <FileCode className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 mr-1.5 flex-shrink-0" />
+          <input
+            type="text"
+            value={rightPath}
+            onChange={(e) => onSetRightPath(e.target.value)}
+            placeholder="Right config/XML path (e.g. site2.xml, az2/values.yaml)..."
+            className="bg-transparent text-xs w-full focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400"
+          />
+          {rightData && !rightData.error && (
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 text-neutral-500 border border-neutral-300 dark:border-neutral-700 ml-1.5 flex-shrink-0">
+              {rightData.encoding.toUpperCase()} • {(rightData.size / 1024).toFixed(1)} KB
+            </span>
+          )}
+          <button
+            onClick={handlePickRight}
+            className="ml-1 text-[11px] font-medium px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition flex-shrink-0"
+          >
+            Browse...
+          </button>
+        </div>
+
+        {/* Refresh Button */}
+        <button
+          onClick={loadFiles}
+          disabled={isLoading}
+          title="Refresh comparison (Cmd+R)"
+          className="p-1.5 rounded bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-800 transition flex-shrink-0"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
+
+      {/* 2. Structured Comparison Controls Toolbar */}
+      <div className="bg-neutral-100 dark:bg-black border-b border-neutral-300 dark:border-neutral-800 px-3 py-1 flex items-center justify-between text-xs flex-shrink-0 select-none">
+        <div className="flex items-center space-x-2">
+          {/* Format Selector: XML, YAML, JSON */}
+          <div className="flex items-center space-x-1 font-medium text-neutral-600 dark:text-neutral-400">
+            <Boxes className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            <span>Format:</span>
           </div>
 
-          <div className="flex items-center bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded p-0.5">
+          <div className="flex items-center bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 rounded p-0.5">
+            <button
+              onClick={() => setFormat('xml')}
+              className={`px-2.5 py-0.5 rounded text-xs transition ${
+                format === 'xml'
+                  ? 'bg-blue-600 text-white font-bold'
+                  : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+              }`}
+            >
+              XML
+            </button>
             <button
               onClick={() => setFormat('yaml')}
               className={`px-2.5 py-0.5 rounded text-xs transition ${
@@ -137,133 +445,264 @@ status:
             </button>
           </div>
 
-          {/* Kubernetes Preset toggle */}
-          <label className="flex items-center space-x-2 cursor-pointer bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 px-2.5 py-1 rounded">
+          <span className="h-4 w-px bg-neutral-300 dark:border-neutral-800 mx-1" />
+
+          {/* Navigation Jumpers */}
+          <button
+            onClick={handlePrevDiff}
+            title="Previous Difference"
+            className="flex items-center space-x-1 px-2 py-0.5 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 transition"
+          >
+            <ArrowUp className="w-3.5 h-3.5 text-red-500" />
+            <span>Prev</span>
+          </button>
+          <button
+            onClick={handleNextDiff}
+            title="Next Difference"
+            className="flex items-center space-x-1 px-2 py-0.5 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 transition"
+          >
+            <ArrowDown className="w-3.5 h-3.5 text-red-500" />
+            <span>Next</span>
+          </button>
+
+          {/* Semantic differences summary pill */}
+          {diffResult && !diffResult.parseError && (
+            <span
+              className={`font-mono text-[11px] px-2 py-0.5 rounded font-medium border ${
+                diffResult.identical
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                  : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+              }`}
+            >
+              {diffResult.identical ? 'Identical' : `${diffResult.items.length} differences`}
+            </span>
+          )}
+
+          {/* Infrastructure Noise Filter checkbox */}
+          <label className="flex items-center space-x-1.5 cursor-pointer bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 px-2 py-0.5 rounded text-[11px]">
             <input
               type="checkbox"
               checked={filterKubernetes}
               onChange={(e) => setFilterKubernetes(e.target.checked)}
-              className="rounded border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-blue-600 w-3.5 h-3.5"
+              className="rounded border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-blue-600 w-3 h-3"
             />
-            <span className="flex items-center space-x-1">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>Kubernetes / OpenShift Noise Filter</span>
-            </span>
+            <ShieldCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+            <span>Noise Filter</span>
           </label>
         </div>
 
+        {/* Right side actions */}
         <div className="flex items-center space-x-2">
+          {/* Toggle Inspector Table */}
           <button
-            onClick={() => {
-              if (format === 'yaml') {
-                setLeftContent('apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: app-config\ndata:\n  mode: development');
-                setRightContent('apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: app-config\ndata:\n  mode: production');
-              } else {
-                setLeftContent(JSON.stringify({ name: "app", version: "1.0.0", port: 8080 }, null, 2));
-                setRightContent(JSON.stringify({ name: "app", version: "1.1.0", port: 9090 }, null, 2));
-              }
-              setResult(null);
-            }}
-            title="Load Sample ConfigMap / JSON"
-            className="flex items-center space-x-1 px-3 py-1 rounded bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 font-medium text-xs border border-neutral-300 dark:border-neutral-800 transition"
+            onClick={() => setShowInspector((prev) => !prev)}
+            className={`flex items-center space-x-1 px-2 py-0.5 rounded border transition ${
+              showInspector
+                ? 'bg-blue-600 text-white border-blue-600 font-medium'
+                : 'bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100'
+            }`}
           >
-            <FileEdit className="w-3.5 h-3.5" />
-            <span>Load Sample</span>
+            <ListFilter className="w-3.5 h-3.5" />
+            <span>Inspector {diffResult ? `(${diffResult.items.length})` : ''}</span>
           </button>
 
-          <button
-            onClick={handleRunStructuredCompare}
-            className="flex items-center space-x-1.5 px-4 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-sm transition"
-          >
-            <Play className="w-3.5 h-3.5 fill-current" />
-            <span>Analyze Semantic Differences</span>
-          </button>
+          {/* Save Left */}
+          {leftDirty && (
+            <button
+              onClick={handleSaveLeft}
+              className="flex items-center space-x-1 px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium shadow animate-pulse"
+            >
+              <Save className="w-3 h-3" />
+              <span>Save Left</span>
+            </button>
+          )}
+
+          {/* Save Right */}
+          {rightDirty && (
+            <button
+              onClick={handleSaveRight}
+              className="flex items-center space-x-1 px-2 py-0.5 rounded bg-purple-600 hover:bg-purple-500 text-white font-medium shadow animate-pulse"
+            >
+              <Save className="w-3 h-3" />
+              <span>Save Right</span>
+            </button>
+          )}
+
+          {/* Revert Edits */}
+          {(leftDirty || rightDirty) && (
+            <button
+              onClick={handleRevertAll}
+              title="Revert unsaved edits"
+              className="flex items-center space-x-1 px-2 py-0.5 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Revert</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* 2. Ignore Keys Bar */}
-      <div className="bg-neutral-100/60 dark:bg-neutral-950 border-b border-neutral-300 dark:border-neutral-800 px-3 py-1 flex items-center space-x-2 text-xs flex-shrink-0">
-        <Filter className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" />
-        <span className="text-neutral-500 dark:text-neutral-400 text-[11px] whitespace-nowrap">Ignored Object Keys:</span>
+      {/* 3. Ignored Keys Sub-bar */}
+      <div className="bg-neutral-50 dark:bg-neutral-950 border-b border-neutral-200 dark:border-neutral-900 px-3 py-1 flex items-center space-x-2 text-xs flex-shrink-0">
+        <span className="font-mono text-[11px] text-neutral-500 flex-shrink-0">
+          Ignored Keys / Paths:
+        </span>
         <input
           type="text"
           value={ignoreKeysInput}
           onChange={(e) => setIgnoreKeysInput(e.target.value)}
-          placeholder="metadata.resourceVersion, status, managedFields..."
-          className="flex-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-2 py-0.5 font-mono text-[11px] focus:outline-none focus:border-blue-500 text-neutral-900 dark:text-neutral-100"
+          placeholder="e.g. metadata.resourceVersion, status, @timestamp, checksum"
+          className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-2 py-0.5 text-xs w-full font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none focus:border-blue-500"
         />
       </div>
 
-      {/* 3. Semantic Results Summary Table (if compared) */}
-      {result && (
-        <div className="bg-neutral-100 dark:bg-neutral-950 border-b border-neutral-300 dark:border-neutral-800 p-2.5 max-h-48 overflow-y-auto flex-shrink-0">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center space-x-2">
-              {result.identical ? (
-                <div className="flex items-center space-x-1.5 text-emerald-600 dark:text-emerald-400 font-medium text-xs">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Semantically Identical (All meaningful configuration properties match!)</span>
-                </div>
-              ) : (
-                <div className="flex items-center space-x-1.5 text-amber-600 dark:text-amber-400 font-medium text-xs">
-                  <AlertCircle className="w-4 h-4" />
-                  <span>{result.items.length} Semantic Structural Differences Found:</span>
-                </div>
-              )}
-            </div>
-            {result.parseError && (
-              <span className="text-rose-600 dark:text-rose-400 text-xs font-mono">{result.parseError}</span>
-            )}
+      {/* 4. Error / Warning Banner */}
+      {loadError && (
+        <div className="bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900 px-3 py-1 text-xs text-amber-800 dark:text-amber-300 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+            <span>{loadError}</span>
           </div>
-
-          {result.items.length > 0 && (
-            <div className="space-y-1">
-              {result.items.map((item: StructuredDiffItem, idx: number) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between text-xs font-mono bg-white dark:bg-black px-2.5 py-1 rounded border border-neutral-200 dark:border-neutral-800"
-                >
-                  <div className="flex items-center space-x-2">
-                    <span
-                      className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
-                        item.status === 'added'
-                          ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800'
-                          : item.status === 'removed'
-                          ? 'bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-800'
-                          : 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800'
-                      }`}
-                    >
-                      {item.status.toUpperCase()}
-                    </span>
-                    <span className="text-blue-600 dark:text-blue-400 font-semibold">{item.keyPath}</span>
-                  </div>
-                  <span className="text-neutral-500 text-[11px]">{item.message}</span>
-                </div>
-              ))}
-            </div>
-          )}
+          <button onClick={() => setLoadError(null)} className="font-bold text-[10px] uppercase">
+            Dismiss
+          </button>
         </div>
       )}
 
-      {/* 4. Side-by-Side Monaco Editor with Raw or Clean Data */}
-      <div className="flex-1 flex flex-col min-h-0 bg-white dark:bg-black">
-        <DiffEditor
-          height="100%"
-          language={format}
-          original={result ? result.cleanLeft : leftContent}
-          modified={result ? result.cleanRight : rightContent}
-          theme={theme === 'dark' ? 'vs-dark' : 'vs'}
-          options={{
-            renderSideBySide: true,
-            readOnly: false,
-            originalEditable: true,
-            fontSize: 12,
-            fontFamily: "'SFMono-Regular', Menlo, Monaco, Consolas, monospace",
-            minimap: { enabled: false },
-            automaticLayout: true,
-          }}
-        />
+      {/* 5. Beyond Compare Synchronized Split Header Banner */}
+      {(leftPath || rightPath) && (
+        <div className="flex items-center justify-between bg-neutral-200/70 dark:bg-neutral-900/90 border-b border-neutral-300 dark:border-neutral-800 text-[11px] font-mono px-3 py-1 flex-shrink-0 select-none">
+          <div className="flex-1 flex items-center space-x-1.5 truncate pr-3 text-blue-700 dark:text-blue-300">
+            <span className="w-2 h-2 rounded-full bg-blue-500 inline-block flex-shrink-0"></span>
+            <span className="font-bold text-[10px] uppercase tracking-wider text-blue-600 dark:text-blue-400">
+              Left {format.toUpperCase()}:
+            </span>
+            <span className="truncate font-semibold">{leftPath || '(none)'}</span>
+          </div>
+          <div className="h-3.5 w-px bg-neutral-300 dark:bg-neutral-800 mx-2 flex-shrink-0"></div>
+          <div className="flex-1 flex items-center space-x-1.5 truncate pl-3 text-purple-700 dark:text-purple-300">
+            <span className="w-2 h-2 rounded-full bg-purple-500 inline-block flex-shrink-0"></span>
+            <span className="font-bold text-[10px] uppercase tracking-wider text-purple-600 dark:text-purple-400">
+              Right {format.toUpperCase()}:
+            </span>
+            <span className="truncate font-semibold">{rightPath || '(none)'}</span>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Monaco Diff Editor Canvas (Pitch black in dark mode, crisp white in light mode) */}
+      <div className="flex-1 relative min-h-0 bg-white dark:bg-black">
+        {!leftPath && !rightPath ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-600 bg-white dark:bg-black p-8 text-center select-none">
+            <Boxes className="w-12 h-12 mb-3 stroke-[1.2] text-blue-500" />
+            <h4 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+              No Files Loaded in Config & XML Compare
+            </h4>
+            <p className="text-xs max-w-sm text-neutral-500 mb-4">
+              Select Left and Right configuration files above (such as <strong>site1.xml vs site2.xml</strong>, or Helm <strong>values.yaml</strong>) to inspect side-by-side differences.
+            </p>
+          </div>
+        ) : (
+          <DiffEditor
+            height="100%"
+            language={editorLanguage}
+            original={diffResult ? diffResult.cleanLeft : leftEditorContent}
+            modified={diffResult ? diffResult.cleanRight : rightEditorContent}
+            theme={theme === 'dark' ? 'pitch-black' : 'vs'}
+            beforeMount={(monaco) => {
+              monaco.editor.defineTheme('pitch-black', {
+                base: 'vs-dark',
+                inherit: true,
+                rules: [],
+                colors: {
+                  'editor.background': '#000000',
+                  'editorGutter.background': '#050505',
+                  'diffEditor.insertedTextBackground': 'rgba(34, 197, 94, 0.20)',
+                  'diffEditor.removedTextBackground': 'rgba(239, 68, 68, 0.25)',
+                },
+              });
+            }}
+            onMount={handleEditorDidMount}
+            options={{
+              renderSideBySide: true,
+              readOnly: false,
+              originalEditable: true,
+              fontSize: 12,
+              fontFamily: "'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', monospace",
+              minimap: { enabled: true },
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              diffCodeLens: true,
+              renderOverviewRuler: true,
+              diffWordWrap: 'off',
+            }}
+          />
+        )}
       </div>
+
+      {/* 7. Collapsible Semantic Inspector Drawer */}
+      {showInspector && diffResult && (
+        <div className="h-48 border-t border-neutral-300 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 flex flex-col flex-shrink-0">
+          <div className="flex items-center justify-between px-3 py-1 bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-xs font-medium">
+            <span>Semantic Property Inspector ({diffResult.items.length} changes)</span>
+            <button
+              onClick={() => setShowInspector(false)}
+              className="text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
+            >
+              <ChevronDown className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-auto p-2">
+            {diffResult.items.length === 0 ? (
+              <div className="text-xs text-neutral-500 text-center py-4">
+                No semantic differences detected between these entities.
+              </div>
+            ) : (
+              <table className="w-full text-xs font-mono border-collapse">
+                <thead>
+                  <tr className="border-b border-neutral-300 dark:border-neutral-800 text-left text-neutral-500">
+                    <th className="py-1 px-2">Path</th>
+                    <th className="py-1 px-2">Status</th>
+                    <th className="py-1 px-2">Left Value</th>
+                    <th className="py-1 px-2">Right Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {diffResult.items.map((item, idx) => (
+                    <tr
+                      key={idx}
+                      className="border-b border-neutral-200 dark:border-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-900/60"
+                    >
+                      <td className="py-1 px-2 text-blue-600 dark:text-blue-400 font-semibold">
+                        {item.keyPath}
+                      </td>
+                      <td className="py-1 px-2">
+                        <span
+                          className={`px-1.5 py-0.2 rounded text-[10px] font-bold uppercase ${
+                            item.status === 'added'
+                              ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
+                              : item.status === 'removed'
+                              ? 'bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300'
+                              : 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300'
+                          }`}
+                        >
+                          {item.status}
+                        </span>
+                      </td>
+                      <td className="py-1 px-2 text-neutral-600 dark:text-neutral-400 max-w-xs truncate">
+                        {String(item.leftValue ?? '')}
+                      </td>
+                      <td className="py-1 px-2 text-neutral-800 dark:text-neutral-200 max-w-xs truncate">
+                        {String(item.rightValue ?? '')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

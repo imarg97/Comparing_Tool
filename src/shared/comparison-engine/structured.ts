@@ -4,6 +4,7 @@
 
 import * as YAML from 'yaml';
 import { StructuredDiffItem, StructuredDiffRequest, StructuredDiffResult } from '../types.js';
+import { normalizeXml, objectToXml } from './xml.js';
 
 export const KUBERNETES_NOISY_PATHS = [
   'metadata.resourceVersion',
@@ -176,9 +177,14 @@ export function compareStructuredData(request: StructuredDiffRequest): Structure
     if (request.format === 'yaml') {
       parsedLeft = YAML.parse(request.leftContent);
       parsedRight = YAML.parse(request.rightContent);
-    } else {
+    } else if (request.format === 'json') {
       parsedLeft = JSON.parse(request.leftContent);
       parsedRight = JSON.parse(request.rightContent);
+    } else if (request.format === 'xml') {
+      const normL = normalizeXml(request.leftContent);
+      const normR = normalizeXml(request.rightContent);
+      parsedLeft = normL.parsed;
+      parsedRight = normR.parsed;
     }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -203,9 +209,18 @@ export function compareStructuredData(request: StructuredDiffRequest): Structure
   if (request.format === 'yaml') {
     cleanLeftFormatted = YAML.stringify(cleanL, { indent: 2 });
     cleanRightFormatted = YAML.stringify(cleanR, { indent: 2 });
-  } else {
+  } else if (request.format === 'json') {
     cleanLeftFormatted = JSON.stringify(cleanL, null, 2);
     cleanRightFormatted = JSON.stringify(cleanR, null, 2);
+  } else if (request.format === 'xml') {
+    // If parsedLeft is an object with a root key, use that tag
+    const rootTagL = typeof cleanL === 'object' && cleanL !== null ? Object.keys(cleanL)[0] || 'root' : 'root';
+    const rootTagR = typeof cleanR === 'object' && cleanR !== null ? Object.keys(cleanR)[0] || 'root' : 'root';
+    const rootValL = typeof cleanL === 'object' && cleanL !== null ? (cleanL as Record<string, unknown>)[rootTagL] : cleanL;
+    const rootValR = typeof cleanR === 'object' && cleanR !== null ? (cleanR as Record<string, unknown>)[rootTagR] : cleanR;
+
+    cleanLeftFormatted = `<?xml version="1.0" encoding="UTF-8"?>\n${objectToXml(rootValL, rootTagL, 0)}`.trim();
+    cleanRightFormatted = `<?xml version="1.0" encoding="UTF-8"?>\n${objectToXml(rootValR, rootTagR, 0)}`.trim();
   }
 
   return {

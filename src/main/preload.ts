@@ -13,11 +13,11 @@ import {
 } from '../shared/types.js';
 
 const api: DiffxPreloadAPI = {
-  selectDirectory: (defaultPath?: string) =>
-    ipcRenderer.invoke('dialog:select-directory', defaultPath),
+  selectDirectory: (defaultPath?: string, side?: 'left' | 'right') =>
+    ipcRenderer.invoke('dialog:select-directory', defaultPath, side),
 
-  selectFile: (defaultPath?: string) =>
-    ipcRenderer.invoke('dialog:select-file', defaultPath),
+  selectFile: (defaultPath?: string, side?: 'left' | 'right') =>
+    ipcRenderer.invoke('dialog:select-file', defaultPath, side),
 
   showConfirmDialog: (options) =>
     ipcRenderer.invoke('dialog:confirm', options),
