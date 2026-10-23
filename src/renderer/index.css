@@ -103,28 +103,28 @@
   background-color: #bfdbfe !important; /* Soft blue in light mode */
 }
 .dark .monaco-editor .selected-text {
-  background-color: #1e3a8a !important; /* Deep blue in dark mode */
+  background-color: #1d4ed8 !important; /* Vivid royal blue in dark mode */
 }
 
-/* Light Mode: Beyond Compare high-contrast rose wash on BOTH sides with deep ruby tokens */
+/* Light Mode: Beyond Compare high-contrast red wash on BOTH sides with deep ruby tokens */
 .monaco-diff-editor .lines-content .line-delete,
 .monaco-diff-editor .lines-content .ced-line-delete,
 .monaco-diff-editor .lines-content .diff-line-delete,
 .monaco-diff-editor .lines-content .line-insert,
 .monaco-diff-editor .lines-content .ced-line-insert,
 .monaco-diff-editor .lines-content .diff-line-insert {
-  background-color: #fee2e2 !important; /* Clearly visible, crisp Beyond Compare rose-red wash */
-  border-left: 3px solid #ef4444 !important;
+  background-color: #fecaca !important; /* Vivid Beyond Compare light red/pink wash */
+  border-left: 4px solid #ef4444 !important;
 }
 
 .monaco-diff-editor .char-delete,
 .monaco-diff-editor .ced-char-delete,
 .monaco-diff-editor .char-insert,
 .monaco-diff-editor .ced-char-insert {
-  background-color: #fca5a5 !important; /* High-contrast rose highlight for changed tokens */
-  color: #991b1b !important;            /* High-contrast deep ruby red text */
+  background-color: #f87171 !important; /* High-contrast rose highlight for changed tokens */
+  color: #7f1d1d !important;            /* High-contrast deep ruby red text */
   font-weight: 700 !important;
-  border: 1px solid #f87171 !important;
+  border: 1px solid #ef4444 !important;
   border-radius: 2px;
 }
 
@@ -133,23 +133,23 @@
   background-color: #f1f5f9 !important;
 }
 
-/* Dark Mode: Minimalist dark tint with crisp ruby text */
+/* Dark Mode: Minimalist deep crimson with bright crisp text */
 .dark .monaco-diff-editor .lines-content .line-delete,
 .dark .monaco-diff-editor .lines-content .ced-line-delete,
 .dark .monaco-diff-editor .lines-content .diff-line-delete,
 .dark .monaco-diff-editor .lines-content .line-insert,
 .dark .monaco-diff-editor .lines-content .ced-line-insert,
 .dark .monaco-diff-editor .lines-content .diff-line-insert {
-  background-color: rgba(239, 68, 68, 0.25) !important;
-  border-left: 3px solid #ef4444 !important;
+  background-color: #450a0a !important; /* Deep crimson background */
+  border-left: 4px solid #f43f5e !important;
 }
 
 .dark .monaco-diff-editor .char-delete,
 .dark .monaco-diff-editor .ced-char-delete,
 .dark .monaco-diff-editor .char-insert,
 .dark .monaco-diff-editor .ced-char-insert {
-  background-color: rgba(239, 68, 68, 0.55) !important;
-  color: #fecaca !important;
+  background-color: #b91c1c !important;
+  color: #ffffff !important;            /* Bright white text against red */
   font-weight: 700 !important;
   border: 1px solid #f87171 !important;
   border-radius: 2px;
@@ -157,7 +157,21 @@
 
 .dark .monaco-diff-editor .diagonal-fill,
 .dark .monaco-diff-editor .ced-diagonal-fill {
-  background-color: #1e293b !important;
+  background-color: #18181b !important;
+}
+
+/* Disable Monaco built-in revert icon, gutter menu, and diff review clutter */
+.monaco-diff-editor .ced-margin-revert-icon,
+.monaco-diff-editor .codicon-diff-remove,
+.monaco-diff-editor .codicon-diff-insert,
+.monaco-diff-editor .codicon-diff-review-insert,
+.monaco-diff-editor .codicon-diff-review-remove,
+.monaco-diff-editor .gutter-menu-item,
+.monaco-diff-editor .diff-hidden-lines {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 /* Copied Difference Highlight Animation (Beyond Compare Bright Yellow Highlight - Image 4) */

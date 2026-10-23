@@ -98,8 +98,7 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
       if (file.webkitRelativePath && file.webkitRelativePath.includes('/')) {
         return file.webkitRelativePath;
       }
-      const isWin = typeof navigator !== 'undefined' && (/Win/i.test(navigator.platform || '') || /Windows/i.test(navigator.userAgent || ''));
-      return isWin ? `C:\\Data\\Snapshots\\${file.name}` : `/Data/Snapshots/${file.name}`;
+      return file.name;
     },
 
     selectDirectory: async (_defaultPath?: string, side?: 'left' | 'right') => {
@@ -158,11 +157,7 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
         } else if (file.webkitRelativePath && file.webkitRelativePath.includes('/')) {
           returnedPath = file.webkitRelativePath;
         } else {
-          const isWin = typeof navigator !== 'undefined' && (/Win/i.test(navigator.platform || '') || /Windows/i.test(navigator.userAgent || ''));
-          const baseFolder = side === 'left' ? 'Snapshots' : 'Drafts';
-          returnedPath = isWin
-            ? `C:\\Data\\${baseFolder}\\${file.name}`
-            : `/Data/${baseFolder}/${file.name}`;
+          returnedPath = file.name;
         }
       }
 

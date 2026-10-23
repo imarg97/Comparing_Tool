@@ -8,16 +8,10 @@ import {
   RotateCcw,
   ArrowUp,
   ArrowDown,
-  Columns,
-  Rows,
-  Sliders,
   CheckCircle2,
-  ArrowRight,
-  ArrowLeft,
   Home,
   FolderOpen,
   Database,
-  Copy,
 } from 'lucide-react';
 import { FileContentResult, TextCompareOptions } from '@shared/types.js';
 import { compareTextContent } from '@shared/comparison-engine/whitespace.js';
@@ -134,13 +128,13 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
   const [activeFilter, setActiveFilter] = useState<'all' | 'diffs' | 'same'>('all');
 
   // Diff Options State
-  const [options, setOptions] = useState<TextCompareOptions>({
+  const options: TextCompareOptions = {
     ignoreWhitespace: 'none',
     ignoreBlankLines: false,
     ignoreCase: false,
-  });
+  };
 
-  const [renderSideBySide, setRenderSideBySide] = useState(true);
+  const renderSideBySide = true;
   const [diffStats, setDiffStats] = useState<{
     diffCount: number;
     whitespaceDifferenceOnly: boolean;
@@ -708,100 +702,20 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         }
       });
 
-      // Paste listener for left editor: split concatenated tags into clean new lines and trigger flash animation
+      // Paste listener for left editor: trigger flash animation on pasted lines
       origEditor.onDidPaste((e: any) => {
         const pasteRange = e.range;
         if (!pasteRange) return;
-        const origModel = origEditor.getModel();
-        if (!origModel) return;
-
-        const startLine = pasteRange.startLineNumber;
-        const endLine = pasteRange.endLineNumber;
-        const startCol = pasteRange.startColumn;
-        const endCol = pasteRange.endColumn;
-
-        const lineContent = origModel.getLineContent(startLine);
-        const beforePaste = lineContent.substring(0, startCol - 1);
-        const endLineContent = origModel.getLineContent(endLine);
-        const afterPaste = endLineContent.substring(endCol - 1);
-
-        let targetFlashStart = startLine;
-        let targetFlashEnd = endLine;
-
-        // Condition A: Pasted before existing content on that line
-        if (afterPaste.trim().length > 0 && (startCol === 1 || beforePaste.trim().length === 0 || beforePaste.trim().endsWith('>'))) {
-          const splitAfterRange = {
-            startLineNumber: endLine,
-            startColumn: endCol,
-            endLineNumber: endLine,
-            endColumn: endCol,
-          };
-          origModel.pushEditOperations([], [{ range: splitAfterRange, text: '\n' }], () => null);
-        }
-
-        // Condition B: Pasted at the end of existing content on that line
-        if (beforePaste.trim().length > 0) {
-          const splitBeforeRange = {
-            startLineNumber: startLine,
-            startColumn: startCol,
-            endLineNumber: startLine,
-            endColumn: startCol,
-          };
-          origModel.pushEditOperations([], [{ range: splitBeforeRange, text: '\n' }], () => null);
-          targetFlashStart = startLine + 1;
-          targetFlashEnd = endLine + 1;
-        }
-
-        flashCopiedHighlight('left', targetFlashStart, targetFlashEnd);
-        onUpdateStatus('Pasted diff content with clean line alignment');
+        flashCopiedHighlight('left', pasteRange.startLineNumber, pasteRange.endLineNumber);
+        onUpdateStatus('Pasted content');
       });
 
-      // Paste listener for right editor: split concatenated tags into clean new lines and trigger flash animation
+      // Paste listener for right editor: trigger flash animation on pasted lines
       modEditor.onDidPaste((e: any) => {
         const pasteRange = e.range;
         if (!pasteRange) return;
-        const modModel = modEditor.getModel();
-        if (!modModel) return;
-
-        const startLine = pasteRange.startLineNumber;
-        const endLine = pasteRange.endLineNumber;
-        const startCol = pasteRange.startColumn;
-        const endCol = pasteRange.endColumn;
-
-        const lineContent = modModel.getLineContent(startLine);
-        const beforePaste = lineContent.substring(0, startCol - 1);
-        const endLineContent = modModel.getLineContent(endLine);
-        const afterPaste = endLineContent.substring(endCol - 1);
-
-        let targetFlashStart = startLine;
-        let targetFlashEnd = endLine;
-
-        // Condition A: Pasted before existing content on that line
-        if (afterPaste.trim().length > 0 && (startCol === 1 || beforePaste.trim().length === 0 || beforePaste.trim().endsWith('>'))) {
-          const splitAfterRange = {
-            startLineNumber: endLine,
-            startColumn: endCol,
-            endLineNumber: endLine,
-            endColumn: endCol,
-          };
-          modModel.pushEditOperations([], [{ range: splitAfterRange, text: '\n' }], () => null);
-        }
-
-        // Condition B: Pasted at the end of existing content on that line
-        if (beforePaste.trim().length > 0) {
-          const splitBeforeRange = {
-            startLineNumber: startLine,
-            startColumn: startCol,
-            endLineNumber: startLine,
-            endColumn: startCol,
-          };
-          modModel.pushEditOperations([], [{ range: splitBeforeRange, text: '\n' }], () => null);
-          targetFlashStart = startLine + 1;
-          targetFlashEnd = endLine + 1;
-        }
-
-        flashCopiedHighlight('right', targetFlashStart, targetFlashEnd);
-        onUpdateStatus('Pasted diff content with clean line alignment');
+        flashCopiedHighlight('right', pasteRange.startLineNumber, pasteRange.endLineNumber);
+        onUpdateStatus('Pasted content');
       });
 
       origEditor.onDidChangeModelContent(() => {
@@ -1047,32 +961,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     }
   };
 
-  // Copy diff paragraph / selection text to system clipboard
-  const handleCopyTextToClipboard = () => {
-    if (!diffEditorRef.current) return;
-    let textToCopy = '';
 
-    if (activeSelection && activeSelection.text) {
-      textToCopy = activeSelection.text;
-    } else if (activeDiffChunk) {
-      const origModel = diffEditorRef.current.getOriginalEditor().getModel();
-      if (origModel && activeDiffChunk.originalStart > 0 && activeDiffChunk.originalEnd >= activeDiffChunk.originalStart) {
-        textToCopy = origModel.getValueInRange({
-          startLineNumber: activeDiffChunk.originalStart,
-          startColumn: 1,
-          endLineNumber: activeDiffChunk.originalEnd,
-          endColumn: origModel.getLineMaxColumn(activeDiffChunk.originalEnd),
-        });
-      }
-    } else if (activeLeftLineText) {
-      textToCopy = activeLeftLineText;
-    }
-
-    if (textToCopy) {
-      navigator.clipboard.writeText(textToCopy);
-      onUpdateStatus('Diff text copied to system clipboard');
-    }
-  };
 
   // Single active line copy L -> R
   const handleCopyActiveLineL2R = () => {
@@ -1281,10 +1170,10 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
 
   return (
     <div className="flex-1 flex flex-col h-full bg-white dark:bg-black overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans select-none">
-      {/* ================= 1. Beyond Compare Action Toolbar (Image 2 & 3) ================= */}
+      {/* ================= 1. Beyond Compare Action Toolbar ================= */}
       <div className="bg-[#f0f0f0] dark:bg-[#0a0a0a] border-b border-[#c8c8c8] dark:border-neutral-800 px-2 py-1 flex items-center justify-between text-xs flex-shrink-0 select-none shadow-xs">
-        {/* Left Toolbar Items: Home, Save, Jumpers, Filter Trio (*, ≠, =), Copy L->R, Copy R->L */}
-        <div className="flex items-center space-x-1">
+        {/* Left Toolbar Items: Home, Jumpers, Filter Trio (*, ≠, =) */}
+        <div className="flex items-center space-x-1.5">
           {onNavigateHome && (
             <button
               onClick={onNavigateHome}
@@ -1295,26 +1184,12 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             </button>
           )}
 
-          {/* Save dirty file button */}
-          {(leftDirty || rightDirty) && (
-            <button
-              onClick={leftDirty ? handleSaveLeft : handleSaveRight}
-              title="Save Changes to Disk"
-              className="flex items-center space-x-1 px-2 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium text-[11px] shadow animate-pulse"
-            >
-              <Save className="w-3 h-3" />
-              <span>Save</span>
-            </button>
-          )}
-
-          <span className="h-4 w-px bg-neutral-300 dark:bg-neutral-800 mx-0.5" />
-
           {/* Jumpers: Next & Prev Difference */}
           <button
             onClick={handlePrevDiff}
             data-action="prev-diff"
             title="Previous Difference (Shift+F7 / Alt+Up)"
-            className="flex items-center space-x-1 px-2 py-1 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition text-[11px] shadow-xs"
+            className="flex items-center space-x-1 px-2.5 py-1 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition text-[11px] shadow-xs"
           >
             <ArrowUp className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
             <span>Prev</span>
@@ -1323,7 +1198,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             onClick={handleNextDiff}
             data-action="next-diff"
             title="Next Difference (F7 / Alt+Down)"
-            className="flex items-center space-x-1 px-2 py-1 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition text-[11px] shadow-xs"
+            className="flex items-center space-x-1 px-2.5 py-1 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition text-[11px] shadow-xs"
           >
             <ArrowDown className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
             <span>Next</span>
@@ -1370,93 +1245,10 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
               = Same
             </button>
           </div>
-
-          <span className="h-4 w-px bg-neutral-300 dark:bg-neutral-800 mx-0.5" />
-
-          {/* Section & Selection Level Copy Actions (Image 2 & 3) */}
-          <button
-            onClick={handleCopyL2R}
-            data-action="copy-l2r"
-            title="Copy diff paragraph / selected lines Left to Right (Alt+Right)"
-            disabled={!leftPath || !rightPath}
-            className="flex items-center space-x-1 px-2.5 py-1 rounded bg-blue-50 dark:bg-blue-950/60 border border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900 disabled:opacity-40 transition font-semibold text-[11px] shadow-xs"
-          >
-            <ArrowRight className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-            <span>Copy L→R</span>
-          </button>
-          <button
-            onClick={handleCopyR2L}
-            data-action="copy-r2l"
-            title="Copy diff paragraph / selected lines Right to Left (Alt+Left)"
-            disabled={!leftPath || !rightPath}
-            className="flex items-center space-x-1 px-2.5 py-1 rounded bg-purple-50 dark:bg-purple-950/60 border border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900 disabled:opacity-40 transition font-semibold text-[11px] shadow-xs"
-          >
-            <ArrowLeft className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-            <span>Copy R→L</span>
-          </button>
-
-          {/* Copy Paragraph to Clipboard Button */}
-          <button
-            onClick={handleCopyTextToClipboard}
-            title="Copy active diff paragraph or selection to clipboard"
-            className="flex items-center space-x-1 px-2 py-1 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-[11px] shadow-xs transition"
-          >
-            <Copy className="w-3.5 h-3.5 text-neutral-500" />
-            <span>Copy Text</span>
-          </button>
-
-          <span className="font-mono text-neutral-500 dark:text-neutral-400 text-[11px] px-1">
-            {diffStats.diffCount} diffs
-          </span>
         </div>
 
-        {/* Right Toolbar Items: Whitespace rules, Layout mode, Revert */}
+        {/* Right Toolbar Items: Revert */}
         <div className="flex items-center space-x-2">
-          {/* Whitespace options */}
-          <div className="flex items-center space-x-1">
-            <Sliders className="w-3 h-3 text-neutral-400 mr-1" />
-            <select
-              value={options.ignoreWhitespace}
-              onChange={(e) =>
-                setOptions((prev) => ({
-                  ...prev,
-                  ignoreWhitespace: e.target.value as 'none' | 'trim' | 'all',
-                }))
-              }
-              className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-1.5 py-0.5 text-[11px] text-neutral-800 dark:text-neutral-200 focus:outline-none"
-            >
-              <option value="none">Rules: Strict</option>
-              <option value="trim">Rules: Trim Whitespace</option>
-              <option value="all">Rules: Ignore Whitespace</option>
-            </select>
-          </div>
-
-          {/* View mode toggle (Side-by-Side vs Inline) */}
-          <div className="flex items-center bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 rounded p-0.5 shadow-xs">
-            <button
-              onClick={() => setRenderSideBySide(true)}
-              title="Side-by-Side View"
-              className={`p-1 rounded transition ${
-                renderSideBySide
-                  ? 'bg-neutral-200 dark:bg-neutral-800 text-blue-600 dark:text-blue-400 font-bold'
-                  : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
-              }`}
-            >
-              <Columns className="w-3 h-3" />
-            </button>
-            <button
-              onClick={() => setRenderSideBySide(false)}
-              title="Inline Unified View"
-              className={`p-1 rounded transition ${
-                !renderSideBySide
-                  ? 'bg-neutral-200 dark:bg-neutral-800 text-blue-600 dark:text-blue-400 font-bold'
-                  : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
-              }`}
-            >
-              <Rows className="w-3 h-3" />
-            </button>
-          </div>
-
           {/* Revert edits */}
           {(leftDirty || rightDirty) && (
             <button
@@ -1468,10 +1260,6 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
               <span>Revert</span>
             </button>
           )}
-
-          <span className="font-mono text-[11px] text-neutral-400 uppercase font-semibold">
-            {language}
-          </span>
         </div>
       </div>
 
@@ -1786,47 +1574,51 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
               modified={rightEditorContent}
               theme={theme === 'dark' ? 'beyond-compare-dark' : 'beyond-compare-light'}
               beforeMount={(monaco) => {
-                // Crisp light theme (soft, readable, pleasant diff background)
                 monaco.editor.defineTheme('beyond-compare-light', {
                   base: 'vs',
                   inherit: true,
                   rules: [
-                    { token: '', foreground: '000000' },
+                    { token: '', foreground: '111827' },
                   ],
                   colors: {
                     'editor.background': '#ffffff',
-                    'editor.foreground': '#000000',
-                    'editorGutter.background': '#f6f6f6',
-                    'editorLineNumber.foreground': '#717171',
-                    'editorLineNumber.activeForeground': '#000000',
-                    'diffEditor.insertedTextBackground': '#86efac',
-                    'diffEditor.removedTextBackground': '#fca5a5',
-                    'diffEditor.insertedLineBackground': '#dcfce788',
-                    'diffEditor.removedLineBackground': '#fee2e288',
-                    'diffEditor.diagonalFill': '#cbd5e1',
-                    'diffEditorGutter.insertedLineBackground': '#22c55e',
-                    'diffEditorGutter.removedLineBackground': '#ef4444',
+                    'editor.foreground': '#111827',
+                    'editorGutter.background': '#f8fafc',
+                    'editorLineNumber.foreground': '#94a3b8',
+                    'editorLineNumber.activeForeground': '#0f172a',
+                    'editor.selectionBackground': '#bfdbfe',
+                    'editor.selectionHighlightBackground': '#dbeafe',
+                    'diffEditor.insertedTextBackground': '#f87171',
+                    'diffEditor.removedTextBackground': '#f87171',
+                    'diffEditor.insertedLineBackground': '#fecaca',
+                    'diffEditor.removedLineBackground': '#fecaca',
+                    'diffEditor.diagonalFill': '#f1f5f9',
+                    'diffEditorGutter.insertedLineBackground': '#00000000',
+                    'diffEditorGutter.removedLineBackground': '#00000000',
                   },
                 });
 
-                // Pitch black theme (dark subtle wine highlight, 100% readable text)
                 monaco.editor.defineTheme('beyond-compare-dark', {
                   base: 'vs-dark',
                   inherit: true,
-                  rules: [],
+                  rules: [
+                    { token: '', foreground: 'f3f4f6' },
+                  ],
                   colors: {
-                    'editor.background': '#000000',
+                    'editor.background': '#0a0a0a',
                     'editor.foreground': '#f3f4f6',
                     'editorGutter.background': '#050505',
-                    'editorLineNumber.foreground': '#666666',
+                    'editorLineNumber.foreground': '#52525b',
                     'editorLineNumber.activeForeground': '#ffffff',
-                    'diffEditor.insertedTextBackground': 'rgba(34, 197, 94, 0.65)',
-                    'diffEditor.removedTextBackground': 'rgba(239, 68, 68, 0.70)',
-                    'diffEditor.insertedLineBackground': 'rgba(34, 197, 94, 0.28)',
-                    'diffEditor.removedLineBackground': 'rgba(239, 68, 68, 0.32)',
-                    'diffEditor.diagonalFill': '#1e293b',
-                    'diffEditorGutter.insertedLineBackground': '#4ade80',
-                    'diffEditorGutter.removedLineBackground': '#f87171',
+                    'editor.selectionBackground': '#1d4ed8',
+                    'editor.selectionHighlightBackground': '#1e3a8a88',
+                    'diffEditor.insertedTextBackground': '#b91c1c',
+                    'diffEditor.removedTextBackground': '#b91c1c',
+                    'diffEditor.insertedLineBackground': '#450a0a',
+                    'diffEditor.removedLineBackground': '#450a0a',
+                    'diffEditor.diagonalFill': '#18181b',
+                    'diffEditorGutter.insertedLineBackground': '#00000000',
+                    'diffEditorGutter.removedLineBackground': '#00000000',
                   },
                 });
               }}
@@ -1841,15 +1633,16 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
                 minimap: { enabled: false },
                 scrollBeyondLastLine: false,
                 automaticLayout: true,
-                diffCodeLens: true,
+                diffCodeLens: false,
+                renderIndicators: false,
+                renderMarginRevertIcon: false,
+                renderGutterMenu: false,
                 renderOverviewRuler: false,
                 diffWordWrap: 'on',
                 glyphMargin: true,
                 stickyScroll: { enabled: false },
                 maxComputationTime: 0,
                 diffAlgorithm: 'advanced',
-                renderIndicators: false,
-                renderMarginRevertIcon: false,
                 hideUnchangedRegions: { enabled: false },
               } as any}
             />

@@ -231,6 +231,55 @@ describe('Diff Copy Engine', () => {
     expect(outRange.endLine).toBe(75);
   });
 
+  it('executes selective 2-line copy from a 14-line diff against a 1-line diff without deleting unchanged lines', () => {
+    let pushedRange: any = null;
+    let pushedText = '';
+    const mockOriginal = {
+      getLineCount: () => 100,
+      getLineMaxColumn: () => 50,
+      getValueInRange: ({ startLineNumber, endLineNumber }: any) => {
+        if (startLineNumber === 74 && endLineNumber === 75) {
+          return '<diam_local_fqdn_port>\n<name>diam2_port0</name>';
+        }
+        return '';
+      },
+    };
+    const mockModified = {
+      getLineCount: () => 90,
+      getLineMaxColumn: () => 50,
+      pushEditOperations: (_before: any, edits: any[]) => {
+        pushedRange = edits[0].range;
+        pushedText = edits[0].text;
+      },
+    };
+
+    // 14 lines on left (74-87), but only 1 line on right (74-74)
+    const chunk: DiffChunk = {
+      id: '1',
+      originalStart: 74,
+      originalEnd: 87,
+      modifiedStart: 74,
+      modifiedEnd: 74,
+    };
+
+    const outRange = { startLine: 0, endLine: 0 };
+    const res = executeSelectedLinesCopyL2R(
+      mockOriginal,
+      mockModified,
+      { startLine: 74, endLine: 75 },
+      chunk,
+      outRange
+    );
+
+    expect(res).toBe(true);
+    // It should replace ONLY line 74 on right, preserving line 75 (which is unchanged)
+    expect(pushedRange.startLineNumber).toBe(74);
+    expect(pushedRange.endLineNumber).toBe(74);
+    expect(pushedText).toBe('<diam_local_fqdn_port>\n<name>diam2_port0</name>');
+    expect(outRange.startLine).toBe(74);
+    expect(outRange.endLine).toBe(75);
+  });
+
   describe('spliceLines direct string splicing', () => {
     it('splices lines cleanly replacing matching line range', () => {
       const left = 'line1\nline2\nline3\nline4';
