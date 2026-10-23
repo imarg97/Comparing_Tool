@@ -12,7 +12,6 @@ import {
   Rows,
   Sliders,
   CheckCircle2,
-  FileCheck2,
   ArrowRight,
   ArrowLeft,
   Home,
@@ -159,50 +158,90 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
 
   const [copiedNotification, setCopiedNotification] = useState<string | null>(null);
 
-  // Drag and drop states
+  // Drag and drop states across whole page
   const [isDraggingLeft, setIsDraggingLeft] = useState(false);
   const [isDraggingRight, setIsDraggingRight] = useState(false);
+  const [dragHoverSide, setDragHoverSide] = useState<'left' | 'right' | null>(null);
+  const dragCounterRef = useRef(0);
 
-  const extractDroppedPath = (e: React.DragEvent): string | null => {
+  const extractDroppedPaths = (e: React.DragEvent): string[] => {
+    const paths: string[] = [];
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0];
-      return (file as any).path || file.name || null;
+      for (let i = 0; i < e.dataTransfer.files.length; i++) {
+        const file = e.dataTransfer.files[i];
+        const p = (file as any).path || file.name;
+        if (p) paths.push(p);
+      }
     }
-    return null;
+    return paths;
+  };
+
+  const handleDropToSide = (paths: string[], targetSide: 'left' | 'right') => {
+    if (!paths.length) return;
+    if (paths.length >= 2) {
+      onSetLeftPath(paths[0]);
+      onSetRightPath(paths[1]);
+      onUpdateStatus(`Loaded Left (${paths[0].split(/[/\\]/).pop()}) and Right (${paths[1].split(/[/\\]/).pop()})`);
+    } else if (targetSide === 'left') {
+      onSetLeftPath(paths[0]);
+      onUpdateStatus(`Loaded Left file: ${paths[0].split(/[/\\]/).pop()}`);
+    } else {
+      onSetRightPath(paths[0]);
+      onUpdateStatus(`Loaded Right file: ${paths[0].split(/[/\\]/).pop()}`);
+    }
   };
 
   const handleDropLeft = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDraggingLeft(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files.length >= 2) {
-      const p1 = (e.dataTransfer.files[0] as any).path || e.dataTransfer.files[0].name;
-      const p2 = (e.dataTransfer.files[1] as any).path || e.dataTransfer.files[1].name;
-      if (p1) onSetLeftPath(p1);
-      if (p2) onSetRightPath(p2);
-      return;
-    }
-
-    const p = extractDroppedPath(e);
-    if (p) onSetLeftPath(p);
+    setDragHoverSide(null);
+    dragCounterRef.current = 0;
+    const paths = extractDroppedPaths(e);
+    handleDropToSide(paths, 'left');
   };
 
   const handleDropRight = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDraggingRight(false);
+    setDragHoverSide(null);
+    dragCounterRef.current = 0;
+    const paths = extractDroppedPaths(e);
+    handleDropToSide(paths, 'right');
+  };
 
-    if (e.dataTransfer.files && e.dataTransfer.files.length >= 2) {
-      const p1 = (e.dataTransfer.files[0] as any).path || e.dataTransfer.files[0].name;
-      const p2 = (e.dataTransfer.files[1] as any).path || e.dataTransfer.files[1].name;
-      if (p1) onSetLeftPath(p1);
-      if (p2) onSetRightPath(p2);
-      return;
+  const handleContainerDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current++;
+  };
+
+  const handleContainerDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midX = rect.left + rect.width / 2;
+    const side = e.clientX < midX ? 'left' : 'right';
+    setDragHoverSide(side);
+  };
+
+  const handleContainerDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current--;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setDragHoverSide(null);
     }
+  };
 
-    const p = extractDroppedPath(e);
-    if (p) onSetRightPath(p);
+  const handleContainerDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const side = dragHoverSide || 'left';
+    dragCounterRef.current = 0;
+    setDragHoverSide(null);
+    const paths = extractDroppedPaths(e);
+    handleDropToSide(paths, side);
   };
 
   // Monaco references
@@ -1234,16 +1273,72 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
           />
         )}
 
-        <div className="flex-1 relative h-full min-w-0 overflow-hidden">
+        <div
+          onDragEnter={handleContainerDragEnter}
+          onDragOver={handleContainerDragOver}
+          onDragLeave={handleContainerDragLeave}
+          onDrop={handleContainerDrop}
+          className="flex-1 relative h-full min-w-0 overflow-hidden"
+        >
+          {/* Side-by-side empty state drop targets when no files are loaded */}
           {!leftPath && !rightPath ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-600 bg-white dark:bg-black p-8 text-center select-none">
-              <FileCheck2 className="w-12 h-12 mb-3 stroke-[1.2] text-blue-500" />
-              <h4 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                No Files Loaded in Text Compare
-              </h4>
-              <p className="text-xs max-w-sm text-neutral-500 mb-4">
-                Click <strong>Browse</strong> above, drag and drop files here, or double-click any file in Folder Compare to start comparing.
-              </p>
+            <div className="absolute inset-0 flex items-stretch select-none bg-white dark:bg-black">
+              {/* Left Drop Target Zone */}
+              <div
+                onClick={handlePickLeft}
+                className={`flex-1 flex flex-col items-center justify-center p-8 text-center cursor-pointer transition ${
+                  dragHoverSide === 'left'
+                    ? 'bg-blue-500/10 ring-2 ring-blue-500'
+                    : 'hover:bg-neutral-50 dark:hover:bg-neutral-950'
+                }`}
+              >
+                <FileCode className="w-10 h-10 mb-2 stroke-[1.2] text-blue-500" />
+                <h4 className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 mb-1">
+                  Left File
+                </h4>
+                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-3 max-w-[220px]">
+                  Drag & drop text or code file here or browse
+                </p>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePickLeft();
+                  }}
+                  className="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-medium shadow-xs transition"
+                >
+                  Browse Left File
+                </button>
+              </div>
+
+              {/* Bare Minimum Light Divider Line */}
+              <div className="w-px bg-[#e5e5e5] dark:bg-neutral-800 flex-shrink-0" />
+
+              {/* Right Drop Target Zone */}
+              <div
+                onClick={handlePickRight}
+                className={`flex-1 flex flex-col items-center justify-center p-8 text-center cursor-pointer transition ${
+                  dragHoverSide === 'right'
+                    ? 'bg-purple-500/10 ring-2 ring-purple-500'
+                    : 'hover:bg-neutral-50 dark:hover:bg-neutral-950'
+                }`}
+              >
+                <FileCode className="w-10 h-10 mb-2 stroke-[1.2] text-purple-500" />
+                <h4 className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 mb-1">
+                  Right File
+                </h4>
+                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-3 max-w-[220px]">
+                  Drag & drop text or code file here or browse
+                </p>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePickRight();
+                  }}
+                  className="px-2.5 py-1 rounded bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-medium shadow-xs transition"
+                >
+                  Browse Right File
+                </button>
+              </div>
             </div>
           ) : (
             <DiffEditor
@@ -1312,6 +1407,45 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
                 ...(activeFilter === 'diffs' ? ({ hideUnchangedRegions: { enabled: true } } as any) : {}),
               } as any}
             />
+          )}
+
+          {/* Active Drag-and-Drop Overlay over loaded comparison */}
+          {dragHoverSide && (leftPath || rightPath) && (
+            <div className="absolute inset-0 z-40 flex pointer-events-none bg-black/40 backdrop-blur-[1px]">
+              {/* Left Pane Highlight */}
+              <div
+                className={`flex-1 flex flex-col items-center justify-center transition border-r border-neutral-700 ${
+                  dragHoverSide === 'left'
+                    ? 'bg-blue-600/30 ring-4 ring-inset ring-blue-500'
+                    : 'bg-black/30 opacity-40'
+                }`}
+              >
+                <FileCode className="w-12 h-12 mb-2 text-blue-400 animate-bounce" />
+                <span className="font-bold text-sm text-white drop-shadow-md">
+                  Drop to Open as Left File
+                </span>
+                <span className="text-xs text-blue-200 mt-1">
+                  Replaces current Left pane
+                </span>
+              </div>
+
+              {/* Right Pane Highlight */}
+              <div
+                className={`flex-1 flex flex-col items-center justify-center transition ${
+                  dragHoverSide === 'right'
+                    ? 'bg-purple-600/30 ring-4 ring-inset ring-purple-500'
+                    : 'bg-black/30 opacity-40'
+                }`}
+              >
+                <FileCode className="w-12 h-12 mb-2 text-purple-400 animate-bounce" />
+                <span className="font-bold text-sm text-white drop-shadow-md">
+                  Drop to Open as Right File
+                </span>
+                <span className="text-xs text-purple-200 mt-1">
+                  Replaces current Right pane
+                </span>
+              </div>
+            </div>
           )}
         </div>
       </div>

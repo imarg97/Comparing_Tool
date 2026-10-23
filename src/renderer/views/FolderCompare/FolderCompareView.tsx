@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   FolderOpen,
   ArrowLeftRight,
@@ -84,50 +84,90 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [selectedEntry, setSelectedEntry] = useState<ComparisonEntry | null>(null);
 
-  // Drag and drop states
+  // Drag and drop states across whole page
   const [isDraggingLeft, setIsDraggingLeft] = useState(false);
   const [isDraggingRight, setIsDraggingRight] = useState(false);
+  const [dragHoverSide, setDragHoverSide] = useState<'left' | 'right' | null>(null);
+  const dragCounterRef = useRef(0);
 
-  const extractDroppedPath = (e: React.DragEvent): string | null => {
+  const extractDroppedPaths = (e: React.DragEvent): string[] => {
+    const paths: string[] = [];
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0];
-      return (file as any).path || file.name || null;
+      for (let i = 0; i < e.dataTransfer.files.length; i++) {
+        const file = e.dataTransfer.files[i];
+        const p = (file as any).path || file.name;
+        if (p) paths.push(p);
+      }
     }
-    return null;
+    return paths;
+  };
+
+  const handleDropToSide = (paths: string[], targetSide: 'left' | 'right') => {
+    if (!paths.length) return;
+    if (paths.length >= 2) {
+      onSetLeftFolder(paths[0]);
+      onSetRightFolder(paths[1]);
+      onUpdateStatus(`Loaded Left (${paths[0].split(/[/\\]/).pop()}) and Right (${paths[1].split(/[/\\]/).pop()})`);
+    } else if (targetSide === 'left') {
+      onSetLeftFolder(paths[0]);
+      onUpdateStatus(`Loaded Left directory: ${paths[0].split(/[/\\]/).pop()}`);
+    } else {
+      onSetRightFolder(paths[0]);
+      onUpdateStatus(`Loaded Right directory: ${paths[0].split(/[/\\]/).pop()}`);
+    }
   };
 
   const handleDropLeft = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDraggingLeft(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files.length >= 2) {
-      const p1 = (e.dataTransfer.files[0] as any).path || e.dataTransfer.files[0].name;
-      const p2 = (e.dataTransfer.files[1] as any).path || e.dataTransfer.files[1].name;
-      if (p1) onSetLeftFolder(p1);
-      if (p2) onSetRightFolder(p2);
-      return;
-    }
-
-    const p = extractDroppedPath(e);
-    if (p) onSetLeftFolder(p);
+    setDragHoverSide(null);
+    dragCounterRef.current = 0;
+    const paths = extractDroppedPaths(e);
+    handleDropToSide(paths, 'left');
   };
 
   const handleDropRight = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDraggingRight(false);
+    setDragHoverSide(null);
+    dragCounterRef.current = 0;
+    const paths = extractDroppedPaths(e);
+    handleDropToSide(paths, 'right');
+  };
 
-    if (e.dataTransfer.files && e.dataTransfer.files.length >= 2) {
-      const p1 = (e.dataTransfer.files[0] as any).path || e.dataTransfer.files[0].name;
-      const p2 = (e.dataTransfer.files[1] as any).path || e.dataTransfer.files[1].name;
-      if (p1) onSetLeftFolder(p1);
-      if (p2) onSetRightFolder(p2);
-      return;
+  const handleContainerDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current++;
+  };
+
+  const handleContainerDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midX = rect.left + rect.width / 2;
+    const side = e.clientX < midX ? 'left' : 'right';
+    setDragHoverSide(side);
+  };
+
+  const handleContainerDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounterRef.current--;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setDragHoverSide(null);
     }
+  };
 
-    const p = extractDroppedPath(e);
-    if (p) onSetRightFolder(p);
+  const handleContainerDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const side = dragHoverSide || 'left';
+    dragCounterRef.current = 0;
+    setDragHoverSide(null);
+    const paths = extractDroppedPaths(e);
+    handleDropToSide(paths, side);
   };
 
   // Listen for scan progress from IPC
@@ -908,24 +948,20 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
         </div>
 
         {/* Tree Rows Container */}
-        <div className="flex-1 overflow-y-auto">
+        <div
+          onDragEnter={handleContainerDragEnter}
+          onDragOver={handleContainerDragOver}
+          onDragLeave={handleContainerDragLeave}
+          onDrop={handleContainerDrop}
+          className="flex-1 overflow-y-auto relative"
+        >
           {!result && !isScanning && (
             <div className="h-full flex items-stretch select-none">
               {/* Left Drop Target Zone */}
               <div
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsDraggingLeft(true);
-                }}
-                onDragLeave={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsDraggingLeft(false);
-                }}
-                onDrop={handleDropLeft}
-                className={`flex-1 flex flex-col items-center justify-center p-8 text-center transition ${
-                  isDraggingLeft
+                onClick={handlePickLeft}
+                className={`flex-1 flex flex-col items-center justify-center p-8 text-center cursor-pointer transition ${
+                  dragHoverSide === 'left'
                     ? 'bg-blue-500/10 ring-2 ring-blue-500'
                     : 'bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-950'
                 }`}
@@ -938,7 +974,10 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
                   Drag & drop folder here or browse
                 </p>
                 <button
-                  onClick={handlePickLeft}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePickLeft();
+                  }}
                   className="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-medium shadow-xs transition"
                 >
                   Browse Left Folder
@@ -950,19 +989,9 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
 
               {/* Right Drop Target Zone */}
               <div
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsDraggingRight(true);
-                }}
-                onDragLeave={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsDraggingRight(false);
-                }}
-                onDrop={handleDropRight}
-                className={`flex-1 flex flex-col items-center justify-center p-8 text-center transition ${
-                  isDraggingRight
+                onClick={handlePickRight}
+                className={`flex-1 flex flex-col items-center justify-center p-8 text-center cursor-pointer transition ${
+                  dragHoverSide === 'right'
                     ? 'bg-purple-500/10 ring-2 ring-purple-500'
                     : 'bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-950'
                 }`}
@@ -975,7 +1004,10 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
                   Drag & drop folder here or browse
                 </p>
                 <button
-                  onClick={handlePickRight}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePickRight();
+                  }}
                   className="px-2.5 py-1 rounded bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-medium shadow-xs transition"
                 >
                   Browse Right Folder
@@ -993,6 +1025,45 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
               ) : (
                 displayedTree.map((rootNode) => renderRow(rootNode))
               )}
+            </div>
+          )}
+
+          {/* Active Drag-and-Drop Overlay over loaded folder tree */}
+          {dragHoverSide && (
+            <div className="absolute inset-0 z-40 flex pointer-events-none bg-black/40 backdrop-blur-[1px]">
+              {/* Left Pane Highlight */}
+              <div
+                className={`flex-1 flex flex-col items-center justify-center transition border-r border-neutral-700 ${
+                  dragHoverSide === 'left'
+                    ? 'bg-blue-600/30 ring-4 ring-inset ring-blue-500'
+                    : 'bg-black/30 opacity-40'
+                }`}
+              >
+                <FolderOpen className="w-12 h-12 mb-2 text-blue-400 animate-bounce" />
+                <span className="font-bold text-sm text-white drop-shadow-md">
+                  Drop to Open as Left Folder
+                </span>
+                <span className="text-xs text-blue-200 mt-1">
+                  Replaces current Left directory
+                </span>
+              </div>
+
+              {/* Right Pane Highlight */}
+              <div
+                className={`flex-1 flex flex-col items-center justify-center transition ${
+                  dragHoverSide === 'right'
+                    ? 'bg-purple-600/30 ring-4 ring-inset ring-purple-500'
+                    : 'bg-black/30 opacity-40'
+                }`}
+              >
+                <FolderOpen className="w-12 h-12 mb-2 text-purple-400 animate-bounce" />
+                <span className="font-bold text-sm text-white drop-shadow-md">
+                  Drop to Open as Right Folder
+                </span>
+                <span className="text-xs text-purple-200 mt-1">
+                  Replaces current Right directory
+                </span>
+              </div>
             </div>
           )}
         </div>
