@@ -244,44 +244,44 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       </div>
 
-      {/* ================= BOTTOM BEYOND COMPARE DARK RED FOOTER BANNER ================= */}
+      {/* ================= BOTTOM DIFFX INFO BANNER (MODERN TECH PALETTE) ================= */}
       {showBottomBanner && (
-        <div className="bg-[#990000] text-white px-6 py-2.5 flex items-center justify-between text-xs flex-shrink-0 shadow-inner relative z-10">
+        <div className="bg-[#0f172a] dark:bg-[#080c16] text-slate-100 dark:text-neutral-200 border-t border-slate-800 dark:border-neutral-850 px-6 py-2.5 flex items-center justify-between text-xs flex-shrink-0 shadow-lg relative z-10">
           <div className="grid grid-cols-4 gap-6 max-w-5xl w-full">
             <div>
-              <div className="font-bold uppercase tracking-wider text-[11px] mb-1">
+              <div className="font-semibold uppercase tracking-wider text-[11px] mb-1 text-sky-400 dark:text-sky-300">
                 KNOWLEDGE BASE
               </div>
-              <div className="text-[11px] text-red-100 leading-tight">
+              <div className="text-[11px] text-slate-300 dark:text-neutral-400 leading-tight">
                 Offline, local-first engine. No telemetry, cloud accounts, or subscriptions.
               </div>
             </div>
 
             <div>
-              <div className="font-bold uppercase tracking-wider text-[11px] mb-1">
+              <div className="font-semibold uppercase tracking-wider text-[11px] mb-1 text-sky-400 dark:text-sky-300">
                 KEYBOARD SHORTCUTS
               </div>
-              <div className="text-[11px] text-red-100 leading-tight">
-                <span className="font-mono bg-red-950/60 px-1 py-0.2 rounded">Ctrl+1</span> Folders •{' '}
-                <span className="font-mono bg-red-950/60 px-1 py-0.2 rounded">Ctrl+2</span> Text •{' '}
-                <span className="font-mono bg-red-950/60 px-1 py-0.2 rounded">F7</span> Next Diff
+              <div className="text-[11px] text-slate-300 dark:text-neutral-400 leading-tight">
+                <span className="font-mono bg-slate-800/90 text-sky-200 border border-slate-700/60 px-1 py-0.2 rounded">Ctrl+1</span> Folders •{' '}
+                <span className="font-mono bg-slate-800/90 text-sky-200 border border-slate-700/60 px-1 py-0.2 rounded">Ctrl+2</span> Text •{' '}
+                <span className="font-mono bg-slate-800/90 text-sky-200 border border-slate-700/60 px-1 py-0.2 rounded">Ctrl+S</span> Save
               </div>
             </div>
 
             <div>
-              <div className="font-bold uppercase tracking-wider text-[11px] mb-1">
+              <div className="font-semibold uppercase tracking-wider text-[11px] mb-1 text-sky-400 dark:text-sky-300">
                 TELECOM & CLOUD
               </div>
-              <div className="text-[11px] text-red-100 leading-tight">
+              <div className="text-[11px] text-slate-300 dark:text-neutral-400 leading-tight">
                 Specialized modes for Helm charts, values.yaml, and XML cellular configs.
               </div>
             </div>
 
             <div>
-              <div className="font-bold uppercase tracking-wider text-[11px] mb-1">
-                DIFFX SUITE v1.2
+              <div className="font-semibold uppercase tracking-wider text-[11px] mb-1 text-sky-400 dark:text-sky-300">
+                DIFFX SUITE v1.4.1
               </div>
-              <div className="text-[11px] text-red-100 leading-tight">
+              <div className="text-[11px] text-slate-300 dark:text-neutral-400 leading-tight">
                 Designed for high-performance file, folder, and configuration comparison.
               </div>
             </div>
@@ -290,7 +290,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <button
             onClick={() => setShowBottomBanner(false)}
             title="Dismiss Banner"
-            className="text-red-200 hover:text-white p-1 rounded hover:bg-red-800 transition ml-4 flex-shrink-0"
+            className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 transition ml-4 flex-shrink-0"
           >
             <X className="w-4 h-4" />
           </button>

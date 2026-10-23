@@ -76,9 +76,12 @@ describe('Diff Copy Engine', () => {
       modifiedEnd: 0,
     };
 
-    const res = executeChunkCopyL2R(mockOriginal, mockModified, chunk);
+    const outRange = { startLine: 0, endLine: 0 };
+    const res = executeChunkCopyL2R(mockOriginal, mockModified, chunk, outRange);
     expect(res).toBe(true);
     expect(pushedText).toContain('<diam_local_fqdn_port>');
+    expect(outRange.startLine).toBe(75);
+    expect(outRange.endLine).toBe(88);
   });
 
   it('executes chunk copy R2L using mock models', () => {

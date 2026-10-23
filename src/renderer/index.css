@@ -55,12 +55,13 @@
 }
 
 /* =========================================================================
-   Beyond Compare Soft Diff Highlighting (Prevents jarring solid red blocks)
+   Soft Diff Highlighting (Prevents jarring patchy red blocks or white tag gaps)
    ========================================================================= */
 
-/* Light Mode: Soft, pastel, pleasant Beyond Compare colors */
-.monaco-diff-editor .line-delete {
-  background-color: #fde8e8 !important; /* Soft rose / pink tint */
+/* Light Mode: Uniform pleasant tint across entire changed lines */
+.monaco-diff-editor .line-delete,
+.monaco-diff-editor .diff-line-delete {
+  background-color: #fde8e8 !important; /* Soft rose / pink tint across whole line */
 }
 .monaco-diff-editor .char-delete {
   background-color: #fca5a5 !important; /* Pastel red for changed words */
@@ -68,8 +69,9 @@
   font-weight: 600 !important;
   border-radius: 2px;
 }
-.monaco-diff-editor .line-insert {
-  background-color: #f0fdf4 !important; /* Soft mint green */
+.monaco-diff-editor .line-insert,
+.monaco-diff-editor .diff-line-insert {
+  background-color: #f0fdf4 !important; /* Soft mint green across whole line */
 }
 .monaco-diff-editor .char-insert {
   background-color: #bbf7d0 !important;
@@ -79,8 +81,9 @@
 }
 
 /* Dark Mode: Subtle wine/crimson tint on pitch black (No neon red glare) */
-.dark .monaco-diff-editor .line-delete {
-  background-color: rgba(220, 38, 38, 0.18) !important; /* Subtle dark red */
+.dark .monaco-diff-editor .line-delete,
+.dark .monaco-diff-editor .diff-line-delete {
+  background-color: rgba(220, 38, 38, 0.18) !important; /* Subtle dark red across whole line */
 }
 .dark .monaco-diff-editor .char-delete {
   background-color: rgba(239, 68, 68, 0.35) !important;
@@ -88,7 +91,8 @@
   font-weight: 600 !important;
   border-radius: 2px;
 }
-.dark .monaco-diff-editor .line-insert {
+.dark .monaco-diff-editor .line-insert,
+.dark .monaco-diff-editor .diff-line-insert {
   background-color: rgba(34, 197, 94, 0.15) !important;
 }
 .dark .monaco-diff-editor .char-insert {
@@ -96,6 +100,30 @@
   color: #86efac !important;
   font-weight: 600 !important;
   border-radius: 2px;
+}
+
+/* Copied Difference Highlight Animation */
+.diffx-copied-highlight {
+  background-color: rgba(59, 130, 246, 0.25) !important;
+  outline: 2px solid #3b82f6 !important;
+  outline-offset: -2px;
+  border-radius: 2px;
+  animation: diffx-pulse-fade 2.5s ease-out forwards;
+}
+
+@keyframes diffx-pulse-fade {
+  0% {
+    background-color: rgba(59, 130, 246, 0.45);
+    outline-color: #2563eb;
+  }
+  70% {
+    background-color: rgba(59, 130, 246, 0.20);
+    outline-color: rgba(37, 99, 235, 0.6);
+  }
+  100% {
+    background-color: transparent;
+    outline-color: transparent;
+  }
 }
 
 /* Gutter Arrow Glyphs for Copy Left-to-Right (⇨) and Right-to-Left (⇦) */

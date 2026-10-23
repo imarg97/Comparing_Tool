@@ -37,6 +37,7 @@ import {
   findChunkAtLine,
   executeChunkCopyL2R,
   executeChunkCopyR2L,
+  ChunkCopyRange,
 } from '@shared/comparison-engine/diff-copy.js';
 import { ConfirmModalConfig } from '../../components/ConfirmModal.js';
 import { LineDetailInspector } from '../../components/LineDetailInspector.js';
@@ -224,8 +225,63 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
   const diffEditorRef = useRef<any>(null);
   const leftDecorationsRef = useRef<string[]>([]);
   const rightDecorationsRef = useRef<string[]>([]);
+  const copiedHighlightDecsRef = useRef<{ left: string[]; right: string[] }>({ left: [], right: [] });
   const chunksRef = useRef<DiffChunk[]>([]);
   chunksRef.current = diffChunks;
+
+  // Active focus side for shortcuts & save
+  const [activeFocusSide, setActiveFocusSide] = useState<'left' | 'right'>('right');
+  const [lastModifiedSide, setLastModifiedSide] = useState<'left' | 'right'>('right');
+
+  // Flash highlight on copied differences (L2R or R2L)
+  const flashCopiedHighlight = (side: 'left' | 'right', startLine: number, endLine: number) => {
+    if (!diffEditorRef.current) return;
+    try {
+      const editor = side === 'left' ? diffEditorRef.current.getOriginalEditor() : diffEditorRef.current.getModifiedEditor();
+      if (!editor) return;
+
+      const s = Math.max(1, startLine);
+      const e = Math.max(s, endLine);
+      const decs = [
+        {
+          range: {
+            startLineNumber: s,
+            startColumn: 1,
+            endLineNumber: e,
+            endColumn: editor.getModel()?.getLineMaxColumn(e) || 1,
+          },
+          options: {
+            isWholeLine: true,
+            className: 'diffx-copied-highlight',
+          },
+        },
+      ];
+
+      if (side === 'left') {
+        copiedHighlightDecsRef.current.left = editor.deltaDecorations(copiedHighlightDecsRef.current.left, decs);
+      } else {
+        copiedHighlightDecsRef.current.right = editor.deltaDecorations(copiedHighlightDecsRef.current.right, decs);
+      }
+
+      editor.revealLinesInCenter(s, e);
+      editor.setPosition({ lineNumber: s, column: 1 });
+
+      setTimeout(() => {
+        if (!diffEditorRef.current) return;
+        try {
+          if (side === 'left') {
+            copiedHighlightDecsRef.current.left = editor.deltaDecorations(copiedHighlightDecsRef.current.left, []);
+          } else {
+            copiedHighlightDecsRef.current.right = editor.deltaDecorations(copiedHighlightDecsRef.current.right, []);
+          }
+        } catch {
+          // ignore
+        }
+      }, 2500);
+    } catch {
+      // ignore
+    }
+  };
 
   // Auto-detect format whenever paths change
   useEffect(() => {
@@ -460,6 +516,10 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       origEditor.updateOptions({ stickyScroll: { enabled: false }, glyphMargin: true });
       modEditor.updateOptions({ stickyScroll: { enabled: false }, glyphMargin: true });
 
+      // Track active focus side
+      origEditor.onDidFocusEditorText(() => setActiveFocusSide('left'));
+      modEditor.onDidFocusEditorText(() => setActiveFocusSide('right'));
+
       editor.onDidUpdateDiff(() => {
         updateGutterDecorations();
       });
@@ -524,15 +584,22 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
 
       // Gutter Clicks on Left
       origEditor.onMouseDown((e: any) => {
+        setActiveFocusSide('left');
         const line = e.target?.position?.lineNumber;
         if (!line) return;
 
         if (e.target?.type === 2 /* GUTTER_GLYPH_MARGIN */) {
           const chunk = findChunkAtLine(chunksRef.current, line, 'left');
           if (chunk) {
-            executeChunkCopyL2R(origEditor.getModel(), modEditor.getModel(), chunk);
+            const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
+            executeChunkCopyL2R(origEditor.getModel(), modEditor.getModel(), chunk, outRange);
             setRightEditorContent(modEditor.getValue());
             setRightDirty(true);
+            setLastModifiedSide('right');
+            setActiveFocusSide('right');
+            if (outRange.startLine > 0) {
+              flashCopiedHighlight('right', outRange.startLine, outRange.endLine);
+            }
             setCopiedNotification(`Copied chunk lines ${chunk.originalStart}–${chunk.originalEnd} Left ⇨ Right`);
             setTimeout(() => setCopiedNotification(null), 2500);
             onUpdateStatus(`Copied diff paragraph (lines ${chunk.originalStart}–${chunk.originalEnd}) Left ⇨ Right`);
@@ -545,15 +612,22 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
 
       // Gutter Clicks on Right
       modEditor.onMouseDown((e: any) => {
+        setActiveFocusSide('right');
         const line = e.target?.position?.lineNumber;
         if (!line) return;
 
         if (e.target?.type === 2 /* GUTTER_GLYPH_MARGIN */) {
           const chunk = findChunkAtLine(chunksRef.current, line, 'right');
           if (chunk) {
-            executeChunkCopyR2L(origEditor.getModel(), modEditor.getModel(), chunk);
+            const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
+            executeChunkCopyR2L(origEditor.getModel(), modEditor.getModel(), chunk, outRange);
             setLeftEditorContent(origEditor.getValue());
             setLeftDirty(true);
+            setLastModifiedSide('left');
+            setActiveFocusSide('left');
+            if (outRange.startLine > 0) {
+              flashCopiedHighlight('left', outRange.startLine, outRange.endLine);
+            }
             setCopiedNotification(`Copied chunk lines ${chunk.modifiedStart}–${chunk.modifiedEnd} Right ⇦ Left`);
             setTimeout(() => setCopiedNotification(null), 2500);
             onUpdateStatus(`Copied diff paragraph (lines ${chunk.modifiedStart}–${chunk.modifiedEnd}) Right ⇦ Left`);
@@ -617,21 +691,30 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     if (activeSelection && activeSelection.side === 'left') {
       const text = activeSelection.text;
       const chunk = findChunkAtLine(chunksRef.current, activeSelection.startLine, 'left');
+      const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
       if (chunk) {
-        executeChunkCopyL2R(origModel, modModel, chunk);
+        executeChunkCopyL2R(origModel, modModel, chunk, outRange);
       } else {
         const targetLine = Math.min(activeSelection.startLine, modModel.getLineCount());
+        const targetEnd = Math.min(activeSelection.endLine, modModel.getLineCount());
         const range = {
           startLineNumber: targetLine,
           startColumn: 1,
-          endLineNumber: Math.min(activeSelection.endLine, modModel.getLineCount()),
-          endColumn: modModel.getLineMaxColumn(Math.min(activeSelection.endLine, modModel.getLineCount())),
+          endLineNumber: targetEnd,
+          endColumn: modModel.getLineMaxColumn(targetEnd),
         };
         modModel.pushEditOperations([], [{ range, text }], () => null);
+        outRange.startLine = targetLine;
+        outRange.endLine = targetEnd;
       }
       const updated = modModel.getValue();
       setRightEditorContent(updated);
       setRightDirty(true);
+      setLastModifiedSide('right');
+      setActiveFocusSide('right');
+      if (outRange.startLine > 0) {
+        flashCopiedHighlight('right', outRange.startLine, outRange.endLine);
+      }
       setCopiedNotification(`Copied lines ${activeSelection.startLine}–${activeSelection.endLine} Left ⇨ Right`);
       setTimeout(() => setCopiedNotification(null), 2500);
       onUpdateStatus(`Copied lines ${activeSelection.startLine}–${activeSelection.endLine} Left ⇨ Right`);
@@ -640,10 +723,16 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
 
     const chunk = activeDiffChunk || (chunksRef.current.length > 0 ? chunksRef.current[0] : null);
     if (chunk) {
-      executeChunkCopyL2R(origModel, modModel, chunk);
+      const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
+      executeChunkCopyL2R(origModel, modModel, chunk, outRange);
       const updated = modModel.getValue();
       setRightEditorContent(updated);
       setRightDirty(true);
+      setLastModifiedSide('right');
+      setActiveFocusSide('right');
+      if (outRange.startLine > 0) {
+        flashCopiedHighlight('right', outRange.startLine, outRange.endLine);
+      }
       setCopiedNotification(`Copied diff paragraph (lines ${chunk.originalStart}–${chunk.originalEnd}) Left ⇨ Right`);
       setTimeout(() => setCopiedNotification(null), 2500);
       onUpdateStatus(`Copied diff paragraph (lines ${chunk.originalStart}–${chunk.originalEnd}) Left ⇨ Right`);
@@ -662,21 +751,30 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     if (activeSelection && activeSelection.side === 'right') {
       const text = activeSelection.text;
       const chunk = findChunkAtLine(chunksRef.current, activeSelection.startLine, 'right');
+      const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
       if (chunk) {
-        executeChunkCopyR2L(origModel, modModel, chunk);
+        executeChunkCopyR2L(origModel, modModel, chunk, outRange);
       } else {
         const targetLine = Math.min(activeSelection.startLine, origModel.getLineCount());
+        const targetEnd = Math.min(activeSelection.endLine, origModel.getLineCount());
         const range = {
           startLineNumber: targetLine,
           startColumn: 1,
-          endLineNumber: Math.min(activeSelection.endLine, origModel.getLineCount()),
-          endColumn: origModel.getLineMaxColumn(Math.min(activeSelection.endLine, origModel.getLineCount())),
+          endLineNumber: targetEnd,
+          endColumn: origModel.getLineMaxColumn(targetEnd),
         };
         origModel.pushEditOperations([], [{ range, text }], () => null);
+        outRange.startLine = targetLine;
+        outRange.endLine = targetEnd;
       }
       const updated = origModel.getValue();
       setLeftEditorContent(updated);
       setLeftDirty(true);
+      setLastModifiedSide('left');
+      setActiveFocusSide('left');
+      if (outRange.startLine > 0) {
+        flashCopiedHighlight('left', outRange.startLine, outRange.endLine);
+      }
       setCopiedNotification(`Copied lines ${activeSelection.startLine}–${activeSelection.endLine} Right ⇦ Left`);
       setTimeout(() => setCopiedNotification(null), 2500);
       onUpdateStatus(`Copied lines ${activeSelection.startLine}–${activeSelection.endLine} Right ⇦ Left`);
@@ -685,10 +783,16 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
 
     const chunk = activeDiffChunk || (chunksRef.current.length > 0 ? chunksRef.current[0] : null);
     if (chunk) {
-      executeChunkCopyR2L(origModel, modModel, chunk);
+      const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
+      executeChunkCopyR2L(origModel, modModel, chunk, outRange);
       const updated = origModel.getValue();
       setLeftEditorContent(updated);
       setLeftDirty(true);
+      setLastModifiedSide('left');
+      setActiveFocusSide('left');
+      if (outRange.startLine > 0) {
+        flashCopiedHighlight('left', outRange.startLine, outRange.endLine);
+      }
       setCopiedNotification(`Copied diff paragraph (lines ${chunk.modifiedStart}–${chunk.modifiedEnd}) Right ⇦ Left`);
       setTimeout(() => setCopiedNotification(null), 2500);
       onUpdateStatus(`Copied diff paragraph (lines ${chunk.modifiedStart}–${chunk.modifiedEnd}) Right ⇦ Left`);
@@ -841,6 +945,73 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       setRightDirty(false);
     }
   };
+
+  // Keyboard Shortcuts: Ctrl+S (Save based on focus with popup), Ctrl+Z (Undo), Ctrl+Y (Redo), Ctrl+F (Find), Ctrl+C
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+
+      // 1. Undo: Ctrl+Z / Cmd+Z (without shift)
+      if (isCtrlOrCmd && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        if (!diffEditorRef.current) return;
+        e.preventDefault();
+        const origEditor = diffEditorRef.current.getOriginalEditor();
+        const modEditor = diffEditorRef.current.getModifiedEditor();
+        const targetSide = origEditor.hasTextFocus() ? 'left' : modEditor.hasTextFocus() ? 'right' : lastModifiedSide;
+        const targetEditor = targetSide === 'left' ? origEditor : modEditor;
+        targetEditor.focus();
+        targetEditor.trigger('keyboard', 'undo', null);
+        return;
+      }
+
+      // 2. Redo: Ctrl+Y / Cmd+Shift+Z / Cmd+Y
+      if (
+        (isCtrlOrCmd && e.key.toLowerCase() === 'y') ||
+        (isCtrlOrCmd && e.shiftKey && e.key.toLowerCase() === 'z')
+      ) {
+        if (!diffEditorRef.current) return;
+        e.preventDefault();
+        const origEditor = diffEditorRef.current.getOriginalEditor();
+        const modEditor = diffEditorRef.current.getModifiedEditor();
+        const targetSide = origEditor.hasTextFocus() ? 'left' : modEditor.hasTextFocus() ? 'right' : lastModifiedSide;
+        const targetEditor = targetSide === 'left' ? origEditor : modEditor;
+        targetEditor.focus();
+        targetEditor.trigger('keyboard', 'redo', null);
+        return;
+      }
+
+      // 3. Find: Ctrl+F / Cmd+F across files
+      if (isCtrlOrCmd && e.key.toLowerCase() === 'f') {
+        if (!diffEditorRef.current) return;
+        e.preventDefault();
+        const origEditor = diffEditorRef.current.getOriginalEditor();
+        const modEditor = diffEditorRef.current.getModifiedEditor();
+        const targetSide = origEditor.hasTextFocus() ? 'left' : modEditor.hasTextFocus() ? 'right' : activeFocusSide;
+        const targetEditor = targetSide === 'left' ? origEditor : modEditor;
+        targetEditor.focus();
+        targetEditor.getAction('actions.find')?.run();
+        return;
+      }
+
+      // 4. Save: Ctrl+S / Cmd+S based on focus with popup confirmation
+      if (isCtrlOrCmd && e.key.toLowerCase() === 's') {
+        if (!diffEditorRef.current) return;
+        e.preventDefault();
+        const origEditor = diffEditorRef.current.getOriginalEditor();
+        const modEditor = diffEditorRef.current.getModifiedEditor();
+        const targetSide = origEditor.hasTextFocus() ? 'left' : modEditor.hasTextFocus() ? 'right' : activeFocusSide;
+        if (targetSide === 'left') {
+          handleSaveLeft();
+        } else {
+          handleSaveRight();
+        }
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeFocusSide, lastModifiedSide, handleSaveLeft, handleSaveRight]);
 
   const editorLanguage = format === 'xml' ? 'xml' : format === 'json' ? 'json' : 'yaml';
   const leftMeta = formatFileMetadata(leftData, leftPath, format);
@@ -1428,10 +1599,10 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
                     'editorGutter.background': '#f6f6f6',
                     'editorLineNumber.foreground': '#717171',
                     'editorLineNumber.activeForeground': '#000000',
-                    'diffEditor.insertedTextBackground': '#dcfce7',
-                    'diffEditor.removedTextBackground': '#fde8e8',
+                    'diffEditor.insertedTextBackground': '#bbf7d0',
+                    'diffEditor.removedTextBackground': '#fca5a5',
                     'diffEditor.insertedLineBackground': '#f0fdf4',
-                    'diffEditor.removedLineBackground': '#fff0f0',
+                    'diffEditor.removedLineBackground': '#fde8e8',
                     'diffEditor.diagonalFill': '#e5e5e5',
                   },
                 });
@@ -1446,11 +1617,11 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
                     'editorGutter.background': '#050505',
                     'editorLineNumber.foreground': '#666666',
                     'editorLineNumber.activeForeground': '#ffffff',
-                    'diffEditor.insertedTextBackground': '#14532d55',
-                    'diffEditor.removedTextBackground': '#7f1d1d44',
-                    'diffEditor.insertedLineBackground': '#14532d20',
-                    'diffEditor.removedLineBackground': '#7f1d1d20',
-                    'diffEditor.diagonalFill': '#222222',
+                    'diffEditor.insertedTextBackground': '#14532d88',
+                    'diffEditor.removedTextBackground': '#7f1d1d88',
+                    'diffEditor.insertedLineBackground': '#14532d30',
+                    'diffEditor.removedLineBackground': '#7f1d1d30',
+                    'diffEditor.diagonalFill': '#1a1a1a',
                   },
                 });
               }}

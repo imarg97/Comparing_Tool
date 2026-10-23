@@ -723,6 +723,7 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
           {/* Show All */}
           <button
             onClick={() => setStatusFilter('all')}
+            data-action="filter-all"
             title="Show All (Both Same and Different)"
             className={`flex items-center space-x-1 px-2.5 py-1 rounded text-xs transition ${
               statusFilter === 'all'
@@ -737,6 +738,7 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
           {/* Show Differences */}
           <button
             onClick={() => setStatusFilter('different')}
+            data-action="filter-diffs"
             title="Show Differences Only"
             className={`flex items-center space-x-1 px-2.5 py-1 rounded text-xs transition ${
               statusFilter === 'different'
@@ -756,6 +758,7 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
           {/* Show Same */}
           <button
             onClick={() => setStatusFilter('identical')}
+            data-action="filter-same"
             title="Show Same (Identical Only)"
             className={`flex items-center space-x-1 px-2.5 py-1 rounded text-xs transition ${
               statusFilter === 'identical'
