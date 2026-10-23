@@ -31,6 +31,8 @@ const browserFolderStore = {
   rightFolderName: 'Right Folder',
   singleFiles: new Map<string, File>(),
   directories: new Map<string, Map<string, File>>(),
+  leftFile: null as File | null,
+  rightFile: null as File | null,
 };
 
 /**
@@ -117,29 +119,26 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
       if (!res || res.files.length === 0) return null;
       const file = res.files[0];
 
-      // Determine folder / environment context to prevent name collisions
-      let folderTag = '';
-      if (file.webkitRelativePath && file.webkitRelativePath.includes('/')) {
-        folderTag = file.webkitRelativePath.split('/')[0];
-      } else {
-        const defaultTag = side === 'left' ? 'az1' : side === 'right' ? 'az2' : 'config';
-        const inputTag = window.prompt(
-          `DiffX — Enter folder or environment name for this ${side ? side.toUpperCase() : ''} file:\n(e.g., az1, az2, site1, site2, production)`,
-          defaultTag
-        );
-        folderTag = inputTag && inputTag.trim() ? inputTag.trim() : defaultTag;
+      // Save pane-specific reference without prompting the user
+      if (side === 'left') {
+        browserFolderStore.leftFile = file;
+      } else if (side === 'right') {
+        browserFolderStore.rightFile = file;
       }
 
-      // Format distinct, descriptive path key
-      const key = `${folderTag}/${file.name}`;
-      browserFolderStore.singleFiles.set(key, file);
-      browserFolderStore.singleFiles.set(`file://${key}`, file);
-      browserFolderStore.singleFiles.set(`browser://${key}`, file);
+      const returnedPath = file.webkitRelativePath && file.webkitRelativePath.includes('/')
+        ? file.webkitRelativePath
+        : file.name;
+
+      // Index file under multiple possible lookup paths for seamless loading
+      browserFolderStore.singleFiles.set(returnedPath, file);
+      browserFolderStore.singleFiles.set(file.name, file);
       if (side) {
         browserFolderStore.singleFiles.set(`${side}/${file.name}`, file);
+        browserFolderStore.singleFiles.set(`${side === 'left' ? 'L' : 'R'}/${file.name}`, file);
       }
 
-      return key;
+      return returnedPath;
     },
 
     showConfirmDialog: async (options) => {
@@ -231,17 +230,32 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
       };
     },
 
-    readFile: async (filePath: string) => {
-      // 1. Direct match in singleFiles
-      let stored = browserFolderStore.singleFiles.get(filePath);
+    readFile: async (filePath: string, _maxBytes?: number, side?: 'left' | 'right') => {
+      let stored: File | undefined | null = null;
 
-      // 2. Normalized match (strip leading prefixes or slashes)
+      // 1. If pane side is specified, prefer the file chosen specifically for that side
+      if (side === 'left' && browserFolderStore.leftFile) {
+        if (!filePath || filePath.endsWith(browserFolderStore.leftFile.name) || browserFolderStore.leftFile.name === filePath) {
+          stored = browserFolderStore.leftFile;
+        }
+      } else if (side === 'right' && browserFolderStore.rightFile) {
+        if (!filePath || filePath.endsWith(browserFolderStore.rightFile.name) || browserFolderStore.rightFile.name === filePath) {
+          stored = browserFolderStore.rightFile;
+        }
+      }
+
+      // 2. Direct match in singleFiles
+      if (!stored) {
+        stored = browserFolderStore.singleFiles.get(filePath);
+      }
+
+      // 3. Normalized match (strip leading prefixes or slashes)
       if (!stored) {
         const normalized = filePath.replace(/^(file:\/\/|browser:\/\/)/, '').replace(/^\/+/, '');
         stored = browserFolderStore.singleFiles.get(normalized);
       }
 
-      // 3. Search directory stores if selected via folder picker
+      // 4. Search directory stores if selected via folder picker
       if (!stored) {
         for (const [dirUri, map] of browserFolderStore.directories.entries()) {
           if (filePath.startsWith(dirUri)) {
@@ -254,7 +268,7 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
         }
       }
 
-      // 4. Fallback lookup by relative segment
+      // 5. Fallback lookup by relative segment
       if (!stored) {
         for (const [key, f] of browserFolderStore.singleFiles.entries()) {
           if (filePath.endsWith(key) || key.endsWith(filePath)) {

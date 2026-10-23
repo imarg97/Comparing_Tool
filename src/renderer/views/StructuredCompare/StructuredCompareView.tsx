@@ -110,7 +110,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         let rightRes: FileContentResult | null = null;
 
         if (leftPath) {
-          leftRes = await window.diffxAPI.readFile(leftPath);
+          leftRes = await window.diffxAPI.readFile(leftPath, undefined, 'left');
           setLeftData(leftRes);
           setLeftEditorContent(leftRes.content);
           setLeftDirty(false);
@@ -120,7 +120,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         }
 
         if (rightPath) {
-          rightRes = await window.diffxAPI.readFile(rightPath);
+          rightRes = await window.diffxAPI.readFile(rightPath, undefined, 'right');
           setRightData(rightRes);
           setRightEditorContent(rightRes.content);
           setRightDirty(false);
@@ -328,27 +328,26 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
   const editorLanguage = format === 'xml' ? 'xml' : format === 'json' ? 'json' : 'yaml';
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-white dark:bg-black overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans">
-      {/* 1. Beyond Compare Dual Address Header with Clear Left/Right Badges */}
-      <div className="bg-neutral-100 dark:bg-neutral-950 border-b border-neutral-300 dark:border-neutral-800 p-1.5 flex items-center space-x-2 flex-shrink-0">
+    <div className="flex-1 flex flex-col h-full bg-white dark:bg-black overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans w-full max-w-full">
+      {/* 1. Beyond Compare Dual Address Header (Strict 50/50 Split) */}
+      <div className="bg-neutral-100 dark:bg-neutral-950 border-b border-neutral-300 dark:border-neutral-800 p-1 flex items-center space-x-1.5 flex-shrink-0 w-full max-w-full overflow-hidden">
         {/* Left Address Box */}
-        <div className="flex-1 flex items-center bg-white dark:bg-black border border-blue-300 dark:border-blue-900/60 rounded px-2 py-1 shadow-sm focus-within:ring-1 focus-within:ring-blue-500">
-          <span className="px-2 py-0.5 rounded bg-blue-600 text-white font-bold text-[10px] tracking-wider uppercase mr-2 flex-shrink-0 shadow-sm">
-            Left
+        <div
+          className="flex-1 min-w-0 flex items-center bg-white dark:bg-black border border-blue-300 dark:border-blue-900/60 rounded px-1.5 py-0.5 shadow-sm focus-within:ring-1 focus-within:ring-blue-500"
+          title={leftPath || 'Left file'}
+        >
+          <span className="w-4 h-4 rounded bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center flex-shrink-0 shadow-sm mr-1.5">
+            L
           </span>
-          <FileCode className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 mr-1.5 flex-shrink-0" />
+          <FileCode className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 mr-1 flex-shrink-0" />
           <input
             type="text"
             value={leftPath}
             onChange={(e) => onSetLeftPath(e.target.value)}
-            placeholder="Left config/XML path (e.g. site1.xml, az1/values.yaml)..."
-            className="bg-transparent text-xs w-full focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400"
+            placeholder="Left file path..."
+            className="bg-transparent text-[11px] w-full min-w-0 focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 truncate"
+            title={leftPath || 'Left file path'}
           />
-          {leftData && !leftData.error && (
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 text-neutral-500 border border-neutral-300 dark:border-neutral-700 ml-1.5 flex-shrink-0">
-              {leftData.encoding.toUpperCase()} • {(leftData.size / 1024).toFixed(1)} KB
-            </span>
-          )}
           <button
             onClick={handlePickLeft}
             className="ml-1 text-[11px] font-medium px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition flex-shrink-0"
@@ -361,29 +360,28 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         <button
           onClick={handleSwap}
           title="Swap Left and Right Files"
-          className="p-1.5 rounded bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-800 transition flex-shrink-0"
+          className="p-1 rounded bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-800 transition flex-shrink-0"
         >
           <ArrowLeftRight className="w-3.5 h-3.5" />
         </button>
 
         {/* Right Address Box */}
-        <div className="flex-1 flex items-center bg-white dark:bg-black border border-purple-300 dark:border-purple-900/60 rounded px-2 py-1 shadow-sm focus-within:ring-1 focus-within:ring-purple-500">
-          <span className="px-2 py-0.5 rounded bg-purple-600 text-white font-bold text-[10px] tracking-wider uppercase mr-2 flex-shrink-0 shadow-sm">
-            Right
+        <div
+          className="flex-1 min-w-0 flex items-center bg-white dark:bg-black border border-purple-300 dark:border-purple-900/60 rounded px-1.5 py-0.5 shadow-sm focus-within:ring-1 focus-within:ring-purple-500"
+          title={rightPath || 'Right file'}
+        >
+          <span className="w-4 h-4 rounded bg-purple-600 text-white font-bold text-[10px] flex items-center justify-center flex-shrink-0 shadow-sm mr-1.5">
+            R
           </span>
-          <FileCode className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 mr-1.5 flex-shrink-0" />
+          <FileCode className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 mr-1 flex-shrink-0" />
           <input
             type="text"
             value={rightPath}
             onChange={(e) => onSetRightPath(e.target.value)}
-            placeholder="Right config/XML path (e.g. site2.xml, az2/values.yaml)..."
-            className="bg-transparent text-xs w-full focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400"
+            placeholder="Right file path..."
+            className="bg-transparent text-[11px] w-full min-w-0 focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 truncate"
+            title={rightPath || 'Right file path'}
           />
-          {rightData && !rightData.error && (
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 text-neutral-500 border border-neutral-300 dark:border-neutral-700 ml-1.5 flex-shrink-0">
-              {rightData.encoding.toUpperCase()} • {(rightData.size / 1024).toFixed(1)} KB
-            </span>
-          )}
           <button
             onClick={handlePickRight}
             className="ml-1 text-[11px] font-medium px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition flex-shrink-0"
@@ -397,25 +395,20 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
           onClick={loadFiles}
           disabled={isLoading}
           title="Refresh comparison (Cmd+R)"
-          className="p-1.5 rounded bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-800 transition flex-shrink-0"
+          className="p-1 rounded bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-800 transition flex-shrink-0"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
       {/* 2. Structured Comparison Controls Toolbar */}
-      <div className="bg-neutral-100 dark:bg-black border-b border-neutral-300 dark:border-neutral-800 px-3 py-1 flex items-center justify-between text-xs flex-shrink-0 select-none">
-        <div className="flex items-center space-x-2">
+      <div className="bg-neutral-100 dark:bg-black border-b border-neutral-300 dark:border-neutral-800 px-2 py-1 flex items-center justify-between text-xs flex-shrink-0 select-none w-full max-w-full overflow-hidden">
+        <div className="flex items-center space-x-1.5 min-w-0 overflow-hidden">
           {/* Format Selector: XML, YAML, JSON */}
-          <div className="flex items-center space-x-1 font-medium text-neutral-600 dark:text-neutral-400">
-            <Boxes className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-            <span>Format:</span>
-          </div>
-
-          <div className="flex items-center bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 rounded p-0.5">
+          <div className="flex items-center bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 rounded p-0.5 flex-shrink-0">
             <button
               onClick={() => setFormat('xml')}
-              className={`px-2.5 py-0.5 rounded text-xs transition ${
+              className={`px-2 py-0.5 rounded text-[11px] transition ${
                 format === 'xml'
                   ? 'bg-blue-600 text-white font-bold'
                   : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
@@ -425,7 +418,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
             </button>
             <button
               onClick={() => setFormat('yaml')}
-              className={`px-2.5 py-0.5 rounded text-xs transition ${
+              className={`px-2 py-0.5 rounded text-[11px] transition ${
                 format === 'yaml'
                   ? 'bg-blue-600 text-white font-bold'
                   : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
@@ -435,7 +428,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
             </button>
             <button
               onClick={() => setFormat('json')}
-              className={`px-2.5 py-0.5 rounded text-xs transition ${
+              className={`px-2 py-0.5 rounded text-[11px] transition ${
                 format === 'json'
                   ? 'bg-blue-600 text-white font-bold'
                   : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
@@ -445,41 +438,41 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
             </button>
           </div>
 
-          <span className="h-4 w-px bg-neutral-300 dark:border-neutral-800 mx-1" />
+          <span className="h-3.5 w-px bg-neutral-300 dark:bg-neutral-800 mx-0.5 flex-shrink-0" />
 
-          {/* Navigation Jumpers */}
+          {/* Jumpers */}
           <button
             onClick={handlePrevDiff}
             title="Previous Difference"
-            className="flex items-center space-x-1 px-2 py-0.5 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 transition"
+            className="flex items-center space-x-1 px-1.5 py-0.5 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 text-[11px] flex-shrink-0"
           >
-            <ArrowUp className="w-3.5 h-3.5 text-red-500" />
+            <ArrowUp className="w-3 h-3 text-red-500" />
             <span>Prev</span>
           </button>
           <button
             onClick={handleNextDiff}
             title="Next Difference"
-            className="flex items-center space-x-1 px-2 py-0.5 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 transition"
+            className="flex items-center space-x-1 px-1.5 py-0.5 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 text-[11px] flex-shrink-0"
           >
-            <ArrowDown className="w-3.5 h-3.5 text-red-500" />
+            <ArrowDown className="w-3 h-3 text-red-500" />
             <span>Next</span>
           </button>
 
           {/* Semantic differences summary pill */}
           {diffResult && !diffResult.parseError && (
             <span
-              className={`font-mono text-[11px] px-2 py-0.5 rounded font-medium border ${
+              className={`font-mono text-[10px] px-1.5 py-0.5 rounded font-medium border flex-shrink-0 ${
                 diffResult.identical
                   ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
                   : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800'
               }`}
             >
-              {diffResult.identical ? 'Identical' : `${diffResult.items.length} differences`}
+              {diffResult.identical ? 'Identical' : `${diffResult.items.length} diffs`}
             </span>
           )}
 
           {/* Infrastructure Noise Filter checkbox */}
-          <label className="flex items-center space-x-1.5 cursor-pointer bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 px-2 py-0.5 rounded text-[11px]">
+          <label className="flex items-center space-x-1 cursor-pointer bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 px-1.5 py-0.5 rounded text-[11px] flex-shrink-0">
             <input
               type="checkbox"
               checked={filterKubernetes}
@@ -492,17 +485,17 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         </div>
 
         {/* Right side actions */}
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1.5 flex-shrink-0">
           {/* Toggle Inspector Table */}
           <button
             onClick={() => setShowInspector((prev) => !prev)}
-            className={`flex items-center space-x-1 px-2 py-0.5 rounded border transition ${
+            className={`flex items-center space-x-1 px-2 py-0.5 rounded border text-[11px] transition ${
               showInspector
                 ? 'bg-blue-600 text-white border-blue-600 font-medium'
                 : 'bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100'
             }`}
           >
-            <ListFilter className="w-3.5 h-3.5" />
+            <ListFilter className="w-3 h-3" />
             <span>Inspector {diffResult ? `(${diffResult.items.length})` : ''}</span>
           </button>
 
@@ -510,10 +503,10 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
           {leftDirty && (
             <button
               onClick={handleSaveLeft}
-              className="flex items-center space-x-1 px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium shadow animate-pulse"
+              className="flex items-center space-x-1 px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium text-[11px] shadow animate-pulse"
             >
               <Save className="w-3 h-3" />
-              <span>Save Left</span>
+              <span>Save L</span>
             </button>
           )}
 
@@ -521,10 +514,10 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
           {rightDirty && (
             <button
               onClick={handleSaveRight}
-              className="flex items-center space-x-1 px-2 py-0.5 rounded bg-purple-600 hover:bg-purple-500 text-white font-medium shadow animate-pulse"
+              className="flex items-center space-x-1 px-2 py-0.5 rounded bg-purple-600 hover:bg-purple-500 text-white font-medium text-[11px] shadow animate-pulse"
             >
               <Save className="w-3 h-3" />
-              <span>Save Right</span>
+              <span>Save R</span>
             </button>
           )}
 
@@ -533,7 +526,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
             <button
               onClick={handleRevertAll}
               title="Revert unsaved edits"
-              className="flex items-center space-x-1 px-2 py-0.5 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100"
+              className="flex items-center space-x-1 px-1.5 py-0.5 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 text-[11px]"
             >
               <RotateCcw className="w-3 h-3" />
               <span>Revert</span>
@@ -569,29 +562,25 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         </div>
       )}
 
-      {/* 5. Beyond Compare Synchronized Split Header Banner */}
+      {/* 5. Beyond Compare Synchronized Split Header Banner (Strict 50/50 Split) */}
       {(leftPath || rightPath) && (
-        <div className="flex items-center justify-between bg-neutral-200/70 dark:bg-neutral-900/90 border-b border-neutral-300 dark:border-neutral-800 text-[11px] font-mono px-3 py-1 flex-shrink-0 select-none">
-          <div className="flex-1 flex items-center space-x-1.5 truncate pr-3 text-blue-700 dark:text-blue-300">
+        <div className="flex items-center bg-neutral-200/70 dark:bg-neutral-900/90 border-b border-neutral-300 dark:border-neutral-800 text-[11px] font-mono px-2 py-0.5 flex-shrink-0 select-none w-full max-w-full overflow-hidden">
+          <div className="w-1/2 flex items-center space-x-1.5 truncate pr-2 text-blue-700 dark:text-blue-300 min-w-0" title={leftPath}>
             <span className="w-2 h-2 rounded-full bg-blue-500 inline-block flex-shrink-0"></span>
-            <span className="font-bold text-[10px] uppercase tracking-wider text-blue-600 dark:text-blue-400">
-              Left {format.toUpperCase()}:
-            </span>
+            <span className="font-bold text-[10px] uppercase tracking-wider text-blue-600 dark:text-blue-400 flex-shrink-0">L:</span>
             <span className="truncate font-semibold">{leftPath || '(none)'}</span>
           </div>
-          <div className="h-3.5 w-px bg-neutral-300 dark:bg-neutral-800 mx-2 flex-shrink-0"></div>
-          <div className="flex-1 flex items-center space-x-1.5 truncate pl-3 text-purple-700 dark:text-purple-300">
+          <div className="h-3.5 w-px bg-neutral-300 dark:bg-neutral-800 mx-1 flex-shrink-0"></div>
+          <div className="w-1/2 flex items-center space-x-1.5 truncate pl-2 text-purple-700 dark:text-purple-300 min-w-0" title={rightPath}>
             <span className="w-2 h-2 rounded-full bg-purple-500 inline-block flex-shrink-0"></span>
-            <span className="font-bold text-[10px] uppercase tracking-wider text-purple-600 dark:text-purple-400">
-              Right {format.toUpperCase()}:
-            </span>
+            <span className="font-bold text-[10px] uppercase tracking-wider text-purple-600 dark:text-purple-400 flex-shrink-0">R:</span>
             <span className="truncate font-semibold">{rightPath || '(none)'}</span>
           </div>
         </div>
       )}
 
       {/* 6. Monaco Diff Editor Canvas (Pitch black in dark mode, crisp white in light mode) */}
-      <div className="flex-1 relative min-h-0 bg-white dark:bg-black">
+      <div className="flex-1 relative min-h-0 bg-white dark:bg-black w-full overflow-hidden">
         {!leftPath && !rightPath ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-600 bg-white dark:bg-black p-8 text-center select-none">
             <Boxes className="w-12 h-12 mb-3 stroke-[1.2] text-blue-500" />
@@ -634,7 +623,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
               automaticLayout: true,
               diffCodeLens: true,
               renderOverviewRuler: true,
-              diffWordWrap: 'off',
+              diffWordWrap: 'on',
             }}
           />
         )}

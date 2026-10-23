@@ -169,7 +169,7 @@ export interface DiffxPreloadAPI {
   onScanProgress: (callback: (progress: ScanProgress) => void) => () => void;
 
   // Text / File Operations
-  readFile: (filePath: string, maxBytes?: number) => Promise<FileContentResult>;
+  readFile: (filePath: string, maxBytes?: number, side?: 'left' | 'right') => Promise<FileContentResult>;
   saveFile: (request: SaveRequest) => Promise<SaveResult>;
   copyFile: (request: CopyRequest) => Promise<CopyResult>;
 

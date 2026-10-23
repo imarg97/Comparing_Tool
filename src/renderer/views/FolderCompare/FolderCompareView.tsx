@@ -496,28 +496,35 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
 
   return (
     <div className="flex-1 flex flex-col h-full bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 overflow-hidden font-sans">
-      {/* 1. Iconic Beyond Compare Dual Address Bars */}
-      <div className="bg-neutral-100 dark:bg-neutral-950 border-b border-neutral-300 dark:border-neutral-800 p-1.5 flex items-center space-x-2 flex-shrink-0">
+      {/* 1. Iconic Beyond Compare Dual Address Bars (Strict 50/50 Split) */}
+      <div className="bg-neutral-100 dark:bg-neutral-950 border-b border-neutral-300 dark:border-neutral-800 p-1 flex items-center space-x-1.5 flex-shrink-0 w-full max-w-full overflow-hidden">
         {/* Left Folder Address Box */}
-        <div className="flex-1 flex items-center bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-1.5 py-1">
+        <div
+          className="flex-1 min-w-0 flex items-center bg-white dark:bg-black border border-blue-300 dark:border-blue-900/60 rounded px-1.5 py-0.5 shadow-sm focus-within:ring-1 focus-within:ring-blue-500"
+          title={leftFolder || 'Left directory'}
+        >
+          <span className="w-4 h-4 rounded bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center flex-shrink-0 shadow-sm mr-1">
+            L
+          </span>
           <button
             onClick={handleUpLeft}
             title="Up one folder level"
-            className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-600 dark:text-neutral-400 mr-1"
+            className="p-0.5 rounded hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-600 dark:text-neutral-400 mr-1 flex-shrink-0"
           >
             <ArrowUp className="w-3.5 h-3.5" />
           </button>
-          <FolderOpen className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 mr-1.5 flex-shrink-0" />
+          <FolderOpen className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 mr-1 flex-shrink-0" />
           <input
             type="text"
             value={leftFolder}
             onChange={(e) => onSetLeftFolder(e.target.value)}
             placeholder="Left directory path..."
-            className="bg-transparent text-xs w-full focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400"
+            className="bg-transparent text-[11px] w-full min-w-0 focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 truncate"
+            title={leftFolder || 'Left directory path'}
           />
           <button
             onClick={handlePickLeft}
-            className="ml-1 text-[11px] px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-700 transition"
+            className="ml-1 text-[11px] font-medium px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition flex-shrink-0"
           >
             Browse...
           </button>
@@ -528,7 +535,7 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
           <button
             onClick={handleSwap}
             title="Swap Left and Right Folders"
-            className="p-1.5 rounded bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-800 transition"
+            className="p-1 rounded bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-800 transition"
           >
             <ArrowLeftRight className="w-3.5 h-3.5" />
           </button>
@@ -537,7 +544,7 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
             onClick={handleStartCompare}
             disabled={isScanning}
             title="Compare Folders (Refresh)"
-            className="flex items-center space-x-1 px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-sm transition"
+            className="flex items-center space-x-1 px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-sm transition"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
             <span>Compare</span>
@@ -545,25 +552,32 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
         </div>
 
         {/* Right Folder Address Box */}
-        <div className="flex-1 flex items-center bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-1.5 py-1">
+        <div
+          className="flex-1 min-w-0 flex items-center bg-white dark:bg-black border border-purple-300 dark:border-purple-900/60 rounded px-1.5 py-0.5 shadow-sm focus-within:ring-1 focus-within:ring-purple-500"
+          title={rightFolder || 'Right directory'}
+        >
+          <span className="w-4 h-4 rounded bg-purple-600 text-white font-bold text-[10px] flex items-center justify-center flex-shrink-0 shadow-sm mr-1">
+            R
+          </span>
           <button
             onClick={handleUpRight}
             title="Up one folder level"
-            className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-600 dark:text-neutral-400 mr-1"
+            className="p-0.5 rounded hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-600 dark:text-neutral-400 mr-1 flex-shrink-0"
           >
             <ArrowUp className="w-3.5 h-3.5" />
           </button>
-          <FolderOpen className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 mr-1.5 flex-shrink-0" />
+          <FolderOpen className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 mr-1 flex-shrink-0" />
           <input
             type="text"
             value={rightFolder}
             onChange={(e) => onSetRightFolder(e.target.value)}
             placeholder="Right directory path..."
-            className="bg-transparent text-xs w-full focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400"
+            className="bg-transparent text-[11px] w-full min-w-0 focus:outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 truncate"
+            title={rightFolder || 'Right directory path'}
           />
           <button
             onClick={handlePickRight}
-            className="ml-1 text-[11px] px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-700 transition"
+            className="ml-1 text-[11px] font-medium px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition flex-shrink-0"
           >
             Browse...
           </button>

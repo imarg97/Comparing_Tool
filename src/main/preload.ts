@@ -38,8 +38,8 @@ const api: DiffxPreloadAPI = {
     };
   },
 
-  readFile: (filePath: string, maxBytes?: number) =>
-    ipcRenderer.invoke('file:read', filePath, maxBytes),
+  readFile: (filePath: string, maxBytes?: number, side?: 'left' | 'right') =>
+    ipcRenderer.invoke('file:read', filePath, maxBytes, side),
 
   saveFile: (request: SaveRequest) =>
     ipcRenderer.invoke('file:save', request),
