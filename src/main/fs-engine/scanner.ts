@@ -23,26 +23,48 @@ export async function scanDirectory(
   const items = new Map<string, ScannedItem>();
   const visitedRealpaths = new Set<string>();
 
-  let resolvedRoot: string;
-  try {
-    resolvedRoot = fs.realpathSync(rootDir);
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    items.set('', {
-      relativePath: '',
-      name: path.basename(rootDir),
-      isDirectory: true,
-      metadata: {
-        exists: false,
-        size: 0,
-        mtime: 0,
+  let resolvedRoot: string = '';
+  const candidatePaths = [
+    rootDir,
+    path.resolve(rootDir),
+    path.join(process.cwd(), rootDir),
+    path.join(process.env.USERPROFILE || process.env.HOME || '', 'Downloads', rootDir),
+    path.join(process.env.USERPROFILE || process.env.HOME || '', 'Desktop', rootDir),
+    path.join(process.env.USERPROFILE || process.env.HOME || '', 'Documents', rootDir),
+  ];
+
+  for (const cand of candidatePaths) {
+    try {
+      if (cand && fs.existsSync(cand)) {
+        resolvedRoot = fs.realpathSync(cand);
+        break;
+      }
+    } catch {
+      // try next
+    }
+  }
+
+  if (!resolvedRoot) {
+    try {
+      resolvedRoot = fs.realpathSync(rootDir);
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      items.set('', {
+        relativePath: '',
+        name: path.basename(rootDir),
         isDirectory: true,
-        isSymlink: false,
-        readable: false,
-        error: `Cannot resolve directory: ${errorMsg}`,
-      },
-    });
-    return items;
+        metadata: {
+          exists: false,
+          size: 0,
+          mtime: 0,
+          isDirectory: true,
+          isSymlink: false,
+          readable: false,
+          error: `Cannot resolve directory: ${errorMsg}`,
+        },
+      });
+      return items;
+    }
   }
 
   visitedRealpaths.add(resolvedRoot);

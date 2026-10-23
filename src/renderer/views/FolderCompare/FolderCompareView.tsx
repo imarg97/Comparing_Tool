@@ -190,6 +190,13 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
     }
   }, []);
 
+  // Automatically start folder comparison whenever both folders are selected
+  useEffect(() => {
+    if (leftFolder && rightFolder) {
+      handleStartCompare();
+    }
+  }, [leftFolder, rightFolder]);
+
   const handlePickLeft = async () => {
     if (window.diffxAPI) {
       const selected = await window.diffxAPI.selectDirectory(leftFolder, 'left');

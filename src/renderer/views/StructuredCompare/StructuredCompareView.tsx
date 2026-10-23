@@ -36,6 +36,8 @@ import {
   findClosestChunk,
   executeChunkCopyL2R,
   executeChunkCopyR2L,
+  executeSelectedLinesCopyL2R,
+  executeSelectedLinesCopyR2L,
   ChunkCopyRange,
   computeUnchangedRanges,
   computeDiffRanges,
@@ -559,7 +561,10 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
   };
 
   // Update Gutter Arrow Icons for each diff chunk (Beyond Compare Style)
-  const updateGutterDecorations = () => {
+  const updateGutterDecorations = (
+    _incomingChunks?: DiffChunk[],
+    currentSelection: { side: 'left' | 'right'; startLine: number; endLine: number } | null = activeSelection
+  ) => {
     if (!diffEditorRef.current) return;
     try {
       const lineChanges = diffEditorRef.current.getLineChanges();
@@ -575,45 +580,85 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       const newLeftDecs: any[] = [];
       const newRightDecs: any[] = [];
 
-      const activeList = canonicalChunksRef.current.length ? canonicalChunksRef.current : chunks;
-
-      for (const chunk of activeList) {
-        // Show Right Arrow (⇨) on Left only if Left has real lines to copy!
-        if (chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart) {
-          newLeftDecs.push({
-            range: {
-              startLineNumber: chunk.originalStart,
-              startColumn: 1,
-              endLineNumber: chunk.originalStart,
-              endColumn: 1,
+      // If user has actively selected specific line(s) on Left, place the arrow directly at the selection!
+      if (currentSelection && currentSelection.side === 'left') {
+        newLeftDecs.push({
+          range: {
+            startLineNumber: currentSelection.startLine,
+            startColumn: 1,
+            endLineNumber: currentSelection.startLine,
+            endColumn: 1,
+          },
+          options: {
+            isWholeLine: false,
+            glyphMarginClassName: 'diffx-glyph-copy-l2r',
+            glyphMarginHoverMessage: {
+              value: `**⇨ Copy Selected Lines ${currentSelection.startLine}–${currentSelection.endLine} to Right**`,
             },
-            options: {
-              isWholeLine: false,
-              glyphMarginClassName: 'diffx-glyph-copy-l2r',
-              glyphMarginHoverMessage: {
-                value: `**⇨ Copy Lines ${chunk.originalStart}–${chunk.originalEnd} to Right**`,
+          },
+        });
+      } else {
+        const activeList = canonicalChunksRef.current.length ? canonicalChunksRef.current : chunks;
+        for (const chunk of activeList) {
+          // Show Right Arrow (⇨) on Left only if Left has real lines to copy!
+          if (chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart) {
+            newLeftDecs.push({
+              range: {
+                startLineNumber: chunk.originalStart,
+                startColumn: 1,
+                endLineNumber: chunk.originalStart,
+                endColumn: 1,
               },
-            },
-          });
+              options: {
+                isWholeLine: false,
+                glyphMarginClassName: 'diffx-glyph-copy-l2r',
+                glyphMarginHoverMessage: {
+                  value: `**⇨ Copy Lines ${chunk.originalStart}–${chunk.originalEnd} to Right**`,
+                },
+              },
+            });
+          }
         }
+      }
 
-        // Show Left Arrow (⇦) on Right only if Right has real lines to copy!
-        if (chunk.modifiedStart > 0 && chunk.modifiedEnd >= chunk.modifiedStart) {
-          newRightDecs.push({
-            range: {
-              startLineNumber: chunk.modifiedStart,
-              startColumn: 1,
-              endLineNumber: chunk.modifiedStart,
-              endColumn: 1,
+      // If user has actively selected specific line(s) on Right, place the arrow directly at the selection!
+      if (currentSelection && currentSelection.side === 'right') {
+        newRightDecs.push({
+          range: {
+            startLineNumber: currentSelection.startLine,
+            startColumn: 1,
+            endLineNumber: currentSelection.startLine,
+            endColumn: 1,
+          },
+          options: {
+            isWholeLine: false,
+            glyphMarginClassName: 'diffx-glyph-copy-r2l',
+            glyphMarginHoverMessage: {
+              value: `**⇦ Copy Selected Lines ${currentSelection.startLine}–${currentSelection.endLine} to Left**`,
             },
-            options: {
-              isWholeLine: false,
-              glyphMarginClassName: 'diffx-glyph-copy-r2l',
-              glyphMarginHoverMessage: {
-                value: `**⇦ Copy Lines ${chunk.modifiedStart}–${chunk.modifiedEnd} to Left**`,
+          },
+        });
+      } else {
+        const activeList = canonicalChunksRef.current.length ? canonicalChunksRef.current : chunks;
+        for (const chunk of activeList) {
+          // Show Left Arrow (⇦) on Right only if Right has real lines to copy!
+          if (chunk.modifiedStart > 0 && chunk.modifiedEnd >= chunk.modifiedStart) {
+            newRightDecs.push({
+              range: {
+                startLineNumber: chunk.modifiedStart,
+                startColumn: 1,
+                endLineNumber: chunk.modifiedStart,
+                endColumn: 1,
               },
-            },
-          });
+              options: {
+                isWholeLine: false,
+                glyphMarginClassName: 'diffx-glyph-copy-r2l',
+                glyphMarginHoverMessage: {
+                  value: `**⇦ Copy Lines ${chunk.modifiedStart}–${chunk.modifiedEnd} to Left**`,
+                },
+              },
+            });
+          }
         }
       }
 
@@ -667,14 +712,17 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         if (sel && !sel.isEmpty() && sel.endLineNumber >= sel.startLineNumber) {
           const modModel = modEditor.getModel();
           const txt = modModel ? modModel.getValueInRange(sel) : '';
-          setActiveSelection({
-            side: 'right',
+          const newSel = {
+            side: 'right' as const,
             startLine: sel.startLineNumber,
             endLine: sel.endLineNumber,
             text: txt,
-          });
+          };
+          setActiveSelection(newSel);
+          updateGutterDecorations(canonicalChunksRef.current.length ? canonicalChunksRef.current : diffChunks, newSel);
         } else {
           setActiveSelection(null);
+          updateGutterDecorations(canonicalChunksRef.current.length ? canonicalChunksRef.current : diffChunks, null);
         }
       });
 
@@ -794,14 +842,17 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         if (sel && !sel.isEmpty() && sel.endLineNumber >= sel.startLineNumber) {
           const origModel = origEditor.getModel();
           const txt = origModel ? origModel.getValueInRange(sel) : '';
-          setActiveSelection({
-            side: 'left',
+          const newSel = {
+            side: 'left' as const,
             startLine: sel.startLineNumber,
             endLine: sel.endLineNumber,
             text: txt,
-          });
+          };
+          setActiveSelection(newSel);
+          updateGutterDecorations(canonicalChunksRef.current.length ? canonicalChunksRef.current : diffChunks, newSel);
         } else {
           setActiveSelection(null);
+          updateGutterDecorations(canonicalChunksRef.current.length ? canonicalChunksRef.current : diffChunks, null);
         }
       });
 
@@ -816,20 +867,33 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
           e.target?.element?.classList?.contains('diffx-glyph-copy-l2r');
 
         const chunk = findChunkAtLine(chunksRef.current, line, 'left') || findClosestChunk(chunksRef.current, line, 'left');
-        if (chunk) {
-          setActiveDiffChunk(chunk);
+        if (chunk || activeSelection) {
+          if (chunk) setActiveDiffChunk(chunk);
           if (isGutterClick) {
             const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
-            executeChunkCopyL2R(origEditor.getModel(), modEditor.getModel(), chunk, outRange);
-            setRightEditorContent(modEditor.getValue());
-            setRightDirty(true);
-            setLastModifiedSide('right');
-            setActiveFocusSide('right');
-            flashCopiedHighlight('left', chunk.originalStart, chunk.originalEnd || chunk.originalStart, false);
-            if (outRange.startLine > 0) {
-              flashCopiedHighlight('right', outRange.startLine, outRange.endLine, true);
+            if (activeSelection && activeSelection.side === 'left') {
+              executeSelectedLinesCopyL2R(origEditor.getModel(), modEditor.getModel(), activeSelection, chunk, outRange);
+              setRightEditorContent(modEditor.getValue());
+              setRightDirty(true);
+              setLastModifiedSide('right');
+              setActiveFocusSide('right');
+              flashCopiedHighlight('left', activeSelection.startLine, activeSelection.endLine, false);
+              if (outRange.startLine > 0) {
+                flashCopiedHighlight('right', outRange.startLine, outRange.endLine, true);
+              }
+              onUpdateStatus(`Copied selected lines ${activeSelection.startLine}–${activeSelection.endLine} Left ⇨ Right`);
+            } else if (chunk) {
+              executeChunkCopyL2R(origEditor.getModel(), modEditor.getModel(), chunk, outRange);
+              setRightEditorContent(modEditor.getValue());
+              setRightDirty(true);
+              setLastModifiedSide('right');
+              setActiveFocusSide('right');
+              flashCopiedHighlight('left', chunk.originalStart, chunk.originalEnd || chunk.originalStart, false);
+              if (outRange.startLine > 0) {
+                flashCopiedHighlight('right', outRange.startLine, outRange.endLine, true);
+              }
+              onUpdateStatus(`Copied diff lines ${chunk.originalStart}–${chunk.originalEnd || chunk.originalStart} Left ⇨ Right`);
             }
-            onUpdateStatus(`Copied diff lines ${chunk.originalStart}–${chunk.originalEnd || chunk.originalStart} Left ⇨ Right`);
           }
         }
       });
@@ -845,20 +909,33 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
           e.target?.element?.classList?.contains('diffx-glyph-copy-r2l');
 
         const chunk = findChunkAtLine(chunksRef.current, line, 'right') || findClosestChunk(chunksRef.current, line, 'right');
-        if (chunk) {
-          setActiveDiffChunk(chunk);
+        if (chunk || activeSelection) {
+          if (chunk) setActiveDiffChunk(chunk);
           if (isGutterClick) {
             const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
-            executeChunkCopyR2L(origEditor.getModel(), modEditor.getModel(), chunk, outRange);
-            setLeftEditorContent(origEditor.getValue());
-            setLeftDirty(true);
-            setLastModifiedSide('left');
-            setActiveFocusSide('left');
-            flashCopiedHighlight('right', chunk.modifiedStart, chunk.modifiedEnd || chunk.modifiedStart, false);
-            if (outRange.startLine > 0) {
-              flashCopiedHighlight('left', outRange.startLine, outRange.endLine, true);
+            if (activeSelection && activeSelection.side === 'right') {
+              executeSelectedLinesCopyR2L(origEditor.getModel(), modEditor.getModel(), activeSelection, chunk, outRange);
+              setLeftEditorContent(origEditor.getValue());
+              setLeftDirty(true);
+              setLastModifiedSide('left');
+              setActiveFocusSide('left');
+              flashCopiedHighlight('right', activeSelection.startLine, activeSelection.endLine, false);
+              if (outRange.startLine > 0) {
+                flashCopiedHighlight('left', outRange.startLine, outRange.endLine, true);
+              }
+              onUpdateStatus(`Copied selected lines ${activeSelection.startLine}–${activeSelection.endLine} Right ⇦ Left`);
+            } else if (chunk) {
+              executeChunkCopyR2L(origEditor.getModel(), modEditor.getModel(), chunk, outRange);
+              setLeftEditorContent(origEditor.getValue());
+              setLeftDirty(true);
+              setLastModifiedSide('left');
+              setActiveFocusSide('left');
+              flashCopiedHighlight('right', chunk.modifiedStart, chunk.modifiedEnd || chunk.modifiedStart, false);
+              if (outRange.startLine > 0) {
+                flashCopiedHighlight('left', outRange.startLine, outRange.endLine, true);
+              }
+              onUpdateStatus(`Copied diff lines ${chunk.modifiedStart}–${chunk.modifiedEnd || chunk.modifiedStart} Right ⇦ Left`);
             }
-            onUpdateStatus(`Copied diff lines ${chunk.modifiedStart}–${chunk.modifiedEnd || chunk.modifiedStart} Right ⇦ Left`);
           }
         }
       });
@@ -913,12 +990,27 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     const modModel = modEditor.getModel();
     if (!origModel || !modModel) return;
 
-    const activeLine = cursorLineNumber || origEditor.getPosition()?.lineNumber || 1;
-    const chunk = activeSelection
-      ? findClosestChunk(chunksRef.current, activeSelection.startLine, 'left')
-      : activeDiffChunk || findClosestChunk(chunksRef.current, activeLine, 'left');
-
     const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
+
+    if (activeSelection && activeSelection.side === 'left') {
+      const chunk = findClosestChunk(chunksRef.current, activeSelection.startLine, 'left');
+      executeSelectedLinesCopyL2R(origModel, modModel, activeSelection, chunk, outRange);
+      const updated = modModel.getValue();
+      setRightEditorContent(updated);
+      setRightDirty(true);
+      setLastModifiedSide('right');
+      setActiveFocusSide('right');
+      flashCopiedHighlight('left', activeSelection.startLine, activeSelection.endLine, false);
+      if (outRange.startLine > 0) {
+        flashCopiedHighlight('right', outRange.startLine, outRange.endLine, true);
+      }
+      onUpdateStatus(`Copied selected lines ${activeSelection.startLine}–${activeSelection.endLine} Left ⇨ Right`);
+      return;
+    }
+
+    const activeLine = cursorLineNumber || origEditor.getPosition()?.lineNumber || 1;
+    const chunk = activeDiffChunk || findClosestChunk(chunksRef.current, activeLine, 'left');
+
     if (chunk) {
       executeChunkCopyL2R(origModel, modModel, chunk, outRange);
       const updated = modModel.getValue();
@@ -931,27 +1023,6 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         flashCopiedHighlight('right', outRange.startLine, outRange.endLine, true);
       }
       onUpdateStatus(`Copied diff lines ${chunk.originalStart}–${chunk.originalEnd || chunk.originalStart} Left ⇨ Right`);
-    } else if (activeSelection && activeSelection.side === 'left') {
-      const text = activeSelection.text;
-      const targetLine = Math.min(activeSelection.startLine, modModel.getLineCount());
-      const targetEnd = Math.min(activeSelection.endLine, modModel.getLineCount());
-      const range = {
-        startLineNumber: targetLine,
-        startColumn: 1,
-        endLineNumber: targetEnd,
-        endColumn: modModel.getLineMaxColumn(targetEnd),
-      };
-      modModel.pushEditOperations([], [{ range, text }], () => null);
-      outRange.startLine = targetLine;
-      outRange.endLine = targetEnd;
-      const updated = modModel.getValue();
-      setRightEditorContent(updated);
-      setRightDirty(true);
-      setLastModifiedSide('right');
-      setActiveFocusSide('right');
-      flashCopiedHighlight('left', activeSelection.startLine, activeSelection.endLine, false);
-      flashCopiedHighlight('right', outRange.startLine, outRange.endLine, true);
-      onUpdateStatus(`Copied selected lines ${activeSelection.startLine}–${activeSelection.endLine} Left ⇨ Right`);
     }
   };
 
@@ -964,12 +1035,27 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     const modModel = modEditor.getModel();
     if (!origModel || !modModel) return;
 
-    const activeLine = cursorLineNumber || modEditor.getPosition()?.lineNumber || 1;
-    const chunk = activeSelection
-      ? findClosestChunk(chunksRef.current, activeSelection.startLine, 'right')
-      : activeDiffChunk || findClosestChunk(chunksRef.current, activeLine, 'right');
-
     const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
+
+    if (activeSelection && activeSelection.side === 'right') {
+      const chunk = findClosestChunk(chunksRef.current, activeSelection.startLine, 'right');
+      executeSelectedLinesCopyR2L(origModel, modModel, activeSelection, chunk, outRange);
+      const updated = origModel.getValue();
+      setLeftEditorContent(updated);
+      setLeftDirty(true);
+      setLastModifiedSide('left');
+      setActiveFocusSide('left');
+      flashCopiedHighlight('right', activeSelection.startLine, activeSelection.endLine, false);
+      if (outRange.startLine > 0) {
+        flashCopiedHighlight('left', outRange.startLine, outRange.endLine, true);
+      }
+      onUpdateStatus(`Copied selected lines ${activeSelection.startLine}–${activeSelection.endLine} Right ⇦ Left`);
+      return;
+    }
+
+    const activeLine = cursorLineNumber || modEditor.getPosition()?.lineNumber || 1;
+    const chunk = activeDiffChunk || findClosestChunk(chunksRef.current, activeLine, 'right');
+
     if (chunk) {
       executeChunkCopyR2L(origModel, modModel, chunk, outRange);
       const updated = origModel.getValue();
@@ -982,27 +1068,6 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         flashCopiedHighlight('left', outRange.startLine, outRange.endLine, true);
       }
       onUpdateStatus(`Copied diff lines ${chunk.modifiedStart}–${chunk.modifiedEnd || chunk.modifiedStart} Right ⇦ Left`);
-    } else if (activeSelection && activeSelection.side === 'right') {
-      const text = activeSelection.text;
-      const targetLine = Math.min(activeSelection.startLine, origModel.getLineCount());
-      const targetEnd = Math.min(activeSelection.endLine, origModel.getLineCount());
-      const range = {
-        startLineNumber: targetLine,
-        startColumn: 1,
-        endLineNumber: targetEnd,
-        endColumn: origModel.getLineMaxColumn(targetEnd),
-      };
-      origModel.pushEditOperations([], [{ range, text }], () => null);
-      outRange.startLine = targetLine;
-      outRange.endLine = targetEnd;
-      const updated = origModel.getValue();
-      setLeftEditorContent(updated);
-      setLeftDirty(true);
-      setLastModifiedSide('left');
-      setActiveFocusSide('left');
-      flashCopiedHighlight('right', activeSelection.startLine, activeSelection.endLine, false);
-      flashCopiedHighlight('left', outRange.startLine, outRange.endLine, true);
-      onUpdateStatus(`Copied selected lines ${activeSelection.startLine}–${activeSelection.endLine} Right ⇦ Left`);
     }
   };
 

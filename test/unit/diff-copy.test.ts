@@ -5,6 +5,8 @@ import {
   findClosestChunk,
   executeChunkCopyL2R,
   executeChunkCopyR2L,
+  executeSelectedLinesCopyL2R,
+  executeSelectedLinesCopyR2L,
   spliceLines,
   DiffChunk,
   computeUnchangedRanges,
@@ -141,6 +143,92 @@ describe('Diff Copy Engine', () => {
     const res = executeChunkCopyR2L(mockOriginal, mockModified, chunk);
     expect(res).toBe(true);
     expect(pushedText).toBe('<diam_local_fqdn_port>right</diam_local_fqdn_port>');
+  });
+
+  it('executes selective lines copy L2R for only chosen lines within a larger diff', () => {
+    let pushedText = '';
+    const mockOriginal = {
+      getLineCount: () => 100,
+      getLineMaxColumn: () => 50,
+      getValueInRange: ({ startLineNumber, endLineNumber }: any) => {
+        if (startLineNumber === 74 && endLineNumber === 75) {
+          return '<diam_local_fqdn_port>\n<name>diam2_port0</name>';
+        }
+        return '';
+      },
+    };
+    const mockModified = {
+      getLineCount: () => 90,
+      getLineMaxColumn: () => 50,
+      pushEditOperations: (_before: any, edits: any[]) => {
+        pushedText = edits[0].text;
+      },
+    };
+
+    const chunk: DiffChunk = {
+      id: '1',
+      originalStart: 74,
+      originalEnd: 87,
+      modifiedStart: 74,
+      modifiedEnd: 74,
+    };
+
+    const outRange = { startLine: 0, endLine: 0 };
+    const res = executeSelectedLinesCopyL2R(
+      mockOriginal,
+      mockModified,
+      { startLine: 74, endLine: 75 },
+      chunk,
+      outRange
+    );
+
+    expect(res).toBe(true);
+    expect(pushedText).toBe('<diam_local_fqdn_port>\n<name>diam2_port0</name>');
+    expect(outRange.startLine).toBe(74);
+    expect(outRange.endLine).toBe(75);
+  });
+
+  it('executes selective lines copy R2L for only chosen lines', () => {
+    let pushedText = '';
+    const mockOriginal = {
+      getLineCount: () => 100,
+      getLineMaxColumn: () => 50,
+      pushEditOperations: (_before: any, edits: any[]) => {
+        pushedText = edits[0].text;
+      },
+    };
+    const mockModified = {
+      getLineCount: () => 90,
+      getLineMaxColumn: () => 50,
+      getValueInRange: ({ startLineNumber, endLineNumber }: any) => {
+        if (startLineNumber === 74 && endLineNumber === 75) {
+          return '<mod_line_1>\n<mod_line_2>';
+        }
+        return '';
+      },
+    };
+
+    const chunk: DiffChunk = {
+      id: '1',
+      originalStart: 74,
+      originalEnd: 87,
+      modifiedStart: 74,
+      modifiedEnd: 80,
+    };
+
+    const outRange = { startLine: 0, endLine: 0 };
+    const res = executeSelectedLinesCopyR2L(
+      mockOriginal,
+      mockModified,
+      { startLine: 74, endLine: 75 },
+      chunk,
+      outRange
+    );
+
+    expect(res).toBe(true);
+    expect(pushedText).toBe('<mod_line_1>\n<mod_line_2>');
+    expect(outRange.startLine).toBe(74);
+    expect(outRange.endLine).toBe(75);
   });
 
   describe('spliceLines direct string splicing', () => {

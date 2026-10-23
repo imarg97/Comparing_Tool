@@ -95,7 +95,11 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
     getPathForFile: (file: File) => {
       const explicit = (file as any).path;
       if (explicit) return explicit;
-      return file.webkitRelativePath || file.name;
+      if (file.webkitRelativePath && file.webkitRelativePath.includes('/')) {
+        return file.webkitRelativePath;
+      }
+      const isWin = typeof navigator !== 'undefined' && (/Win/i.test(navigator.platform || '') || /Windows/i.test(navigator.userAgent || ''));
+      return isWin ? `C:\\Data\\Snapshots\\${file.name}` : `/Data/Snapshots/${file.name}`;
     },
 
     selectDirectory: async (_defaultPath?: string, side?: 'left' | 'right') => {
@@ -149,10 +153,16 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
       }
 
       if (!returnedPath) {
-        if (file.webkitRelativePath && file.webkitRelativePath.includes('/')) {
+        if ((file as any).path) {
+          returnedPath = (file as any).path;
+        } else if (file.webkitRelativePath && file.webkitRelativePath.includes('/')) {
           returnedPath = file.webkitRelativePath;
         } else {
-          returnedPath = file.name;
+          const isWin = typeof navigator !== 'undefined' && (/Win/i.test(navigator.platform || '') || /Windows/i.test(navigator.userAgent || ''));
+          const baseFolder = side === 'left' ? 'Snapshots' : 'Drafts';
+          returnedPath = isWin
+            ? `C:\\Data\\${baseFolder}\\${file.name}`
+            : `/Data/${baseFolder}/${file.name}`;
         }
       }
 
@@ -177,60 +187,74 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
       const leftItems = new Map<string, ScannedItem>();
       const rightItems = new Map<string, ScannedItem>();
 
-      // Read from browser file store or generate sample demo entries if paths are sample strings
-      if (browserFolderStore.leftFiles.size === 0 && browserFolderStore.rightFiles.size === 0) {
-        // Provide rich sample demo dataset for Web visitors
+      // Check if directories map has files for leftPath or rightPath
+      const leftFiles =
+        browserFolderStore.directories.get(leftPath) ||
+        browserFolderStore.directories.get(`browser://${leftPath}`) ||
+        (browserFolderStore.leftFiles.size > 0 ? browserFolderStore.leftFiles : null);
+
+      const rightFiles =
+        browserFolderStore.directories.get(rightPath) ||
+        browserFolderStore.directories.get(`browser://${rightPath}`) ||
+        (browserFolderStore.rightFiles.size > 0 ? browserFolderStore.rightFiles : null);
+
+      // If no files were loaded yet into browser memory, generate rich sample comparison matching the paths
+      if ((!leftFiles || leftFiles.size === 0) && (!rightFiles || rightFiles.size === 0)) {
         return createSampleWebComparison(leftPath, rightPath, options);
       }
 
       // Hash left files
-      let count = 0;
-      for (const [relPath, file] of browserFolderStore.leftFiles.entries()) {
-        if (shouldIgnorePath(relPath, options.ignorePatterns, options.caseSensitive)) continue;
-        count++;
-        if (progressListener) {
-          progressListener({ currentPath: relPath, scannedCount: count, phase: 'scanning-left' });
-        }
-        const hash = await computeBrowserHash(file);
-        leftItems.set(relPath, {
-          relativePath: relPath,
-          name: file.name,
-          isDirectory: false,
-          metadata: {
-            exists: true,
-            size: file.size,
-            mtime: file.lastModified,
-            hash,
+      if (leftFiles) {
+        let count = 0;
+        for (const [relPath, file] of leftFiles.entries()) {
+          if (shouldIgnorePath(relPath, options.ignorePatterns, options.caseSensitive)) continue;
+          count++;
+          if (progressListener) {
+            progressListener({ currentPath: relPath, scannedCount: count, phase: 'scanning-left' });
+          }
+          const hash = await computeBrowserHash(file);
+          leftItems.set(relPath, {
+            relativePath: relPath,
+            name: file.name,
             isDirectory: false,
-            isSymlink: false,
-            readable: true,
-          },
-        });
+            metadata: {
+              exists: true,
+              size: file.size,
+              mtime: file.lastModified,
+              hash,
+              isDirectory: false,
+              isSymlink: false,
+              readable: true,
+            },
+          });
+        }
       }
 
       // Hash right files
-      count = 0;
-      for (const [relPath, file] of browserFolderStore.rightFiles.entries()) {
-        if (shouldIgnorePath(relPath, options.ignorePatterns, options.caseSensitive)) continue;
-        count++;
-        if (progressListener) {
-          progressListener({ currentPath: relPath, scannedCount: count, phase: 'scanning-right' });
-        }
-        const hash = await computeBrowserHash(file);
-        rightItems.set(relPath, {
-          relativePath: relPath,
-          name: file.name,
-          isDirectory: false,
-          metadata: {
-            exists: true,
-            size: file.size,
-            mtime: file.lastModified,
-            hash,
+      if (rightFiles) {
+        let count = 0;
+        for (const [relPath, file] of rightFiles.entries()) {
+          if (shouldIgnorePath(relPath, options.ignorePatterns, options.caseSensitive)) continue;
+          count++;
+          if (progressListener) {
+            progressListener({ currentPath: relPath, scannedCount: count, phase: 'scanning-right' });
+          }
+          const hash = await computeBrowserHash(file);
+          rightItems.set(relPath, {
+            relativePath: relPath,
+            name: file.name,
             isDirectory: false,
-            isSymlink: false,
-            readable: true,
-          },
-        });
+            metadata: {
+              exists: true,
+              size: file.size,
+              mtime: file.lastModified,
+              hash,
+              isDirectory: false,
+              isSymlink: false,
+              readable: true,
+            },
+          });
+        }
       }
 
       const { flatList, tree, summary } = matchEntries(leftItems, rightItems, options);

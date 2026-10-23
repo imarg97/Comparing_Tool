@@ -98,24 +98,33 @@
   color: #71717a !important;
 }
 
-/* Light Mode: Beyond Compare subtle light-pink wash on BOTH sides with red text for changed tokens */
+/* Text Selection Highlight with strong contrast in both themes */
+.monaco-editor .selected-text {
+  background-color: #bfdbfe !important; /* Soft blue in light mode */
+}
+.dark .monaco-editor .selected-text {
+  background-color: #1e3a8a !important; /* Deep blue in dark mode */
+}
+
+/* Light Mode: Beyond Compare high-contrast rose wash on BOTH sides with deep ruby tokens */
 .monaco-diff-editor .lines-content .line-delete,
 .monaco-diff-editor .lines-content .ced-line-delete,
 .monaco-diff-editor .lines-content .diff-line-delete,
 .monaco-diff-editor .lines-content .line-insert,
 .monaco-diff-editor .lines-content .ced-line-insert,
 .monaco-diff-editor .lines-content .diff-line-insert {
-  background-color: #fff2f2 !important; /* Subtle Beyond Compare light pink/rose line tint */
-  border-left: 2px solid #ef4444 !important;
+  background-color: #fee2e2 !important; /* Clearly visible, crisp Beyond Compare rose-red wash */
+  border-left: 3px solid #ef4444 !important;
 }
 
 .monaco-diff-editor .char-delete,
 .monaco-diff-editor .ced-char-delete,
 .monaco-diff-editor .char-insert,
 .monaco-diff-editor .ced-char-insert {
-  background-color: #fecaca !important; /* Soft rose highlight for changed tokens */
-  color: #dc2626 !important;            /* High-contrast deep red text matching Beyond Compare */
+  background-color: #fca5a5 !important; /* High-contrast rose highlight for changed tokens */
+  color: #991b1b !important;            /* High-contrast deep ruby red text */
   font-weight: 700 !important;
+  border: 1px solid #f87171 !important;
   border-radius: 2px;
 }
 
@@ -131,17 +140,18 @@
 .dark .monaco-diff-editor .lines-content .line-insert,
 .dark .monaco-diff-editor .lines-content .ced-line-insert,
 .dark .monaco-diff-editor .lines-content .diff-line-insert {
-  background-color: rgba(239, 68, 68, 0.16) !important;
-  border-left: 2px solid #f87171 !important;
+  background-color: rgba(239, 68, 68, 0.25) !important;
+  border-left: 3px solid #ef4444 !important;
 }
 
 .dark .monaco-diff-editor .char-delete,
 .dark .monaco-diff-editor .ced-char-delete,
 .dark .monaco-diff-editor .char-insert,
 .dark .monaco-diff-editor .ced-char-insert {
-  background-color: rgba(239, 68, 68, 0.45) !important;
-  color: #fca5a5 !important;
+  background-color: rgba(239, 68, 68, 0.55) !important;
+  color: #fecaca !important;
   font-weight: 700 !important;
+  border: 1px solid #f87171 !important;
   border-radius: 2px;
 }
 

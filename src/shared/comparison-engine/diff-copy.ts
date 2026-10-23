@@ -536,3 +536,160 @@ export function computeDiffRanges(
 
   return merged;
 }
+
+/**
+ * Copies specifically selected lines from Left (Original) to Right (Modified).
+ * Matches Beyond Compare fine-grained selection copying:
+ * Replaces corresponding target lines if target has lines, or inserts into gap cleanly.
+ */
+export function executeSelectedLinesCopyL2R(
+  originalModel: any,
+  modifiedModel: any,
+  selection: { startLine: number; endLine: number; text?: string },
+  chunk?: DiffChunk | null,
+  outRange?: ChunkCopyRange
+): boolean {
+  if (!originalModel || !modifiedModel) return false;
+
+  const leftLineCount = originalModel.getLineCount();
+  const rightLineCount = modifiedModel.getLineCount();
+
+  const sLine = Math.max(1, Math.min(selection.startLine, leftLineCount));
+  const eLine = Math.max(sLine, Math.min(selection.endLine, leftLineCount));
+  const selectedText = originalModel.getValueInRange({
+    startLineNumber: sLine,
+    startColumn: 1,
+    endLineNumber: eLine,
+    endColumn: originalModel.getLineMaxColumn(eLine),
+  });
+  const lineCount = eLine - sLine + 1;
+
+  // Calculate target starting line on the right side
+  let targetStart = sLine;
+  if (chunk && chunk.originalStart > 0) {
+    const offset = Math.max(0, sLine - chunk.originalStart);
+    targetStart = chunk.modifiedStart > 0 ? chunk.modifiedStart + offset : 1;
+  }
+  targetStart = Math.max(1, Math.min(targetStart, rightLineCount));
+
+  const hasRightLines = chunk && chunk.modifiedStart > 0 && chunk.modifiedEnd >= chunk.modifiedStart;
+
+  if (hasRightLines && rightLineCount > 0) {
+    const targetEnd = Math.min(targetStart + lineCount - 1, rightLineCount);
+    const range = {
+      startLineNumber: targetStart,
+      startColumn: 1,
+      endLineNumber: targetEnd,
+      endColumn: modifiedModel.getLineMaxColumn(targetEnd),
+    };
+    modifiedModel.pushEditOperations([], [{ range, text: selectedText }], () => null);
+  } else {
+    if (targetStart >= rightLineCount && rightLineCount > 0) {
+      const lastLine = rightLineCount;
+      const lastCol = modifiedModel.getLineMaxColumn(lastLine);
+      const range = {
+        startLineNumber: lastLine,
+        startColumn: lastCol,
+        endLineNumber: lastLine,
+        endColumn: lastCol,
+      };
+      modifiedModel.pushEditOperations([], [{ range, text: '\n' + selectedText }], () => null);
+      targetStart = lastLine + 1;
+    } else {
+      const range = {
+        startLineNumber: targetStart,
+        startColumn: 1,
+        endLineNumber: targetStart,
+        endColumn: 1,
+      };
+      modifiedModel.pushEditOperations(
+        [],
+        [{ range, text: rightLineCount > 0 ? selectedText + '\n' : selectedText }],
+        () => null
+      );
+    }
+  }
+
+  if (outRange) {
+    outRange.startLine = targetStart;
+    outRange.endLine = targetStart + lineCount - 1;
+  }
+  return true;
+}
+
+/**
+ * Copies specifically selected lines from Right (Modified) to Left (Original).
+ */
+export function executeSelectedLinesCopyR2L(
+  originalModel: any,
+  modifiedModel: any,
+  selection: { startLine: number; endLine: number; text?: string },
+  chunk?: DiffChunk | null,
+  outRange?: ChunkCopyRange
+): boolean {
+  if (!originalModel || !modifiedModel) return false;
+
+  const leftLineCount = originalModel.getLineCount();
+  const rightLineCount = modifiedModel.getLineCount();
+
+  const sLine = Math.max(1, Math.min(selection.startLine, rightLineCount));
+  const eLine = Math.max(sLine, Math.min(selection.endLine, rightLineCount));
+  const selectedText = modifiedModel.getValueInRange({
+    startLineNumber: sLine,
+    startColumn: 1,
+    endLineNumber: eLine,
+    endColumn: modifiedModel.getLineMaxColumn(eLine),
+  });
+  const lineCount = eLine - sLine + 1;
+
+  let targetStart = sLine;
+  if (chunk && chunk.modifiedStart > 0) {
+    const offset = Math.max(0, sLine - chunk.modifiedStart);
+    targetStart = chunk.originalStart > 0 ? chunk.originalStart + offset : 1;
+  }
+  targetStart = Math.max(1, Math.min(targetStart, leftLineCount));
+
+  const hasLeftLines = chunk && chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart;
+
+  if (hasLeftLines && leftLineCount > 0) {
+    const targetEnd = Math.min(targetStart + lineCount - 1, leftLineCount);
+    const range = {
+      startLineNumber: targetStart,
+      startColumn: 1,
+      endLineNumber: targetEnd,
+      endColumn: originalModel.getLineMaxColumn(targetEnd),
+    };
+    originalModel.pushEditOperations([], [{ range, text: selectedText }], () => null);
+  } else {
+    if (targetStart >= leftLineCount && leftLineCount > 0) {
+      const lastLine = leftLineCount;
+      const lastCol = originalModel.getLineMaxColumn(lastLine);
+      const range = {
+        startLineNumber: lastLine,
+        startColumn: lastCol,
+        endLineNumber: lastLine,
+        endColumn: lastCol,
+      };
+      originalModel.pushEditOperations([], [{ range, text: '\n' + selectedText }], () => null);
+      targetStart = lastLine + 1;
+    } else {
+      const range = {
+        startLineNumber: targetStart,
+        startColumn: 1,
+        endLineNumber: targetStart,
+        endColumn: 1,
+      };
+      originalModel.pushEditOperations(
+        [],
+        [{ range, text: leftLineCount > 0 ? selectedText + '\n' : selectedText }],
+        () => null
+      );
+    }
+  }
+
+  if (outRange) {
+    outRange.startLine = targetStart;
+    outRange.endLine = targetStart + lineCount - 1;
+  }
+  return true;
+}
