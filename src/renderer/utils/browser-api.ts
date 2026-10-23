@@ -78,16 +78,26 @@ function selectViaBrowserInput(directory: boolean): Promise<{ files: File[]; roo
   });
 }
 
-export function registerBrowserFile(pathKey: string, file: File): void {
+export function registerBrowserFile(pathKey: string, file: File, side?: 'left' | 'right'): void {
   browserFolderStore.singleFiles.set(pathKey, file);
+  browserFolderStore.singleFiles.set(file.name, file);
   browserFolderStore.singleFiles.set(`file://${pathKey}`, file);
   browserFolderStore.singleFiles.set(`browser://${pathKey}`, file);
+  if (side === 'left') {
+    browserFolderStore.leftFile = file;
+  } else if (side === 'right') {
+    browserFolderStore.rightFile = file;
+  }
 }
 
 export function createBrowserFallbackAPI(): DiffxPreloadAPI {
   let progressListener: ((progress: ScanProgress) => void) | null = null;
 
   return {
+    getPathForFile: (file: File) => {
+      return (file as any).path || file.name;
+    },
+
     selectDirectory: async (_defaultPath?: string, side?: 'left' | 'right') => {
       const res = await selectViaBrowserInput(true);
       if (!res) return null;
@@ -268,10 +278,11 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
         }
       }
 
-      // 5. Fallback lookup by relative segment
+      // 5. Fallback lookup by relative segment or basename
       if (!stored) {
+        const basename = filePath.split(/[/\\]/).pop();
         for (const [key, f] of browserFolderStore.singleFiles.entries()) {
-          if (filePath.endsWith(key) || key.endsWith(filePath)) {
+          if (filePath.endsWith(key) || key.endsWith(filePath) || (basename && f.name === basename)) {
             stored = f;
             break;
           }

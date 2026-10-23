@@ -42,6 +42,7 @@ import {
 import { ConfirmModalConfig } from '../../components/ConfirmModal.js';
 import { LineDetailInspector } from '../../components/LineDetailInspector.js';
 import { DiffOverviewMap } from '../../components/DiffOverviewMap.js';
+import { registerBrowserFile } from '../../utils/browser-api.js';
 
 interface StructuredCompareViewProps {
   leftPath: string;
@@ -141,30 +142,56 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
   const [dragHoverSide, setDragHoverSide] = useState<'left' | 'right' | null>(null);
   const dragCounterRef = useRef(0);
 
-  const extractDroppedPaths = (e: React.DragEvent): string[] => {
-    const paths: string[] = [];
+  interface DroppedItem {
+    path: string;
+    file: File;
+  }
+
+  const extractDroppedItems = (e: React.DragEvent): DroppedItem[] => {
+    const items: DroppedItem[] = [];
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       for (let i = 0; i < e.dataTransfer.files.length; i++) {
         const file = e.dataTransfer.files[i];
-        const p = (file as any).path || file.name;
-        if (p) paths.push(p);
+        let p = '';
+        if (window.diffxAPI && typeof window.diffxAPI.getPathForFile === 'function') {
+          try {
+            p = window.diffxAPI.getPathForFile(file);
+          } catch {
+            // fallback
+          }
+        }
+        if (!p) {
+          p = (file as any).path || file.name;
+        }
+        items.push({ path: p, file });
       }
     }
-    return paths;
+    return items;
   };
 
-  const handleDropToSide = (paths: string[], targetSide: 'left' | 'right') => {
-    if (!paths.length) return;
-    if (paths.length >= 2) {
-      onSetLeftPath(paths[0]);
-      onSetRightPath(paths[1]);
-      onUpdateStatus(`Loaded Left (${paths[0].split(/[/\\]/).pop()}) and Right (${paths[1].split(/[/\\]/).pop()})`);
-    } else if (targetSide === 'left') {
-      onSetLeftPath(paths[0]);
-      onUpdateStatus(`Loaded Left config: ${paths[0].split(/[/\\]/).pop()}`);
+  const handleDropToSide = (items: DroppedItem[], targetSide: 'left' | 'right') => {
+    if (!items.length) return;
+    if (items.length >= 2) {
+      const leftItem = items[0];
+      const rightItem = items[1];
+      registerBrowserFile(leftItem.path, leftItem.file, 'left');
+      registerBrowserFile(rightItem.path, rightItem.file, 'right');
+      registerBrowserFile(leftItem.file.name, leftItem.file, 'left');
+      registerBrowserFile(rightItem.file.name, rightItem.file, 'right');
+      onSetLeftPath(leftItem.path);
+      onSetRightPath(rightItem.path);
+      onUpdateStatus(`Loaded Left (${leftItem.path}) and Right (${rightItem.path})`);
     } else {
-      onSetRightPath(paths[0]);
-      onUpdateStatus(`Loaded Right config: ${paths[0].split(/[/\\]/).pop()}`);
+      const item = items[0];
+      registerBrowserFile(item.path, item.file, targetSide);
+      registerBrowserFile(item.file.name, item.file, targetSide);
+      if (targetSide === 'left') {
+        onSetLeftPath(item.path);
+        onUpdateStatus(`Loaded Left config: ${item.path}`);
+      } else {
+        onSetRightPath(item.path);
+        onUpdateStatus(`Loaded Right config: ${item.path}`);
+      }
     }
   };
 
@@ -174,8 +201,8 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     setIsDraggingLeft(false);
     setDragHoverSide(null);
     dragCounterRef.current = 0;
-    const paths = extractDroppedPaths(e);
-    handleDropToSide(paths, 'left');
+    const items = extractDroppedItems(e);
+    handleDropToSide(items, 'left');
   };
 
   const handleDropRight = (e: React.DragEvent) => {
@@ -184,8 +211,8 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     setIsDraggingRight(false);
     setDragHoverSide(null);
     dragCounterRef.current = 0;
-    const paths = extractDroppedPaths(e);
-    handleDropToSide(paths, 'right');
+    const items = extractDroppedItems(e);
+    handleDropToSide(items, 'right');
   };
 
   const handleContainerDragEnter = (e: React.DragEvent) => {
@@ -217,8 +244,8 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     const side = dragHoverSide || 'left';
     dragCounterRef.current = 0;
     setDragHoverSide(null);
-    const paths = extractDroppedPaths(e);
-    handleDropToSide(paths, side);
+    const items = extractDroppedItems(e);
+    handleDropToSide(items, side);
   };
 
   // Monaco Ref

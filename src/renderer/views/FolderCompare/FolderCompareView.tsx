@@ -95,7 +95,17 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       for (let i = 0; i < e.dataTransfer.files.length; i++) {
         const file = e.dataTransfer.files[i];
-        const p = (file as any).path || file.name;
+        let p = '';
+        if (window.diffxAPI && typeof window.diffxAPI.getPathForFile === 'function') {
+          try {
+            p = window.diffxAPI.getPathForFile(file);
+          } catch {
+            // fallback
+          }
+        }
+        if (!p) {
+          p = (file as any).path || file.name;
+        }
         if (p) paths.push(p);
       }
     }
@@ -107,13 +117,13 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
     if (paths.length >= 2) {
       onSetLeftFolder(paths[0]);
       onSetRightFolder(paths[1]);
-      onUpdateStatus(`Loaded Left (${paths[0].split(/[/\\]/).pop()}) and Right (${paths[1].split(/[/\\]/).pop()})`);
+      onUpdateStatus(`Loaded Left (${paths[0]}) and Right (${paths[1]})`);
     } else if (targetSide === 'left') {
       onSetLeftFolder(paths[0]);
-      onUpdateStatus(`Loaded Left directory: ${paths[0].split(/[/\\]/).pop()}`);
+      onUpdateStatus(`Loaded Left directory: ${paths[0]}`);
     } else {
       onSetRightFolder(paths[0]);
-      onUpdateStatus(`Loaded Right directory: ${paths[0].split(/[/\\]/).pop()}`);
+      onUpdateStatus(`Loaded Right directory: ${paths[0]}`);
     }
   };
 

@@ -2,7 +2,7 @@
  * Secure Narrow Preload Bridge
  */
 
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import {
   CopyRequest,
   DiffxPreloadAPI,
@@ -13,6 +13,17 @@ import {
 } from '../shared/types.js';
 
 const api: DiffxPreloadAPI = {
+  getPathForFile: (file: File) => {
+    try {
+      if (webUtils && typeof webUtils.getPathForFile === 'function') {
+        return webUtils.getPathForFile(file);
+      }
+    } catch {
+      // fallback
+    }
+    return (file as any).path || '';
+  },
+
   selectDirectory: (defaultPath?: string, side?: 'left' | 'right') =>
     ipcRenderer.invoke('dialog:select-directory', defaultPath, side),
 

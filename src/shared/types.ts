@@ -158,6 +158,9 @@ export interface AppSettings {
  * Narrow, typed IPC contract exposed securely to the Electron renderer
  */
 export interface DiffxPreloadAPI {
+  // Drag and drop file path resolution (Electron 30+ webUtils)
+  getPathForFile?: (file: File) => string;
+
   // Dialogs
   selectDirectory: (defaultPath?: string, side?: 'left' | 'right') => Promise<string | null>;
   selectFile: (defaultPath?: string, side?: 'left' | 'right') => Promise<string | null>;
