@@ -7,6 +7,8 @@ import {
   executeChunkCopyR2L,
   spliceLines,
   DiffChunk,
+  computeUnchangedRanges,
+  computeDiffRanges,
 } from '../../src/shared/comparison-engine/diff-copy.js';
 
 describe('Diff Copy Engine', () => {
@@ -154,6 +156,42 @@ describe('Diff Copy Engine', () => {
       const right = 'first\nlast';
       const res = spliceLines(left, right, 1, 2, 2, 0);
       expect(res).toBe('first\ntagA\ntagB\nlast');
+    });
+  });
+
+  describe('Beyond Compare View Filtering (Hidden Ranges)', () => {
+    const chunks: DiffChunk[] = [
+      {
+        id: 'chunk_1',
+        originalStart: 5,
+        originalEnd: 5,
+        modifiedStart: 5,
+        modifiedEnd: 5,
+      },
+      {
+        id: 'chunk_2',
+        originalStart: 20,
+        originalEnd: 22,
+        modifiedStart: 20,
+        modifiedEnd: 23,
+      },
+    ];
+
+    it('computeUnchangedRanges isolates diffs and hides identical lines', () => {
+      const unchanged = computeUnchangedRanges(chunks, 26, 'left');
+      expect(unchanged).toEqual([
+        { startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 },
+        { startLineNumber: 6, startColumn: 1, endLineNumber: 19, endColumn: 1 },
+        { startLineNumber: 23, startColumn: 1, endLineNumber: 26, endColumn: 1 },
+      ]);
+    });
+
+    it('computeDiffRanges isolates identical lines and hides diffs', () => {
+      const diffRanges = computeDiffRanges(chunks, 'left');
+      expect(diffRanges).toEqual([
+        { startLineNumber: 5, startColumn: 1, endLineNumber: 5, endColumn: 1 },
+        { startLineNumber: 20, startColumn: 1, endLineNumber: 22, endColumn: 1 },
+      ]);
     });
   });
 });

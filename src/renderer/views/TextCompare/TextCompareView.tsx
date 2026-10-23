@@ -30,6 +30,8 @@ import {
   executeChunkCopyL2R,
   executeChunkCopyR2L,
   ChunkCopyRange,
+  computeUnchangedRanges,
+  computeDiffRanges,
 } from '@shared/comparison-engine/diff-copy.js';
 import { ConfirmModalConfig } from '../../components/ConfirmModal.js';
 import { LineDetailInspector } from '../../components/LineDetailInspector.js';
@@ -373,52 +375,31 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       const origEditor = diffEditorRef.current.getOriginalEditor();
       const modEditor = diffEditorRef.current.getModifiedEditor();
 
+      // Disable Monaco's incomplete built-in hideUnchangedRegions in favor of deterministic Beyond Compare setHiddenAreas
+      diffEditorRef.current.updateOptions({
+        hideUnchangedRegions: { enabled: false },
+      });
+
       if (filter === 'all') {
         origEditor.setHiddenAreas([]);
         modEditor.setHiddenAreas([]);
-        diffEditorRef.current.updateOptions({
-          hideUnchangedRegions: { enabled: false },
-        });
       } else if (filter === 'diffs') {
-        origEditor.setHiddenAreas([]);
-        modEditor.setHiddenAreas([]);
-        diffEditorRef.current.updateOptions({
-          hideUnchangedRegions: {
-            enabled: true,
-            contextLineCount: 1,
-            minimumLineCount: 2,
-            revealLineCount: 20,
-          },
-        });
+        const origModel = origEditor.getModel();
+        const modModel = modEditor.getModel();
+        const origLines = origModel ? origModel.getLineCount() : 0;
+        const modLines = modModel ? modModel.getLineCount() : 0;
+
+        const leftHidden = computeUnchangedRanges(chunks, origLines, 'left');
+        const rightHidden = computeUnchangedRanges(chunks, modLines, 'right');
+
+        origEditor.setHiddenAreas(leftHidden);
+        modEditor.setHiddenAreas(rightHidden);
       } else if (filter === 'same') {
-        diffEditorRef.current.updateOptions({
-          hideUnchangedRegions: { enabled: false },
-        });
+        const leftHidden = computeDiffRanges(chunks, 'left');
+        const rightHidden = computeDiffRanges(chunks, 'right');
 
-        const leftHiddenRanges: any[] = [];
-        const rightHiddenRanges: any[] = [];
-
-        for (const chunk of chunks) {
-          if (chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart) {
-            leftHiddenRanges.push({
-              startLineNumber: chunk.originalStart,
-              startColumn: 1,
-              endLineNumber: chunk.originalEnd,
-              endColumn: 1,
-            });
-          }
-          if (chunk.modifiedStart > 0 && chunk.modifiedEnd >= chunk.modifiedStart) {
-            rightHiddenRanges.push({
-              startLineNumber: chunk.modifiedStart,
-              startColumn: 1,
-              endLineNumber: chunk.modifiedEnd,
-              endColumn: 1,
-            });
-          }
-        }
-
-        origEditor.setHiddenAreas(leftHiddenRanges);
-        modEditor.setHiddenAreas(rightHiddenRanges);
+        origEditor.setHiddenAreas(leftHidden);
+        modEditor.setHiddenAreas(rightHidden);
       }
     } catch {
       // non-fatal
@@ -1025,60 +1006,58 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     }
   };
 
-  // Keyboard Shortcuts: Ctrl+S (Save based on focus with popup), Ctrl+Z (Undo), Ctrl+Y (Redo), Ctrl+F (Find), Ctrl+C
+  // Keyboard Shortcuts:
+  // Native Monaco handles Ctrl+Z, Ctrl+Y, Ctrl+C, Ctrl+V when text is focused.
+  // We provide Alt+Right (L2R), Alt+Left (R2L), Alt+Down (Next Diff), Alt+Up (Prev Diff), Ctrl+S (Save), Ctrl+F (Find).
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isCtrlOrCmd = e.ctrlKey || e.metaKey;
 
-      // 1. Undo: Ctrl+Z / Cmd+Z (without shift)
-      if (isCtrlOrCmd && !e.shiftKey && e.key.toLowerCase() === 'z') {
-        if (!diffEditorRef.current) return;
+      // Check if one of the editors has active text focus
+      const origEditor = diffEditorRef.current?.getOriginalEditor();
+      const modEditor = diffEditorRef.current?.getModifiedEditor();
+      const hasEditorFocus = origEditor?.hasTextFocus() || modEditor?.hasTextFocus();
+
+      // Diff Navigation Shortcuts: Alt+Down / Alt+Up (or Ctrl+Down / Ctrl+Up outside editor)
+      if ((e.altKey && e.key === 'ArrowDown') || (!hasEditorFocus && isCtrlOrCmd && e.key === 'ArrowDown')) {
         e.preventDefault();
-        const origEditor = diffEditorRef.current.getOriginalEditor();
-        const modEditor = diffEditorRef.current.getModifiedEditor();
-        const targetSide = origEditor.hasTextFocus() ? 'left' : modEditor.hasTextFocus() ? 'right' : lastModifiedSide;
-        const targetEditor = targetSide === 'left' ? origEditor : modEditor;
-        targetEditor.focus();
-        targetEditor.trigger('keyboard', 'undo', null);
+        handleNextDiff();
+        return;
+      }
+      if ((e.altKey && e.key === 'ArrowUp') || (!hasEditorFocus && isCtrlOrCmd && e.key === 'ArrowUp')) {
+        e.preventDefault();
+        handlePrevDiff();
         return;
       }
 
-      // 2. Redo: Ctrl+Y / Cmd+Shift+Z / Cmd+Y
-      if (
-        (isCtrlOrCmd && e.key.toLowerCase() === 'y') ||
-        (isCtrlOrCmd && e.shiftKey && e.key.toLowerCase() === 'z')
-      ) {
-        if (!diffEditorRef.current) return;
+      // Beyond Compare Transfer Shortcuts: Alt+Right (L2R), Alt+Left (R2L)
+      if (e.altKey && e.key === 'ArrowRight') {
         e.preventDefault();
-        const origEditor = diffEditorRef.current.getOriginalEditor();
-        const modEditor = diffEditorRef.current.getModifiedEditor();
-        const targetSide = origEditor.hasTextFocus() ? 'left' : modEditor.hasTextFocus() ? 'right' : lastModifiedSide;
-        const targetEditor = targetSide === 'left' ? origEditor : modEditor;
-        targetEditor.focus();
-        targetEditor.trigger('keyboard', 'redo', null);
+        handleCopyL2R();
+        return;
+      }
+      if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handleCopyR2L();
         return;
       }
 
-      // 3. Find: Ctrl+F / Cmd+F across files
+      // Find: Ctrl+F / Cmd+F
       if (isCtrlOrCmd && e.key.toLowerCase() === 'f') {
         if (!diffEditorRef.current) return;
         e.preventDefault();
-        const origEditor = diffEditorRef.current.getOriginalEditor();
-        const modEditor = diffEditorRef.current.getModifiedEditor();
-        const targetSide = origEditor.hasTextFocus() ? 'left' : modEditor.hasTextFocus() ? 'right' : activeFocusSide;
+        const targetSide = origEditor?.hasTextFocus() ? 'left' : modEditor?.hasTextFocus() ? 'right' : activeFocusSide;
         const targetEditor = targetSide === 'left' ? origEditor : modEditor;
-        targetEditor.focus();
-        targetEditor.getAction('actions.find')?.run();
+        targetEditor?.focus();
+        targetEditor?.getAction('actions.find')?.run();
         return;
       }
 
-      // 4. Save: Ctrl+S / Cmd+S based on focus with popup confirmation
+      // Save: Ctrl+S / Cmd+S based on focus with popup confirmation
       if (isCtrlOrCmd && e.key.toLowerCase() === 's') {
         if (!diffEditorRef.current) return;
         e.preventDefault();
-        const origEditor = diffEditorRef.current.getOriginalEditor();
-        const modEditor = diffEditorRef.current.getModifiedEditor();
-        const targetSide = origEditor.hasTextFocus() ? 'left' : modEditor.hasTextFocus() ? 'right' : activeFocusSide;
+        const targetSide = origEditor?.hasTextFocus() ? 'left' : modEditor?.hasTextFocus() ? 'right' : activeFocusSide;
         if (targetSide === 'left') {
           handleSaveLeft();
         } else {
@@ -1086,11 +1065,35 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         }
         return;
       }
+
+      // When editor has focus, DO NOT intercept Ctrl+Z / Ctrl+Y - let Monaco handle undo/redo natively!
+      if (hasEditorFocus) return;
+
+      // Fallback global Undo: Ctrl+Z / Cmd+Z when editor doesn't have focus
+      if (isCtrlOrCmd && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        const targetEditor = lastModifiedSide === 'left' ? origEditor : modEditor;
+        targetEditor?.focus();
+        targetEditor?.trigger('keyboard', 'undo', null);
+        return;
+      }
+
+      // Fallback global Redo: Ctrl+Y / Cmd+Shift+Z when editor doesn't have focus
+      if (
+        (isCtrlOrCmd && e.key.toLowerCase() === 'y') ||
+        (isCtrlOrCmd && e.shiftKey && e.key.toLowerCase() === 'z')
+      ) {
+        e.preventDefault();
+        const targetEditor = lastModifiedSide === 'left' ? origEditor : modEditor;
+        targetEditor?.focus();
+        targetEditor?.trigger('keyboard', 'redo', null);
+        return;
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeFocusSide, lastModifiedSide, handleSaveLeft, handleSaveRight]);
+  }, [activeFocusSide, lastModifiedSide, handleSaveLeft, handleSaveRight, handleCopyL2R, handleCopyR2L]);
 
   const language = detectLanguage(leftPath || rightPath);
   const leftMeta = formatFileMetadata(leftData, leftPath);
@@ -1154,9 +1157,9 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
               onClick={() => setActiveFilter('all')}
               data-action="filter-all"
               title="Show All Lines (*)"
-              className={`px-2 py-0.5 rounded text-[11px] font-medium transition ${
+              className={`px-2.5 py-0.5 rounded text-[11px] font-medium transition ${
                 activeFilter === 'all'
-                  ? 'bg-blue-600 text-white font-bold'
+                  ? 'bg-neutral-800 text-white dark:bg-neutral-200 dark:text-neutral-950 font-semibold shadow-xs'
                   : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
               }`}
             >
@@ -1166,9 +1169,9 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
               onClick={() => setActiveFilter('diffs')}
               data-action="filter-diffs"
               title="Show Differences Only (≠)"
-              className={`px-2 py-0.5 rounded text-[11px] font-medium transition ${
+              className={`px-2.5 py-0.5 rounded text-[11px] font-medium transition ${
                 activeFilter === 'diffs'
-                  ? 'bg-red-600 text-white font-bold'
+                  ? 'bg-neutral-800 text-white dark:bg-neutral-200 dark:text-neutral-950 font-semibold shadow-xs'
                   : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
               }`}
             >
@@ -1178,9 +1181,9 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
               onClick={() => setActiveFilter('same')}
               data-action="filter-same"
               title="Show Same Only (=)"
-              className={`px-2 py-0.5 rounded text-[11px] font-medium transition ${
+              className={`px-2.5 py-0.5 rounded text-[11px] font-medium transition ${
                 activeFilter === 'same'
-                  ? 'bg-emerald-600 text-white font-bold'
+                  ? 'bg-neutral-800 text-white dark:bg-neutral-200 dark:text-neutral-950 font-semibold shadow-xs'
                   : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
               }`}
             >
@@ -1447,47 +1450,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         </div>
       )}
 
-      {/* ================= 4. Active Diff Paragraph / Selection Action Floating Bar ================= */}
-      {(activeDiffChunk || activeSelection) && (
-        <div className="bg-blue-50/90 dark:bg-[#121212] border-b border-blue-200 dark:border-neutral-800 px-3 py-1 flex items-center justify-between text-xs flex-shrink-0 select-none shadow-xs">
-          <div className="flex items-center space-x-2">
-            <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
-            <span className="font-semibold text-blue-800 dark:text-blue-300 text-[11px]">
-              {activeSelection
-                ? `Selected Lines ${activeSelection.startLine}–${activeSelection.endLine} (${activeSelection.side === 'left' ? 'Left' : 'Right'})`
-                : `Diff Paragraph Lines ${activeDiffChunk?.originalStart || activeDiffChunk?.modifiedStart}–${activeDiffChunk?.originalEnd || activeDiffChunk?.modifiedEnd}`}
-            </span>
-            <span className="text-neutral-500 text-[10px]">• Click ⇨ or ⇦ to copy directly</span>
-          </div>
 
-          <div className="flex items-center space-x-1.5">
-            <button
-              onClick={handleCopyL2R}
-              title="Copy this section from Left to Right (⇨)"
-              className="flex items-center space-x-1 px-2.5 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium text-[11px] shadow-xs transition"
-            >
-              <ArrowRight className="w-3 h-3" />
-              <span>Copy to Right (⇨)</span>
-            </button>
-            <button
-              onClick={handleCopyR2L}
-              title="Copy this section from Right to Left (⇦)"
-              className="flex items-center space-x-1 px-2.5 py-0.5 rounded bg-purple-600 hover:bg-purple-500 text-white font-medium text-[11px] shadow-xs transition"
-            >
-              <ArrowLeft className="w-3 h-3" />
-              <span>Copy to Left (⇦)</span>
-            </button>
-            <button
-              onClick={handleCopyTextToClipboard}
-              title="Copy text of this diff paragraph to clipboard"
-              className="flex items-center space-x-1 px-2 py-0.5 rounded bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 text-[11px] shadow-xs transition"
-            >
-              <Copy className="w-3 h-3 text-neutral-500" />
-              <span>Copy Paragraph</span>
-            </button>
-          </div>
-        </div>
-      )}
 
 
       {/* Warnings & Errors */}

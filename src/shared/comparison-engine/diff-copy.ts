@@ -421,3 +421,118 @@ export function executeChunkCopyR2L(
 
   return false;
 }
+
+export interface HiddenRange {
+  startLineNumber: number;
+  startColumn: number;
+  endLineNumber: number;
+  endColumn: number;
+}
+
+/**
+ * Computes all unchanged (identical) line ranges between diff chunks.
+ * Used for "Diffs Only" view filter to hide matching lines and show ONLY differences.
+ */
+export function computeUnchangedRanges(
+  chunks: DiffChunk[],
+  totalLines: number,
+  side: 'left' | 'right'
+): HiddenRange[] {
+  if (totalLines <= 0) return [];
+  if (!chunks.length) {
+    return [{ startLineNumber: 1, startColumn: 1, endLineNumber: totalLines, endColumn: 1 }];
+  }
+
+  const ranges = chunks
+    .map((c) => {
+      const s = side === 'left' ? c.originalStart : c.modifiedStart;
+      const e = side === 'left' ? c.originalEnd : c.modifiedEnd;
+      if (s > 0 && e >= s) {
+        return { start: s, end: e };
+      }
+      // If it's a gap on this side (e.g. s is anchor line, e is 0)
+      if (s > 0 && e === 0) {
+        return { start: Math.max(1, s), end: Math.min(totalLines, s + 1) };
+      }
+      return null;
+    })
+    .filter((r): r is { start: number; end: number } => r !== null)
+    .sort((a, b) => a.start - b.start);
+
+  const mergedRanges: { start: number; end: number }[] = [];
+  for (const r of ranges) {
+    if (!mergedRanges.length) {
+      mergedRanges.push({ ...r });
+    } else {
+      const last = mergedRanges[mergedRanges.length - 1];
+      if (r.start <= last.end + 1) {
+        last.end = Math.max(last.end, r.end);
+      } else {
+        mergedRanges.push({ ...r });
+      }
+    }
+  }
+
+  const unchanged: HiddenRange[] = [];
+  let currentLine = 1;
+
+  for (const r of mergedRanges) {
+    if (r.start > currentLine) {
+      unchanged.push({
+        startLineNumber: currentLine,
+        startColumn: 1,
+        endLineNumber: r.start - 1,
+        endColumn: 1,
+      });
+    }
+    currentLine = Math.max(currentLine, r.end + 1);
+  }
+
+  if (currentLine <= totalLines) {
+    unchanged.push({
+      startLineNumber: currentLine,
+      startColumn: 1,
+      endLineNumber: totalLines,
+      endColumn: 1,
+    });
+  }
+
+  return unchanged;
+}
+
+/**
+ * Computes all difference line ranges.
+ * Used for "Same Only" view filter to hide differences and show ONLY matching lines.
+ */
+export function computeDiffRanges(
+  chunks: DiffChunk[],
+  side: 'left' | 'right'
+): HiddenRange[] {
+  const ranges = chunks
+    .map((c) => {
+      const s = side === 'left' ? c.originalStart : c.modifiedStart;
+      const e = side === 'left' ? c.originalEnd : c.modifiedEnd;
+      if (s > 0 && e >= s) {
+        return { start: s, end: e };
+      }
+      return null;
+    })
+    .filter((r): r is { start: number; end: number } => r !== null)
+    .sort((a, b) => a.start - b.start);
+
+  const merged: HiddenRange[] = [];
+  for (const r of ranges) {
+    if (!merged.length) {
+      merged.push({ startLineNumber: r.start, startColumn: 1, endLineNumber: r.end, endColumn: 1 });
+    } else {
+      const last = merged[merged.length - 1];
+      if (r.start <= last.endLineNumber + 1) {
+        last.endLineNumber = Math.max(last.endLineNumber, r.end);
+      } else {
+        merged.push({ startLineNumber: r.start, startColumn: 1, endLineNumber: r.end, endColumn: 1 });
+      }
+    }
+  }
+
+  return merged;
+}
