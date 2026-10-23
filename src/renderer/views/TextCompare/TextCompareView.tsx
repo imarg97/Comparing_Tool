@@ -707,20 +707,110 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         }
       });
 
-      // Paste listener for left editor: trigger flash animation on pasted lines
+      // Paste listener for left editor: clean line alignment & trigger flash animation
       origEditor.onDidPaste((e: any) => {
         const pasteRange = e.range;
         if (!pasteRange) return;
-        flashCopiedHighlight('left', pasteRange.startLineNumber, pasteRange.endLineNumber);
-        onUpdateStatus('Pasted content');
+        const origModel = origEditor.getModel();
+        if (!origModel) return;
+
+        const startLine = pasteRange.startLineNumber;
+        const endLine = pasteRange.endLineNumber;
+        const startCol = pasteRange.startColumn;
+        const endCol = pasteRange.endColumn;
+
+        const lineContent = origModel.getLineContent(startLine);
+        const beforePaste = lineContent.substring(0, Math.max(0, startCol - 1));
+        const endLineContent = origModel.getLineContent(endLine);
+        const afterPaste = endLineContent.substring(Math.max(0, endCol - 1));
+        const pastedText = origModel.getValueInRange(pasteRange);
+
+        let targetFlashStart = startLine;
+        let targetFlashEnd = endLine;
+
+        if (
+          beforePaste.trim().length > 0 &&
+          (beforePaste.trim().endsWith('>') || pastedText.trim().startsWith('<') || pastedText.includes('\n'))
+        ) {
+          const splitBeforeRange = {
+            startLineNumber: startLine,
+            startColumn: startCol,
+            endLineNumber: startLine,
+            endColumn: startCol,
+          };
+          origModel.pushEditOperations([], [{ range: splitBeforeRange, text: '\n' }], () => null);
+          targetFlashStart = startLine + 1;
+          targetFlashEnd = endLine + 1;
+        }
+
+        if (
+          afterPaste.trim().length > 0 &&
+          (afterPaste.trim().startsWith('<') || pastedText.trim().endsWith('>') || pastedText.includes('\n'))
+        ) {
+          const splitAfterRange = {
+            startLineNumber: targetFlashEnd,
+            startColumn: targetFlashStart > startLine ? endCol : endCol,
+            endLineNumber: targetFlashEnd,
+            endColumn: targetFlashStart > startLine ? endCol : endCol,
+          };
+          origModel.pushEditOperations([], [{ range: splitAfterRange, text: '\n' }], () => null);
+        }
+
+        flashCopiedHighlight('left', targetFlashStart, targetFlashEnd);
+        onUpdateStatus('Pasted content with clean line alignment');
       });
 
-      // Paste listener for right editor: trigger flash animation on pasted lines
+      // Paste listener for right editor: clean line alignment & trigger flash animation
       modEditor.onDidPaste((e: any) => {
         const pasteRange = e.range;
         if (!pasteRange) return;
-        flashCopiedHighlight('right', pasteRange.startLineNumber, pasteRange.endLineNumber);
-        onUpdateStatus('Pasted content');
+        const modModel = modEditor.getModel();
+        if (!modModel) return;
+
+        const startLine = pasteRange.startLineNumber;
+        const endLine = pasteRange.endLineNumber;
+        const startCol = pasteRange.startColumn;
+        const endCol = pasteRange.endColumn;
+
+        const lineContent = modModel.getLineContent(startLine);
+        const beforePaste = lineContent.substring(0, Math.max(0, startCol - 1));
+        const endLineContent = modModel.getLineContent(endLine);
+        const afterPaste = endLineContent.substring(Math.max(0, endCol - 1));
+        const pastedText = modModel.getValueInRange(pasteRange);
+
+        let targetFlashStart = startLine;
+        let targetFlashEnd = endLine;
+
+        if (
+          beforePaste.trim().length > 0 &&
+          (beforePaste.trim().endsWith('>') || pastedText.trim().startsWith('<') || pastedText.includes('\n'))
+        ) {
+          const splitBeforeRange = {
+            startLineNumber: startLine,
+            startColumn: startCol,
+            endLineNumber: startLine,
+            endColumn: startCol,
+          };
+          modModel.pushEditOperations([], [{ range: splitBeforeRange, text: '\n' }], () => null);
+          targetFlashStart = startLine + 1;
+          targetFlashEnd = endLine + 1;
+        }
+
+        if (
+          afterPaste.trim().length > 0 &&
+          (afterPaste.trim().startsWith('<') || pastedText.trim().endsWith('>') || pastedText.includes('\n'))
+        ) {
+          const splitAfterRange = {
+            startLineNumber: targetFlashEnd,
+            startColumn: targetFlashStart > startLine ? endCol : endCol,
+            endLineNumber: targetFlashEnd,
+            endColumn: targetFlashStart > startLine ? endCol : endCol,
+          };
+          modModel.pushEditOperations([], [{ range: splitAfterRange, text: '\n' }], () => null);
+        }
+
+        flashCopiedHighlight('right', targetFlashStart, targetFlashEnd);
+        onUpdateStatus('Pasted content with clean line alignment');
       });
 
       origEditor.onDidChangeModelContent(() => {

@@ -82,18 +82,22 @@
   color: #71717a !important;
 }
 
-/* Text Selection Highlight: high contrast over BOTH normal and red diff backgrounds */
+/* Text lines MUST sit above selection backgrounds so text and syntax coloring are always 100% visible */
+.monaco-editor .view-lines,
+.monaco-diff-editor .view-lines {
+  z-index: 2 !important;
+  position: relative !important;
+}
+
+/* Text Selection Highlight: translucent Beyond Compare sky blue (light) and royal blue (dark) */
 .monaco-editor .selected-text,
 .monaco-diff-editor .selected-text,
 .monaco-diff-editor .lines-content .selected-text,
 .monaco-editor .view-overlays .selected-text,
 .monaco-diff-editor .view-overlays .selected-text {
-  background-color: #60a5fa !important; /* Bright sky blue in light mode */
-  color: #0f172a !important;
-  opacity: 1 !important;
-  z-index: 40 !important;
+  background-color: rgba(147, 197, 253, 0.55) !important; /* Soft translucent sky blue */
+  z-index: 1 !important;
   border-radius: 2px !important;
-  box-shadow: 0 0 0 1px #3b82f6 !important;
 }
 
 .dark .monaco-editor .selected-text,
@@ -101,29 +105,26 @@
 .dark .monaco-diff-editor .lines-content .selected-text,
 .dark .monaco-editor .view-overlays .selected-text,
 .dark .monaco-diff-editor .view-overlays .selected-text {
-  background-color: #2563eb !important; /* Vivid electric royal blue in dark mode */
-  color: #ffffff !important;
-  opacity: 1 !important;
-  z-index: 40 !important;
+  background-color: rgba(37, 99, 235, 0.45) !important; /* Translucent royal blue: text stays fully legible */
+  z-index: 1 !important;
   border-radius: 2px !important;
-  box-shadow: 0 0 0 1px #60a5fa !important;
 }
 
 /* Active User Selection Line Range Highlight (1 line or 5 lines) */
 .diffx-active-selection-range {
-  background-color: rgba(59, 130, 246, 0.25) !important;
-  border-top: 1px dashed #3b82f6 !important;
-  border-bottom: 1px dashed #3b82f6 !important;
-  box-shadow: inset 4px 0 0 #2563eb !important;
-  z-index: 25 !important;
+  background-color: rgba(59, 130, 246, 0.12) !important; /* Gentle 12% tint */
+  border-top: 1px dashed rgba(59, 130, 246, 0.5) !important;
+  border-bottom: 1px dashed rgba(59, 130, 246, 0.5) !important;
+  box-shadow: inset 3px 0 0 #3b82f6 !important;
+  z-index: 1 !important;
 }
 
 .dark .diffx-active-selection-range {
-  background-color: rgba(37, 99, 235, 0.40) !important;
-  border-top: 1px dashed #60a5fa !important;
-  border-bottom: 1px dashed #60a5fa !important;
-  box-shadow: inset 4px 0 0 #60a5fa !important;
-  z-index: 25 !important;
+  background-color: rgba(37, 99, 235, 0.18) !important; /* Gentle 18% tint */
+  border-top: 1px dashed rgba(96, 165, 250, 0.5) !important;
+  border-bottom: 1px dashed rgba(96, 165, 250, 0.5) !important;
+  box-shadow: inset 3px 0 0 #60a5fa !important;
+  z-index: 1 !important;
 }
 
 /* Light Mode: Beyond Compare calibrated rose wash with crisp dark text */
