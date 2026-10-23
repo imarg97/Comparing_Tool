@@ -1,0 +1,2 @@
+Left version of configuration
+port: 8080

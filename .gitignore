@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Production & Build Artifacts
+dist/
+dist-electron/
+release/
+
+# Testing
+coverage/
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# IDE & Logs
+*.log
+.vscode/
+.idea/
