@@ -321,7 +321,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
   };
 
   // Flash highlight on copied differences (L2R or R2L) with Beyond Compare smooth animation
-  const flashCopiedHighlight = (side: 'left' | 'right', startLine: number, endLine: number, shouldFocus: boolean = true) => {
+  const flashCopiedHighlight = (side: 'left' | 'right', startLine: number, endLine: number, shouldFocus: boolean = false) => {
     if (!diffEditorRef.current) return;
     try {
       const editor = side === 'left' ? diffEditorRef.current.getOriginalEditor() : diffEditorRef.current.getModifiedEditor();
@@ -353,7 +353,15 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         copiedHighlightDecsRef.current.right = editor.deltaDecorations(copiedHighlightDecsRef.current.right, decs);
       }
 
-      editor.revealLinesInCenter(s, e);
+      // Check if lines are already visible in viewport - prevent violent scroll jump
+      const visibleRanges = typeof editor.getVisibleRanges === 'function' ? editor.getVisibleRanges() : [];
+      const isVisible = visibleRanges.some(
+        (r: any) => s >= r.startLineNumber && e <= r.endLineNumber
+      );
+      if (!isVisible && typeof editor.revealLinesInCenterIfOutsideViewport === 'function') {
+        editor.revealLinesInCenterIfOutsideViewport(s, e);
+      }
+
       if (shouldFocus) {
         editor.setPosition({ lineNumber: s, column: 1 });
         editor.focus();
@@ -374,6 +382,121 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     } catch {
       // ignore
     }
+  };
+
+  // Handle click on diff alignment empty space (view zone / gap) to place cursor right in the gap
+  const handleDiffGapClick = (
+    targetEditor: any,
+    side: 'left' | 'right',
+    e: any,
+    chunks: DiffChunk[]
+  ): boolean => {
+    try {
+      // Don't intercept gutter copy arrows
+      const isGlyphArrow =
+        e.target?.element?.classList?.contains('diffx-glyph-copy-l2r') ||
+        e.target?.element?.classList?.contains('diffx-line-copy-l2r') ||
+        e.target?.element?.classList?.contains('diffx-glyph-copy-r2l') ||
+        e.target?.element?.classList?.contains('diffx-line-copy-r2l') ||
+        Boolean(e.target?.element?.closest?.('.diffx-glyph-copy-l2r')) ||
+        Boolean(e.target?.element?.closest?.('.diffx-line-copy-l2r')) ||
+        Boolean(e.target?.element?.closest?.('.diffx-glyph-copy-r2l')) ||
+        Boolean(e.target?.element?.closest?.('.diffx-line-copy-r2l'));
+
+      if (isGlyphArrow) return false;
+
+      const targetType = e.target?.type;
+      const el = e.target?.element;
+      // Monaco MouseTargetType: 5 is GUTTER_VIEW_ZONE, 8 is CONTENT_VIEW_ZONE
+      const isViewZoneType = targetType === 5 || targetType === 8;
+      const hasViewZoneClass =
+        el?.classList?.contains('view-zone') ||
+        Boolean(el?.closest?.('.view-zone')) ||
+        Boolean(el?.closest?.('.diff-hidden-lines')) ||
+        Boolean(el?.closest?.('.diagonal-fill'));
+
+      let afterLineNumber: number | null = null;
+
+      if (e.target?.detail?.afterLineNumber !== undefined) {
+        afterLineNumber = e.target.detail.afterLineNumber;
+      }
+
+      const line = e.target?.position?.lineNumber;
+      if (afterLineNumber === null) {
+        if (isViewZoneType || hasViewZoneClass) {
+          const refLine = line || cursorLineNumber || 1;
+          const matchingChunk = chunks.find((c) =>
+            side === 'left'
+              ? c.originalStart === refLine && (c.originalEnd === 0 || c.originalEnd < c.originalStart)
+              : c.modifiedStart === refLine && (c.modifiedEnd === 0 || c.modifiedEnd < c.modifiedStart)
+          );
+          if (matchingChunk) {
+            afterLineNumber = side === 'left' ? matchingChunk.originalStart : matchingChunk.modifiedStart;
+          } else if (line) {
+            afterLineNumber = line;
+          }
+        } else if (line && e.target?.type === 7) {
+          const matchingChunk = chunks.find((c) =>
+            side === 'left'
+              ? c.originalStart === line && (c.originalEnd === 0 || c.originalEnd < c.originalStart)
+              : c.modifiedStart === line && (c.modifiedEnd === 0 || c.modifiedEnd < c.modifiedStart)
+          );
+          if (matchingChunk) {
+            afterLineNumber = line;
+          }
+        }
+      }
+
+      if (afterLineNumber !== null || isViewZoneType || hasViewZoneClass) {
+        const model = targetEditor.getModel();
+        if (!model) return false;
+
+        const lineCount = model.getLineCount();
+        const resolvedAfterLine = afterLineNumber !== null ? afterLineNumber : 0;
+        const targetLine = Math.min(Math.max(1, resolvedAfterLine + 1), lineCount + 1);
+
+        const currentLineText = targetLine <= lineCount ? model.getLineContent(targetLine) : null;
+        if (currentLineText !== '') {
+          if (targetLine > lineCount) {
+            const maxCol = model.getLineMaxColumn(lineCount);
+            model.pushEditOperations(
+              [],
+              [{ range: { startLineNumber: lineCount, startColumn: maxCol, endLineNumber: lineCount, endColumn: maxCol }, text: '\n' }],
+              () => null
+            );
+          } else {
+            model.pushEditOperations(
+              [],
+              [{ range: { startLineNumber: targetLine, startColumn: 1, endLineNumber: targetLine, endColumn: 1 }, text: '\n' }],
+              () => null
+            );
+          }
+        }
+
+        targetEditor.setPosition({ lineNumber: targetLine, column: 1 });
+        targetEditor.focus();
+        setActiveFocusSide(side);
+        updateLineDetails(targetLine);
+
+        setTimeout(() => {
+          try {
+            targetEditor.setPosition({ lineNumber: targetLine, column: 1 });
+            targetEditor.focus();
+          } catch {
+            // ignore
+          }
+        }, 20);
+
+        if (e.event) {
+          e.event.preventDefault?.();
+          e.event.stopPropagation?.();
+        }
+        return true;
+      }
+    } catch {
+      // non-fatal
+    }
+    return false;
   };
 
   // View Filter: All (*), Diffs (≠), Same (=)
@@ -838,9 +961,14 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         }
       });
 
-      // Click on Left Editor Gutter Glyph Arrow (⇨)
+      // Click on Left Editor Gutter Glyph Arrow (⇨) or diff gap
       origEditor.onMouseDown((e: any) => {
         setActiveFocusSide('left');
+
+        // Check if click is in a diff alignment gap / view zone to place cursor cleanly
+        const handledGap = handleDiffGapClick(origEditor, 'left', e, chunksRef.current);
+        if (handledGap) return;
+
         const line = e.target?.position?.lineNumber;
         if (!line) return;
 
@@ -867,7 +995,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
               setActiveFocusSide('right');
               flashCopiedHighlight('left', activeSelection.startLine, activeSelection.endLine, false);
               if (outRange.startLine > 0) {
-                flashCopiedHighlight('right', outRange.startLine, outRange.endLine, true);
+                flashCopiedHighlight('right', outRange.startLine, outRange.endLine, false);
               }
               onUpdateStatus(`Copied selected lines ${activeSelection.startLine}–${activeSelection.endLine} Left ⇨ Right`);
             } else if (chunk) {
@@ -878,7 +1006,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
               setActiveFocusSide('right');
               flashCopiedHighlight('left', chunk.originalStart, chunk.originalEnd || chunk.originalStart, false);
               if (outRange.startLine > 0) {
-                flashCopiedHighlight('right', outRange.startLine, outRange.endLine, true);
+                flashCopiedHighlight('right', outRange.startLine, outRange.endLine, false);
               }
               onUpdateStatus(`Copied diff lines ${chunk.originalStart}–${chunk.originalEnd || chunk.originalStart} Left ⇨ Right`);
             }
@@ -886,9 +1014,14 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         }
       });
 
-      // Click on Right Editor Gutter Glyph Arrow (⇦)
+      // Click on Right Editor Gutter Glyph Arrow (⇦) or diff gap
       modEditor.onMouseDown((e: any) => {
         setActiveFocusSide('right');
+
+        // Check if click is in a diff alignment gap / view zone to place cursor cleanly
+        const handledGap = handleDiffGapClick(modEditor, 'right', e, chunksRef.current);
+        if (handledGap) return;
+
         const line = e.target?.position?.lineNumber;
         if (!line) return;
 
@@ -915,7 +1048,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
               setActiveFocusSide('left');
               flashCopiedHighlight('right', activeSelection.startLine, activeSelection.endLine, false);
               if (outRange.startLine > 0) {
-                flashCopiedHighlight('left', outRange.startLine, outRange.endLine, true);
+                flashCopiedHighlight('left', outRange.startLine, outRange.endLine, false);
               }
               onUpdateStatus(`Copied selected lines ${activeSelection.startLine}–${activeSelection.endLine} Right ⇦ Left`);
             } else if (chunk) {
@@ -926,7 +1059,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
               setActiveFocusSide('left');
               flashCopiedHighlight('right', chunk.modifiedStart, chunk.modifiedEnd || chunk.modifiedStart, false);
               if (outRange.startLine > 0) {
-                flashCopiedHighlight('left', outRange.startLine, outRange.endLine, true);
+                flashCopiedHighlight('left', outRange.startLine, outRange.endLine, false);
               }
               onUpdateStatus(`Copied diff lines ${chunk.modifiedStart}–${chunk.modifiedEnd || chunk.modifiedStart} Right ⇦ Left`);
             }
@@ -996,7 +1129,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       setActiveFocusSide('right');
       flashCopiedHighlight('left', activeSelection.startLine, activeSelection.endLine, false);
       if (outRange.startLine > 0) {
-        flashCopiedHighlight('right', outRange.startLine, outRange.endLine, true);
+        flashCopiedHighlight('right', outRange.startLine, outRange.endLine, false);
       }
       onUpdateStatus(`Copied selected lines ${activeSelection.startLine}–${activeSelection.endLine} Left ⇨ Right`);
       return;
@@ -1013,7 +1146,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       setActiveFocusSide('right');
       flashCopiedHighlight('left', chunk.originalStart, chunk.originalEnd || chunk.originalStart, false);
       if (outRange.startLine > 0) {
-        flashCopiedHighlight('right', outRange.startLine, outRange.endLine, true);
+        flashCopiedHighlight('right', outRange.startLine, outRange.endLine, false);
       }
       onUpdateStatus(`Copied diff lines ${chunk.originalStart}–${chunk.originalEnd || chunk.originalStart} Left ⇨ Right`);
     }
@@ -1039,7 +1172,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       setActiveFocusSide('left');
       flashCopiedHighlight('right', activeSelection.startLine, activeSelection.endLine, false);
       if (outRange.startLine > 0) {
-        flashCopiedHighlight('left', outRange.startLine, outRange.endLine, true);
+        flashCopiedHighlight('left', outRange.startLine, outRange.endLine, false);
       }
       onUpdateStatus(`Copied selected lines ${activeSelection.startLine}–${activeSelection.endLine} Right ⇦ Left`);
       return;
@@ -1056,7 +1189,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       setActiveFocusSide('left');
       flashCopiedHighlight('right', chunk.modifiedStart, chunk.modifiedEnd || chunk.modifiedStart, false);
       if (outRange.startLine > 0) {
-        flashCopiedHighlight('left', outRange.startLine, outRange.endLine, true);
+        flashCopiedHighlight('left', outRange.startLine, outRange.endLine, false);
       }
       onUpdateStatus(`Copied diff lines ${chunk.modifiedStart}–${chunk.modifiedEnd || chunk.modifiedStart} Right ⇦ Left`);
     }
@@ -1083,7 +1216,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     setRightEditorContent(modModel.getValue());
     setRightDirty(true);
     flashCopiedHighlight('left', cursorLineNumber, cursorLineNumber, false);
-    flashCopiedHighlight('right', rightLineNum, rightLineNum, true);
+    flashCopiedHighlight('right', rightLineNum, rightLineNum, false);
     onUpdateStatus(`Copied line ${cursorLineNumber} Left ⇨ Right`);
   };
 
@@ -1106,7 +1239,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     setLeftEditorContent(origModel.getValue());
     setLeftDirty(true);
     flashCopiedHighlight('right', cursorLineNumber, cursorLineNumber, false);
-    flashCopiedHighlight('left', leftLineNum, leftLineNum, true);
+    flashCopiedHighlight('left', leftLineNum, leftLineNum, false);
     onUpdateStatus(`Copied line ${cursorLineNumber} Right ⇦ Left`);
   };
 
@@ -1679,16 +1812,31 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
                   base: 'vs',
                   inherit: true,
                   rules: [
-                    { token: '', foreground: '111827' },
+                    { token: '', foreground: '09090b' },
+                    { token: 'tag', foreground: '0284c7' },
+                    { token: 'tag.xml', foreground: '0284c7' },
+                    { token: 'tag.id.xml', foreground: 'b91c1c', fontStyle: 'bold' },
+                    { token: 'metatag.xml', foreground: '4338ca' },
+                    { token: 'attribute.name', foreground: '9a3412', fontStyle: 'bold' },
+                    { token: 'attribute.name.xml', foreground: '9a3412', fontStyle: 'bold' },
+                    { token: 'attribute.value', foreground: '15803d' },
+                    { token: 'attribute.value.xml', foreground: '15803d' },
+                    { token: 'string', foreground: '15803d' },
+                    { token: 'string.xml', foreground: '15803d' },
+                    { token: 'number', foreground: 'c2410c' },
+                    { token: 'keyword', foreground: '7c3aed', fontStyle: 'bold' },
+                    { token: 'delimiter', foreground: '334155' },
+                    { token: 'delimiter.xml', foreground: '0284c7' },
+                    { token: 'comment', foreground: '64748b', fontStyle: 'italic' },
                   ],
                   colors: {
                     'editor.background': '#ffffff',
-                    'editor.foreground': '#111827',
+                    'editor.foreground': '#09090b',
                     'editorGutter.background': '#f8fafc',
-                    'editorLineNumber.foreground': '#94a3b8',
-                    'editorLineNumber.activeForeground': '#0f172a',
-                    'editor.selectionBackground': '#60a5fa',
-                    'editor.selectionHighlightBackground': '#93c5fd',
+                    'editorLineNumber.foreground': '#64748b',
+                    'editorLineNumber.activeForeground': '#09090b',
+                    'editor.selectionBackground': '#93c5fd88',
+                    'editor.selectionHighlightBackground': '#bfdbfe66',
                     'diffEditor.insertedTextBackground': '#fca5a5',
                     'diffEditor.removedTextBackground': '#fca5a5',
                     'diffEditor.insertedLineBackground': '#ffe4e6',
@@ -1703,22 +1851,28 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
                   base: 'vs-dark',
                   inherit: true,
                   rules: [
-                    { token: '', foreground: 'e2e8f0' },
-                    { token: 'comment', foreground: '64657a', fontStyle: 'italic' },
-                    { token: 'keyword', foreground: 'c084fc' },
-                    { token: 'string', foreground: '6ee7b7' },
-                    { token: 'number', foreground: 'fcd34d' },
-                    { token: 'tag', foreground: '60a5fa' },
-                    { token: 'attribute.name', foreground: 'a78bfa' },
-                    { token: 'attribute.value', foreground: '86efac' },
-                    { token: 'delimiter', foreground: '94a3b8' },
+                    { token: '', foreground: 'f8fafc' },
+                    { token: 'comment', foreground: '94a3b8', fontStyle: 'italic' },
+                    { token: 'keyword', foreground: 'f472b6', fontStyle: 'bold' },
+                    { token: 'string', foreground: '4ade80' },
+                    { token: 'string.xml', foreground: '4ade80' },
+                    { token: 'number', foreground: 'fde047' },
+                    { token: 'tag', foreground: '38bdf8' },
+                    { token: 'tag.xml', foreground: '38bdf8' },
+                    { token: 'tag.id.xml', foreground: 'fb7185', fontStyle: 'bold' },
+                    { token: 'attribute.name', foreground: 'fbbf24', fontStyle: 'bold' },
+                    { token: 'attribute.name.xml', foreground: 'fbbf24', fontStyle: 'bold' },
+                    { token: 'attribute.value', foreground: '34d399' },
+                    { token: 'attribute.value.xml', foreground: '34d399' },
+                    { token: 'delimiter', foreground: 'cbd5e1' },
+                    { token: 'delimiter.xml', foreground: '38bdf8' },
                   ],
                   colors: {
                     'editor.background': '#161622',
-                    'editor.foreground': '#e2e8f0',
+                    'editor.foreground': '#f8fafc',
                     'editorGutter.background': '#13141d',
-                    'editorLineNumber.foreground': '#52526e',
-                    'editorLineNumber.activeForeground': '#a5a6c2',
+                    'editorLineNumber.foreground': '#64748b',
+                    'editorLineNumber.activeForeground': '#f8fafc',
                     'editor.selectionBackground': '#6366f155',
                     'editor.selectionHighlightBackground': '#6366f133',
                     'diffEditor.insertedTextBackground': '#584116',
@@ -1737,8 +1891,10 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
                 ignoreTrimWhitespace: options.ignoreWhitespace !== 'none',
                 readOnly: false,
                 originalEditable: true,
-                fontSize: 12,
-                fontFamily: "'Consolas', 'Courier New', 'SFMono-Regular', Menlo, Monaco, monospace",
+                fontSize: 13.5,
+                lineHeight: 22,
+                fontWeight: '500',
+                fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', Menlo, Monaco, Consolas, monospace",
                 minimap: { enabled: false },
                 scrollBeyondLastLine: false,
                 automaticLayout: true,
