@@ -322,6 +322,21 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
             break;
           }
         }
+
+        if (!stored) {
+          const savedText = (basename && localStorage.getItem(`diffx_saved_${basename}`)) || localStorage.getItem(`diffx_saved_${filePath}`);
+          if (savedText !== null) {
+            return {
+              path: filePath,
+              content: savedText,
+              encoding: 'utf-8',
+              size: savedText.length,
+              mtime: Date.now(),
+              isTruncated: false,
+              hash: 'saved-in-app-hash',
+            };
+          }
+        }
       }
 
       if (stored) {
@@ -352,22 +367,21 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
     },
 
     saveFile: async (request: SaveRequest) => {
-      // In browser, trigger a download of the modified file
+      // In browser, save directly in memory and application storage without downloading draft files
       const cleanName = request.filePath.split(/[/\\]/).pop() || 'file.txt';
-      const blob = new Blob([request.content], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = cleanName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
 
-      // Also update in-memory cache
+      // Update in-memory file cache
       const updatedFile = new File([request.content], cleanName);
       browserFolderStore.singleFiles.set(request.filePath, updatedFile);
       browserFolderStore.singleFiles.set(cleanName, updatedFile);
+
+      // Persist in localStorage so it stays saved in the web application across reloads
+      try {
+        localStorage.setItem(`diffx_saved_${cleanName}`, request.content);
+        localStorage.setItem(`diffx_saved_${request.filePath}`, request.content);
+      } catch {
+        // storage quota non-fatal
+      }
 
       return {
         success: true,

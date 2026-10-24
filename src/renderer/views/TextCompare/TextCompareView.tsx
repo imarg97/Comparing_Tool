@@ -552,51 +552,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       const newLeftDecs: any[] = [];
       const newRightDecs: any[] = [];
 
-      // 1. ALWAYS render diff chunk arrows for all differences across the files
-      const activeList = canonicalChunksRef.current.length ? canonicalChunksRef.current : chunks;
-      for (const chunk of activeList) {
-        // Show Right Arrow (⇨) on Left only if Left has real lines to copy!
-        if (chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart) {
-          newLeftDecs.push({
-            range: {
-              startLineNumber: chunk.originalStart,
-              startColumn: 1,
-              endLineNumber: chunk.originalStart,
-              endColumn: 1,
-            },
-            options: {
-              isWholeLine: false,
-              glyphMarginClassName: 'diffx-glyph-copy-l2r',
-              linesDecorationsClassName: 'diffx-line-copy-l2r',
-              glyphMarginHoverMessage: {
-                value: `**⇨ Copy Lines ${chunk.originalStart}–${chunk.originalEnd} to Right**`,
-              },
-            },
-          });
-        }
-
-        // Show Left Arrow (⇦) on Right only if Right has real lines to copy!
-        if (chunk.modifiedStart > 0 && chunk.modifiedEnd >= chunk.modifiedStart) {
-          newRightDecs.push({
-            range: {
-              startLineNumber: chunk.modifiedStart,
-              startColumn: 1,
-              endLineNumber: chunk.modifiedStart,
-              endColumn: 1,
-            },
-            options: {
-              isWholeLine: false,
-              glyphMarginClassName: 'diffx-glyph-copy-r2l',
-              linesDecorationsClassName: 'diffx-line-copy-r2l',
-              glyphMarginHoverMessage: {
-                value: `**⇦ Copy Lines ${chunk.modifiedStart}–${chunk.modifiedEnd} to Left**`,
-              },
-            },
-          });
-        }
-      }
-
-      // 2. If user has actively selected specific line(s) (1 line, 5 lines, etc.), highlight the selected lines & place gutter arrow!
+      // If user has actively selected specific line(s) (1 line, 5 lines, etc.), highlight the selected lines
       if (currentSelection && currentSelection.side === 'left') {
         const origModel = origEditor.getModel();
         const maxCol = origModel ? origModel.getLineMaxColumn(currentSelection.endLine) : 1;
@@ -610,11 +566,6 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
           options: {
             isWholeLine: true,
             className: 'diffx-active-selection-range',
-            glyphMarginClassName: 'diffx-glyph-copy-l2r',
-            linesDecorationsClassName: 'diffx-line-copy-l2r',
-            glyphMarginHoverMessage: {
-              value: `**⇨ Copy Selected Lines ${currentSelection.startLine}–${currentSelection.endLine} to Right**`,
-            },
           },
         });
       } else if (currentSelection && currentSelection.side === 'right') {
@@ -630,11 +581,6 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
           options: {
             isWholeLine: true,
             className: 'diffx-active-selection-range',
-            glyphMarginClassName: 'diffx-glyph-copy-r2l',
-            linesDecorationsClassName: 'diffx-line-copy-r2l',
-            glyphMarginHoverMessage: {
-              value: `**⇦ Copy Selected Lines ${currentSelection.startLine}–${currentSelection.endLine} to Left**`,
-            },
           },
         });
       }
@@ -1754,8 +1700,14 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
                 renderGutterMenu: false,
                 renderOverviewRuler: false,
                 diffWordWrap: 'on',
-                glyphMargin: true,
-                lineDecorationsWidth: 20,
+                glyphMargin: false,
+                lineDecorationsWidth: 0,
+                lineNumbers: 'on',
+                lineNumbersMinChars: 4,
+                selectionHighlight: false,
+                occurrencesHighlight: 'off',
+                matchBrackets: 'never',
+                renderValidationDecorations: 'off',
                 stickyScroll: { enabled: false },
                 maxComputationTime: 0,
                 diffAlgorithm: 'advanced',
