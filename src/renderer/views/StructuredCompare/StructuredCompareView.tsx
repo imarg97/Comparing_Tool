@@ -573,7 +573,47 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       const newLeftDecs: any[] = [];
       const newRightDecs: any[] = [];
 
-      // If user has actively selected specific line(s) (1 line, 5 lines, etc.), highlight the selected lines
+      // 1. Render single clean gutter arrow for each difference chunk (never doubled)
+      const activeList = canonicalChunksRef.current.length ? canonicalChunksRef.current : chunks;
+      for (const chunk of activeList) {
+        if (chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart) {
+          newLeftDecs.push({
+            range: {
+              startLineNumber: chunk.originalStart,
+              startColumn: 1,
+              endLineNumber: chunk.originalStart,
+              endColumn: 1,
+            },
+            options: {
+              isWholeLine: false,
+              linesDecorationsClassName: 'diffx-line-copy-l2r',
+              linesDecorationsHoverMessage: {
+                value: `**⇨ Copy Line ${chunk.originalStart} to Right**`,
+              },
+            },
+          });
+        }
+
+        if (chunk.modifiedStart > 0 && chunk.modifiedEnd >= chunk.modifiedStart) {
+          newRightDecs.push({
+            range: {
+              startLineNumber: chunk.modifiedStart,
+              startColumn: 1,
+              endLineNumber: chunk.modifiedStart,
+              endColumn: 1,
+            },
+            options: {
+              isWholeLine: false,
+              linesDecorationsClassName: 'diffx-line-copy-r2l',
+              linesDecorationsHoverMessage: {
+                value: `**⇦ Copy Line ${chunk.modifiedStart} to Left**`,
+              },
+            },
+          });
+        }
+      }
+
+      // 2. If user has actively selected specific line(s) (1 line, 5 lines, etc.), highlight the selected lines & place arrow
       if (currentSelection && currentSelection.side === 'left') {
         const origModel = origEditor.getModel();
         const maxCol = origModel ? origModel.getLineMaxColumn(currentSelection.endLine) : 1;
@@ -587,6 +627,10 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
           options: {
             isWholeLine: true,
             className: 'diffx-active-selection-range',
+            linesDecorationsClassName: 'diffx-line-copy-l2r',
+            linesDecorationsHoverMessage: {
+              value: `**⇨ Copy Selected Lines ${currentSelection.startLine}–${currentSelection.endLine} to Right**`,
+            },
           },
         });
       } else if (currentSelection && currentSelection.side === 'right') {
@@ -602,6 +646,10 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
           options: {
             isWholeLine: true,
             className: 'diffx-active-selection-range',
+            linesDecorationsClassName: 'diffx-line-copy-r2l',
+            linesDecorationsHoverMessage: {
+              value: `**⇦ Copy Selected Lines ${currentSelection.startLine}–${currentSelection.endLine} to Left**`,
+            },
           },
         });
       }
@@ -1719,9 +1767,9 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
                 renderOverviewRuler: false,
                 diffWordWrap: 'on',
                 glyphMargin: false,
-                lineDecorationsWidth: 0,
+                lineDecorationsWidth: 20,
                 lineNumbers: 'on',
-                lineNumbersMinChars: 4,
+                lineNumbersMinChars: 3,
                 selectionHighlight: false,
                 occurrencesHighlight: 'off',
                 matchBrackets: 'never',
