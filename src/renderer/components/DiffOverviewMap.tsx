@@ -64,11 +64,11 @@ export const DiffOverviewMap: React.FC<DiffOverviewMapProps> = ({
     <div
       ref={containerRef}
       onClick={handleClick}
-      title="Comparison Overview Map • Red = Differences, Blue = Alignment Gaps, Blue Box = Viewport"
-      className="w-5 h-full bg-[#f8f8f8] dark:bg-[#141414] border-r border-[#d4d4d4] dark:border-neutral-800 flex-shrink-0 relative select-none cursor-pointer overflow-hidden"
+      title="Comparison Overview Map • Red/Amber = Differences, Blue = Alignment Gaps, Blue Box = Viewport"
+      className="w-5 h-full bg-[#f8f8f8] dark:bg-[#13141d] border-r border-[#d4d4d4] dark:border-[#262638] flex-shrink-0 relative select-none cursor-pointer overflow-hidden"
     >
       {/* Subtle guide line */}
-      <div className="absolute top-0 bottom-0 left-1/2 w-px bg-neutral-200/60 dark:bg-neutral-800/60 pointer-events-none" />
+      <div className="absolute top-0 bottom-0 left-1/2 w-px bg-neutral-200/60 dark:bg-[#262638] pointer-events-none" />
 
       {/* Difference markers (Beyond Compare exact visual fidelity) */}
       {chunks.map((chunk) => {
@@ -107,6 +107,8 @@ export const DiffOverviewMap: React.FC<DiffOverviewMapProps> = ({
             className={`absolute left-0.5 right-0.5 ${
               isAlignmentGap
                 ? 'bg-[#2563eb] hover:bg-[#1d4ed8] dark:bg-[#3b82f6]' // Blue line for alignment gap
+                : isRightOnly
+                ? 'bg-[#d97706] hover:bg-[#b45309] dark:bg-[#f59e0b]' // Amber on right side insertions
                 : 'bg-[#dc2626] hover:bg-[#b91c1c] dark:bg-[#ef4444]' // Red tick or solid bar for text diff
             } cursor-pointer transition-colors shadow-2xs z-10`}
             title={

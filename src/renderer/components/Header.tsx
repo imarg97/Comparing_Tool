@@ -356,7 +356,7 @@ export const Header: React.FC<HeaderProps> = ({
                 >
                   <span className="flex items-center space-x-2">
                     {theme === 'dark' ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-blue-600" />}
-                    <span>Theme: {theme === 'dark' ? 'Light Mode' : 'Pitch Black'}</span>
+                    <span>Theme: {theme === 'dark' ? 'Light Mode' : 'Dark Theme'}</span>
                   </span>
                 </button>
               </div>
@@ -433,7 +433,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={onToggleTheme}
-            title={`Switch to ${theme === 'dark' ? 'Light Mode' : 'Pitch Black'} mode`}
+            title={`Switch to ${theme === 'dark' ? 'Light Mode' : 'Dark Theme'} mode`}
             className="flex items-center space-x-1.5 px-2 py-0.5 rounded text-xs bg-neutral-200 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white transition shadow-xs"
           >
             {theme === 'dark' ? (
@@ -444,7 +444,7 @@ export const Header: React.FC<HeaderProps> = ({
             ) : (
               <>
                 <Moon className="w-3.5 h-3.5 text-blue-600" />
-                <span className="text-[11px] font-medium">Pitch Black</span>
+                <span className="text-[11px] font-medium">Dark Theme</span>
               </>
             )}
           </button>

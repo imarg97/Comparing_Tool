@@ -77,7 +77,7 @@ export const LineDetailInspector: React.FC<LineDetailInspectorProps> = ({
           <div className="truncate flex-1 text-neutral-900 dark:text-neutral-100">
             {leftDiff.prefix && <span>{leftDiff.prefix}</span>}
             {leftDiff.diff && (
-              <span className="bg-[#ffcdd2] dark:bg-red-950/80 text-[#b71c1c] dark:text-red-300 font-bold px-0.5 rounded border border-red-300 dark:border-red-800">
+              <span className="bg-[#ffcdd2] dark:bg-[#5c1c24] text-[#b71c1c] dark:text-[#fee2e2] font-bold px-0.5 rounded border border-red-300 dark:border-red-600/60">
                 {leftDiff.diff}
               </span>
             )}
@@ -114,7 +114,7 @@ export const LineDetailInspector: React.FC<LineDetailInspectorProps> = ({
           <div className="truncate flex-1 text-neutral-900 dark:text-neutral-100">
             {rightDiff.prefix && <span>{rightDiff.prefix}</span>}
             {rightDiff.diff && (
-              <span className="bg-[#ffcdd2] dark:bg-red-950/80 text-[#b71c1c] dark:text-red-300 font-bold px-0.5 rounded border border-red-300 dark:border-red-800">
+              <span className="bg-[#ffcdd2] dark:bg-[#584116] text-[#b71c1c] dark:text-[#fef08a] font-bold px-0.5 rounded border border-red-300 dark:border-amber-600/60">
                 {rightDiff.diff}
               </span>
             )}

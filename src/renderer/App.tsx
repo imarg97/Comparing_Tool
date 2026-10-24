@@ -204,7 +204,7 @@ export const App: React.FC = () => {
   }, []);
 
   return (
-    <div className={`h-full w-full flex flex-col bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 ${theme === 'dark' ? 'dark' : ''}`}>
+    <div className={`h-full w-full flex flex-col bg-white dark:bg-[#12121a] text-neutral-900 dark:text-neutral-100 ${theme === 'dark' ? 'dark' : ''}`}>
       {/* Header Shell */}
       <Header
         activeTab={activeTab}
@@ -215,7 +215,7 @@ export const App: React.FC = () => {
       />
 
       {/* Main Workspace Body */}
-      <main className="flex-1 flex flex-col min-h-0 relative bg-white dark:bg-black">
+      <main className="flex-1 flex flex-col min-h-0 relative bg-white dark:bg-[#161622]">
         {activeTab === 'folder' && (
           <FolderCompareView
             leftFolder={folderLeftPath}
