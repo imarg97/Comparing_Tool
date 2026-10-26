@@ -383,6 +383,88 @@
   filter: drop-shadow(0 0 4px rgba(234, 179, 8, 1)) !important;
 }
 
+/* UI/UX Pro Max: Ultra-smooth tactile horizontal transfer animation */
+.diffx-shift-flyer {
+  position: absolute;
+  pointer-events: none;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  backdrop-filter: blur(8px);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 0 0 12px rgba(59, 130, 246, 0.5);
+  animation-duration: 260ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: forwards;
+}
+
+.diffx-shift-flyer-l2r {
+  background: rgba(30, 58, 138, 0.85);
+  color: #bfdbfe;
+  border: 1px solid rgba(96, 165, 250, 0.7);
+  animation-name: diffx-fly-l2r;
+}
+
+.dark .diffx-shift-flyer-l2r {
+  background: rgba(15, 23, 42, 0.95);
+  color: #93c5fd;
+  border: 1px solid #3b82f6;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7), 0 0 16px rgba(59, 130, 246, 0.6);
+}
+
+.diffx-shift-flyer-r2l {
+  background: rgba(88, 28, 135, 0.85);
+  color: #e9d5ff;
+  border: 1px solid rgba(192, 132, 252, 0.7);
+  animation-name: diffx-fly-r2l;
+}
+
+.dark .diffx-shift-flyer-r2l {
+  background: rgba(24, 9, 39, 0.95);
+  color: #d8b4fe;
+  border: 1px solid #a855f7;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7), 0 0 16px rgba(168, 85, 247, 0.6);
+}
+
+@keyframes diffx-fly-l2r {
+  0% {
+    opacity: 0.95;
+    transform: translate3d(24px, 0, 0) scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: translate3d(calc(25vw), 0, 0) scale(1.03);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(calc(50vw), 0, 0) scale(1);
+  }
+}
+
+@keyframes diffx-fly-r2l {
+  0% {
+    opacity: 0.95;
+    transform: translate3d(calc(50vw), 0, 0) scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: translate3d(calc(25vw), 0, 0) scale(1.03);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(24px, 0, 0) scale(1);
+  }
+}
+
+
 
 
 

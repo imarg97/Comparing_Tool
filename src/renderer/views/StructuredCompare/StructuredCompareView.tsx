@@ -328,15 +328,6 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         copiedHighlightDecsRef.current.right = editor.deltaDecorations(copiedHighlightDecsRef.current.right, decs);
       }
 
-      // Check if lines are already visible in viewport - prevent violent scroll jump
-      const visibleRanges = typeof editor.getVisibleRanges === 'function' ? editor.getVisibleRanges() : [];
-      const isVisible = visibleRanges.some(
-        (r: any) => s >= r.startLineNumber && e <= r.endLineNumber
-      );
-      if (!isVisible && typeof editor.revealLinesInCenterIfOutsideViewport === 'function') {
-        editor.revealLinesInCenterIfOutsideViewport(s, e);
-      }
-
       if (shouldFocus) {
         editor.setPosition({ lineNumber: s, column: 1 });
         editor.focus();
@@ -359,34 +350,40 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     }
   };
 
-  // Helper to immediately collapse view zones in the editor DOM and Monaco layout to prevent visual jerk/jump on diff copying
-  const collapseEditorViewZones = (editor: any) => {
-    try {
-      if (!editor) return;
-      const domNode = editor.getDomNode?.();
-      if (!domNode) return;
+  const [activeShiftFlyer, setActiveShiftFlyer] = useState<{
+    id: number;
+    direction: 'left-to-right' | 'right-to-left';
+    top: number;
+    text: string;
+  } | null>(null);
 
-      const vzElements = domNode.querySelectorAll('[monaco-view-zone], .view-zone, .margin-view-zone');
-      vzElements.forEach((el: any) => {
-        el.style.height = '0px';
-        el.style.minHeight = '0px';
-        el.style.display = 'none';
+  // UI/UX Pro Max: Ultra-smooth tactile horizontal transfer animation across editors
+  const triggerShiftAnimation = (
+    direction: 'left-to-right' | 'right-to-left',
+    lineNum: number,
+    previewText?: string
+  ) => {
+    try {
+      if (!diffEditorRef.current) return;
+      const editor =
+        direction === 'left-to-right'
+          ? diffEditorRef.current.getOriginalEditor()
+          : diffEditorRef.current.getModifiedEditor();
+      const pos = editor?.getScrolledVisiblePosition?.({ lineNumber: Math.max(1, lineNum), column: 1 });
+      const top = pos ? Math.max(12, pos.top) : 60;
+      const rawText = previewText?.trim() || `Line ${lineNum}`;
+      const label = rawText.length > 36 ? rawText.substring(0, 33) + '...' : rawText;
+
+      setActiveShiftFlyer({
+        id: Date.now(),
+        direction,
+        top,
+        text: label,
       });
 
-      if (typeof editor.changeViewZones === 'function') {
-        editor.changeViewZones((accessor: any) => {
-          vzElements.forEach((el: any) => {
-            const id = el.getAttribute('monaco-view-zone');
-            if (id) {
-              try {
-                accessor.removeZone(id);
-              } catch {
-                // ignore
-              }
-            }
-          });
-        });
-      }
+      setTimeout(() => {
+        setActiveShiftFlyer((curr) => (curr && Date.now() - curr.id >= 240 ? null : curr));
+      }, 270);
     } catch {
       // Non-fatal
     }
@@ -1023,7 +1020,8 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         if (chunk || activeSelection) {
           if (chunk) setActiveDiffChunk(chunk);
           if (isGlyphArrowClick) {
-            collapseEditorViewZones(modEditor);
+            const srcText = origEditor.getModel()?.getLineContent(activeSelection?.startLine || chunk?.originalStart || line) || '';
+            triggerShiftAnimation('left-to-right', activeSelection?.startLine || chunk?.originalStart || line, srcText);
             const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
             if (activeSelection && activeSelection.side === 'left') {
               executeSelectedLinesCopyL2R(origEditor.getModel(), modEditor.getModel(), activeSelection, chunk, outRange);
@@ -1077,7 +1075,8 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         if (chunk || activeSelection) {
           if (chunk) setActiveDiffChunk(chunk);
           if (isGlyphArrowClick) {
-            collapseEditorViewZones(origEditor);
+            const srcText = modEditor.getModel()?.getLineContent(activeSelection?.startLine || chunk?.modifiedStart || line) || '';
+            triggerShiftAnimation('right-to-left', activeSelection?.startLine || chunk?.modifiedStart || line, srcText);
             const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
             if (activeSelection && activeSelection.side === 'right') {
               executeSelectedLinesCopyR2L(origEditor.getModel(), modEditor.getModel(), activeSelection, chunk, outRange);
@@ -1156,10 +1155,11 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     const modModel = modEditor.getModel();
     if (!origModel || !modModel) return;
 
-    collapseEditorViewZones(modEditor);
     const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
 
     if (activeSelection && activeSelection.side === 'left') {
+      const srcText = origModel.getLineContent(activeSelection.startLine);
+      triggerShiftAnimation('left-to-right', activeSelection.startLine, srcText);
       const chunk = findClosestChunk(chunksRef.current, activeSelection.startLine, 'left');
       executeSelectedLinesCopyL2R(origModel, modModel, activeSelection, chunk, outRange);
       const updated = modModel.getValue();
@@ -1179,6 +1179,8 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     const chunk = activeDiffChunk || findClosestChunk(chunksRef.current, activeLine, 'left');
 
     if (chunk) {
+      const srcText = origModel.getLineContent(chunk.originalStart);
+      triggerShiftAnimation('left-to-right', chunk.originalStart, srcText);
       executeChunkCopyL2R(origModel, modModel, chunk, outRange);
       const updated = modModel.getValue();
       setRightEditorContent(updated);
@@ -1202,10 +1204,11 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     const modModel = modEditor.getModel();
     if (!origModel || !modModel) return;
 
-    collapseEditorViewZones(origEditor);
     const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
 
     if (activeSelection && activeSelection.side === 'right') {
+      const srcText = modModel.getLineContent(activeSelection.startLine);
+      triggerShiftAnimation('right-to-left', activeSelection.startLine, srcText);
       const chunk = findClosestChunk(chunksRef.current, activeSelection.startLine, 'right');
       executeSelectedLinesCopyR2L(origModel, modModel, activeSelection, chunk, outRange);
       const updated = origModel.getValue();
@@ -1225,6 +1228,8 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     const chunk = activeDiffChunk || findClosestChunk(chunksRef.current, activeLine, 'right');
 
     if (chunk) {
+      const srcText = modModel.getLineContent(chunk.modifiedStart);
+      triggerShiftAnimation('right-to-left', chunk.modifiedStart, srcText);
       executeChunkCopyR2L(origModel, modModel, chunk, outRange);
       const updated = origModel.getValue();
       setLeftEditorContent(updated);
@@ -1250,8 +1255,8 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     const origModel = origEditor.getModel();
     if (!modModel || !origModel) return;
 
-    collapseEditorViewZones(modEditor);
     const leftLine = cursorLineNumber <= origModel.getLineCount() ? origModel.getLineContent(cursorLineNumber) : '';
+    triggerShiftAnimation('left-to-right', cursorLineNumber, leftLine);
     const rightLineNum = Math.min(cursorLineNumber, modModel.getLineCount());
     const range = {
       startLineNumber: rightLineNum,
@@ -1276,8 +1281,8 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     const origModel = origEditor.getModel();
     if (!modModel || !origModel) return;
 
-    collapseEditorViewZones(origEditor);
     const rightLine = cursorLineNumber <= modModel.getLineCount() ? modModel.getLineContent(cursorLineNumber) : '';
+    triggerShiftAnimation('right-to-left', cursorLineNumber, rightLine);
     const leftLineNum = Math.min(cursorLineNumber, origModel.getLineCount());
     const range = {
       startLineNumber: leftLineNum,
@@ -1784,6 +1789,22 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
           onDrop={handleContainerDrop}
           className="flex-1 relative h-full min-w-0 overflow-hidden"
         >
+          {/* UI/UX Pro Max: Flying Shift Transfer Ghost Pill */}
+          {activeShiftFlyer && (
+            <div
+              key={activeShiftFlyer.id}
+              style={{ top: `${activeShiftFlyer.top}px` }}
+              className={`diffx-shift-flyer ${
+                activeShiftFlyer.direction === 'left-to-right'
+                  ? 'diffx-shift-flyer-l2r'
+                  : 'diffx-shift-flyer-r2l'
+              }`}
+            >
+              <span>{activeShiftFlyer.direction === 'left-to-right' ? '⇨' : '⇦'}</span>
+              <span className="truncate max-w-[280px]">{activeShiftFlyer.text}</span>
+            </div>
+          )}
+
           {/* Side-by-side empty state drop targets when no files are loaded */}
           {!leftPath && !rightPath ? (
             <div className="absolute inset-0 flex items-stretch select-none bg-white dark:bg-black">

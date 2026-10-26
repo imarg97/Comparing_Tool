@@ -450,6 +450,81 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </div>
       </div>
+
+      {/* 2. Modern Workspace Tab Bar: Direct 1-Click Mode Switcher */}
+      <div className="h-8 bg-[#f5f5f5] dark:bg-black border-b border-[#d8d8d8] dark:border-neutral-800 flex items-center justify-between px-2 overflow-x-auto select-none">
+        <div className="flex items-center space-x-1">
+          <button
+            onClick={() => onSelectTab('folder')}
+            title="Folder & Directory Comparison (Ctrl+1)"
+            className={`flex items-center space-x-1.5 px-3 py-1 rounded text-xs transition cursor-pointer ${
+              activeTab === 'folder'
+                ? 'bg-white dark:bg-[#151515] text-blue-600 dark:text-blue-400 font-semibold shadow-xs border-b-2 border-blue-500'
+                : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/50 dark:hover:bg-neutral-900/50'
+            }`}
+          >
+            <FolderGit2 className="w-3.5 h-3.5 text-amber-500" />
+            <span>Folder Compare</span>
+            <span className="text-[10px] opacity-50 font-mono ml-1">Ctrl+1</span>
+          </button>
+
+          <button
+            onClick={() => onSelectTab('text')}
+            title="Side-by-Side Text & Code Comparison (Ctrl+2)"
+            className={`flex items-center space-x-1.5 px-3 py-1 rounded text-xs transition cursor-pointer ${
+              activeTab === 'text'
+                ? 'bg-white dark:bg-[#151515] text-blue-600 dark:text-blue-400 font-semibold shadow-xs border-b-2 border-blue-500'
+                : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/50 dark:hover:bg-neutral-900/50'
+            }`}
+          >
+            <FileCode2 className="w-3.5 h-3.5 text-blue-500" />
+            <span>Text Compare</span>
+            <span className="text-[10px] opacity-50 font-mono ml-1">Ctrl+2</span>
+          </button>
+
+          <button
+            onClick={() => onSelectTab('structured')}
+            title="Semantic XML, JSON, YAML & Config Compare (Ctrl+3)"
+            className={`flex items-center space-x-1.5 px-3 py-1 rounded text-xs transition cursor-pointer ${
+              activeTab === 'structured'
+                ? 'bg-white dark:bg-[#151515] text-emerald-600 dark:text-emerald-400 font-semibold shadow-xs border-b-2 border-emerald-500'
+                : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/50 dark:hover:bg-neutral-900/50'
+            }`}
+          >
+            <Boxes className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Config & XML</span>
+            <span className="text-[10px] opacity-50 font-mono ml-1">Ctrl+3</span>
+          </button>
+
+          <button
+            onClick={() => onSelectTab('home')}
+            title="Sessions Launcher & History (Ctrl+4)"
+            className={`flex items-center space-x-1.5 px-3 py-1 rounded text-xs transition cursor-pointer ${
+              activeTab === 'home'
+                ? 'bg-white dark:bg-[#151515] text-purple-600 dark:text-purple-400 font-semibold shadow-xs border-b-2 border-purple-500'
+                : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/50 dark:hover:bg-neutral-900/50'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5 text-purple-500" />
+            <span>Sessions</span>
+            <span className="text-[10px] opacity-50 font-mono ml-1">Ctrl+4</span>
+          </button>
+        </div>
+
+        <button
+          onClick={() => onSelectTab('settings')}
+          title="Preferences & Configuration Rules (Ctrl+5)"
+          className={`flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs transition cursor-pointer ${
+            activeTab === 'settings'
+              ? 'bg-white dark:bg-[#151515] text-neutral-900 dark:text-white font-semibold shadow-xs border-b-2 border-neutral-400'
+              : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/50 dark:hover:bg-neutral-900/50'
+          }`}
+        >
+          <Settings className="w-3.5 h-3.5" />
+          <span>Preferences</span>
+          <span className="text-[10px] opacity-50 font-mono ml-1">Ctrl+5</span>
+        </button>
+      </div>
     </div>
   );
 };
