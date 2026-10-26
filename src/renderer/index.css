@@ -386,6 +386,7 @@
 /* UI/UX Pro Max: Ultra-smooth tactile horizontal transfer animation */
 .diffx-shift-flyer {
   position: absolute;
+  left: 24px;
   pointer-events: none;
   z-index: 1000;
   display: flex;
@@ -437,31 +438,79 @@
 @keyframes diffx-fly-l2r {
   0% {
     opacity: 0.95;
-    transform: translate3d(24px, 0, 0) scale(0.98);
+    transform: translate3d(0, 0, 0) scale(0.98);
   }
   50% {
     opacity: 1;
-    transform: translate3d(calc(25vw), 0, 0) scale(1.03);
+    transform: translate3d(calc(25%), 0, 0) scale(1.03);
   }
   100% {
     opacity: 0;
-    transform: translate3d(calc(50vw), 0, 0) scale(1);
+    transform: translate3d(calc(50% + 24px), 0, 0) scale(1);
   }
 }
 
 @keyframes diffx-fly-r2l {
   0% {
     opacity: 0.95;
-    transform: translate3d(calc(50vw), 0, 0) scale(0.98);
+    transform: translate3d(calc(50% + 24px), 0, 0) scale(0.98);
   }
   50% {
     opacity: 1;
-    transform: translate3d(calc(25vw), 0, 0) scale(1.03);
+    transform: translate3d(calc(25%), 0, 0) scale(1.03);
   }
   100% {
     opacity: 0;
-    transform: translate3d(24px, 0, 0) scale(1);
+    transform: translate3d(0, 0, 0) scale(1);
   }
+}
+
+/* UI/UX Pro Max: Active Diff Alignment Gap Insertion Indicator & Cursor */
+.diffx-active-gap-target {
+  background-color: rgba(59, 130, 246, 0.12) !important;
+  outline: 1.5px dashed rgba(59, 130, 246, 0.6) !important;
+  outline-offset: -1px !important;
+  position: relative !important;
+  cursor: text !important;
+}
+
+.dark .diffx-active-gap-target {
+  background-color: rgba(99, 102, 241, 0.18) !important;
+  outline: 1.5px dashed rgba(129, 140, 248, 0.6) !important;
+  outline-offset: -1px !important;
+  position: relative !important;
+  cursor: text !important;
+}
+
+.diffx-gap-cursor-indicator {
+  position: absolute;
+  left: 6px;
+  top: 2px;
+  bottom: 2px;
+  width: 2px;
+  background-color: #2563eb;
+  animation: diffx-cursor-blink 1s step-start infinite;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.dark .diffx-gap-cursor-indicator {
+  background-color: #60a5fa;
+}
+
+@keyframes diffx-cursor-blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Zero-jerk view zone container rules */
+.monaco-diff-editor .view-zone,
+.monaco-diff-editor .view-zones {
+  transition: none !important;
 }
 
 

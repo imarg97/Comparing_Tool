@@ -24,6 +24,7 @@ import {
   executeChunkCopyR2L,
   executeSelectedLinesCopyL2R,
   executeSelectedLinesCopyR2L,
+  collapseEditorGapViewZones,
   ChunkCopyRange,
   computeUnchangedRanges,
   computeDiffRanges,
@@ -414,6 +415,19 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     }
   };
 
+  const clearGapTargetDecorations = () => {
+    try {
+      document.querySelectorAll('.diffx-active-gap-target').forEach((node: any) => {
+        node.classList.remove('diffx-active-gap-target');
+      });
+      document.querySelectorAll('.diffx-gap-cursor-indicator').forEach((node: any) => {
+        node.remove();
+      });
+    } catch {
+      // ignore
+    }
+  };
+
   // Handle click on diff alignment empty space (view zone / gap) to place cursor cleanly without document mutation
   const handleDiffGapClick = (
     targetEditor: any,
@@ -478,6 +492,19 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       }
 
       if (afterLineNumber !== null || isViewZoneType || hasViewZoneClass) {
+        clearGapTargetDecorations();
+        const vzTarget = el?.classList?.contains('view-zone')
+          ? el
+          : el?.closest?.('.view-zone') || el?.closest?.('.diagonal-fill') || el?.closest?.('.ced-diagonal-fill');
+        if (vzTarget) {
+          vzTarget.classList.add('diffx-active-gap-target');
+          if (!vzTarget.querySelector('.diffx-gap-cursor-indicator')) {
+            const cursorIndicator = document.createElement('div');
+            cursorIndicator.className = 'diffx-gap-cursor-indicator';
+            vzTarget.appendChild(cursorIndicator);
+          }
+        }
+
         const model = targetEditor.getModel();
         if (!model) return false;
 
@@ -836,110 +863,60 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         }
       });
 
-      // Paste listener for left editor: clean line alignment & trigger flash animation
+      // Paste listener for left editor: zero-jump native paste & trigger flash animation
       origEditor.onDidPaste((e: any) => {
+        clearGapTargetDecorations();
         const pasteRange = e.range;
         if (!pasteRange) return;
-        const origModel = origEditor.getModel();
-        if (!origModel) return;
-
         const startLine = pasteRange.startLineNumber;
         const endLine = pasteRange.endLineNumber;
-        const startCol = pasteRange.startColumn;
-        const endCol = pasteRange.endColumn;
 
-        const lineContent = origModel.getLineContent(startLine);
-        const beforePaste = lineContent.substring(0, Math.max(0, startCol - 1));
-        const endLineContent = origModel.getLineContent(endLine);
-        const afterPaste = endLineContent.substring(Math.max(0, endCol - 1));
-        const pastedText = origModel.getValueInRange(pasteRange);
+        // Proactively collapse any stale gap viewzones at or around this pasted line
+        collapseEditorGapViewZones(origEditor, startLine - 1);
+        collapseEditorGapViewZones(origEditor, startLine);
 
-        let targetFlashStart = startLine;
-        let targetFlashEnd = endLine;
-
-        if (
-          beforePaste.trim().length > 0 &&
-          (beforePaste.trim().endsWith('>') || pastedText.trim().startsWith('<') || pastedText.includes('\n'))
-        ) {
-          const splitBeforeRange = {
-            startLineNumber: startLine,
-            startColumn: startCol,
-            endLineNumber: startLine,
-            endColumn: startCol,
-          };
-          origModel.pushEditOperations([], [{ range: splitBeforeRange, text: '\n' }], () => null);
-          targetFlashStart = startLine + 1;
-          targetFlashEnd = endLine + 1;
-        }
-
-        if (
-          afterPaste.trim().length > 0 &&
-          (afterPaste.trim().startsWith('<') || pastedText.trim().endsWith('>') || pastedText.includes('\n'))
-        ) {
-          const splitAfterRange = {
-            startLineNumber: targetFlashEnd,
-            startColumn: targetFlashStart > startLine ? endCol : endCol,
-            endLineNumber: targetFlashEnd,
-            endColumn: targetFlashStart > startLine ? endCol : endCol,
-          };
-          origModel.pushEditOperations([], [{ range: splitAfterRange, text: '\n' }], () => null);
-        }
-
-        flashCopiedHighlight('left', targetFlashStart, targetFlashEnd);
-        onUpdateStatus('Pasted content with clean line alignment');
+        flashCopiedHighlight('left', startLine, endLine);
+        onUpdateStatus('Pasted content cleanly without jumping');
       });
 
-      // Paste listener for right editor: clean line alignment & trigger flash animation
+      // Keydown listener for left editor: collapse viewzones on paste or typing into gap
+      origEditor.onKeyDown((e: any) => {
+        if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyV' || e.browserEvent?.key === 'v')) {
+          clearGapTargetDecorations();
+          const pos = origEditor.getPosition();
+          if (pos) {
+            collapseEditorGapViewZones(origEditor, pos.lineNumber - 1);
+            collapseEditorGapViewZones(origEditor, pos.lineNumber);
+          }
+        }
+      });
+
+      // Paste listener for right editor: zero-jump native paste & trigger flash animation
       modEditor.onDidPaste((e: any) => {
+        clearGapTargetDecorations();
         const pasteRange = e.range;
         if (!pasteRange) return;
-        const modModel = modEditor.getModel();
-        if (!modModel) return;
-
         const startLine = pasteRange.startLineNumber;
         const endLine = pasteRange.endLineNumber;
-        const startCol = pasteRange.startColumn;
-        const endCol = pasteRange.endColumn;
 
-        const lineContent = modModel.getLineContent(startLine);
-        const beforePaste = lineContent.substring(0, Math.max(0, startCol - 1));
-        const endLineContent = modModel.getLineContent(endLine);
-        const afterPaste = endLineContent.substring(Math.max(0, endCol - 1));
-        const pastedText = modModel.getValueInRange(pasteRange);
+        // Proactively collapse any stale gap viewzones at or around this pasted line
+        collapseEditorGapViewZones(modEditor, startLine - 1);
+        collapseEditorGapViewZones(modEditor, startLine);
 
-        let targetFlashStart = startLine;
-        let targetFlashEnd = endLine;
+        flashCopiedHighlight('right', startLine, endLine);
+        onUpdateStatus('Pasted content cleanly without jumping');
+      });
 
-        if (
-          beforePaste.trim().length > 0 &&
-          (beforePaste.trim().endsWith('>') || pastedText.trim().startsWith('<') || pastedText.includes('\n'))
-        ) {
-          const splitBeforeRange = {
-            startLineNumber: startLine,
-            startColumn: startCol,
-            endLineNumber: startLine,
-            endColumn: startCol,
-          };
-          modModel.pushEditOperations([], [{ range: splitBeforeRange, text: '\n' }], () => null);
-          targetFlashStart = startLine + 1;
-          targetFlashEnd = endLine + 1;
+      // Keydown listener for right editor: collapse viewzones on paste or typing into gap
+      modEditor.onKeyDown((e: any) => {
+        if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyV' || e.browserEvent?.key === 'v')) {
+          clearGapTargetDecorations();
+          const pos = modEditor.getPosition();
+          if (pos) {
+            collapseEditorGapViewZones(modEditor, pos.lineNumber - 1);
+            collapseEditorGapViewZones(modEditor, pos.lineNumber);
+          }
         }
-
-        if (
-          afterPaste.trim().length > 0 &&
-          (afterPaste.trim().startsWith('<') || pastedText.trim().endsWith('>') || pastedText.includes('\n'))
-        ) {
-          const splitAfterRange = {
-            startLineNumber: targetFlashEnd,
-            startColumn: targetFlashStart > startLine ? endCol : endCol,
-            endLineNumber: targetFlashEnd,
-            endColumn: targetFlashStart > startLine ? endCol : endCol,
-          };
-          modModel.pushEditOperations([], [{ range: splitAfterRange, text: '\n' }], () => null);
-        }
-
-        flashCopiedHighlight('right', targetFlashStart, targetFlashEnd);
-        onUpdateStatus('Pasted content with clean line alignment');
       });
 
       origEditor.onDidChangeModelContent(() => {
@@ -998,11 +975,13 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         if (chunk || activeSelection) {
           if (chunk) setActiveDiffChunk(chunk);
           if (isGlyphArrowClick) {
+            clearGapTargetDecorations();
             const srcText = origEditor.getModel()?.getLineContent(activeSelection?.startLine || chunk?.originalStart || line) || '';
             triggerShiftAnimation('left-to-right', activeSelection?.startLine || chunk?.originalStart || line, srcText);
             const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
             if (activeSelection && activeSelection.side === 'left') {
-              executeSelectedLinesCopyL2R(origEditor.getModel(), modEditor.getModel(), activeSelection, chunk, outRange);
+              collapseEditorGapViewZones(modEditor, chunk ? chunk.modifiedStart : activeSelection.startLine);
+              executeSelectedLinesCopyL2R(origEditor.getModel(), modEditor.getModel(), activeSelection, chunk, outRange, modEditor);
               setRightEditorContent(modEditor.getValue());
               setRightDirty(true);
               setLastModifiedSide('right');
@@ -1013,7 +992,8 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
               }
               onUpdateStatus(`Copied selected lines ${activeSelection.startLine}–${activeSelection.endLine} Left ⇨ Right`);
             } else if (chunk) {
-              executeChunkCopyL2R(origEditor.getModel(), modEditor.getModel(), chunk, outRange);
+              collapseEditorGapViewZones(modEditor, chunk.modifiedStart);
+              executeChunkCopyL2R(origEditor.getModel(), modEditor.getModel(), chunk, outRange, modEditor);
               setRightEditorContent(modEditor.getValue());
               setRightDirty(true);
               setLastModifiedSide('right');
@@ -1053,11 +1033,13 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         if (chunk || activeSelection) {
           if (chunk) setActiveDiffChunk(chunk);
           if (isGlyphArrowClick) {
+            clearGapTargetDecorations();
             const srcText = modEditor.getModel()?.getLineContent(activeSelection?.startLine || chunk?.modifiedStart || line) || '';
             triggerShiftAnimation('right-to-left', activeSelection?.startLine || chunk?.modifiedStart || line, srcText);
             const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
             if (activeSelection && activeSelection.side === 'right') {
-              executeSelectedLinesCopyR2L(origEditor.getModel(), modEditor.getModel(), activeSelection, chunk, outRange);
+              collapseEditorGapViewZones(origEditor, chunk ? chunk.originalStart : activeSelection.startLine);
+              executeSelectedLinesCopyR2L(origEditor.getModel(), modEditor.getModel(), activeSelection, chunk, outRange, origEditor);
               setLeftEditorContent(origEditor.getValue());
               setLeftDirty(true);
               setLastModifiedSide('left');
@@ -1068,7 +1050,8 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
               }
               onUpdateStatus(`Copied selected lines ${activeSelection.startLine}–${activeSelection.endLine} Right ⇦ Left`);
             } else if (chunk) {
-              executeChunkCopyR2L(origEditor.getModel(), modEditor.getModel(), chunk, outRange);
+              collapseEditorGapViewZones(origEditor, chunk.originalStart);
+              executeChunkCopyR2L(origEditor.getModel(), modEditor.getModel(), chunk, outRange, origEditor);
               setLeftEditorContent(origEditor.getValue());
               setLeftDirty(true);
               setLastModifiedSide('left');
@@ -1137,10 +1120,12 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
 
     if (activeSelection && activeSelection.side === 'left') {
+      clearGapTargetDecorations();
       const srcText = origModel.getLineContent(activeSelection.startLine);
       triggerShiftAnimation('left-to-right', activeSelection.startLine, srcText);
       const chunk = findClosestChunk(chunksRef.current, activeSelection.startLine, 'left');
-      executeSelectedLinesCopyL2R(origModel, modModel, activeSelection, chunk, outRange);
+      collapseEditorGapViewZones(modEditor, chunk ? chunk.modifiedStart : activeSelection.startLine);
+      executeSelectedLinesCopyL2R(origModel, modModel, activeSelection, chunk, outRange, modEditor);
       setRightEditorContent(modModel.getValue());
       setRightDirty(true);
       setLastModifiedSide('right');
@@ -1157,9 +1142,11 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     const chunk = activeDiffChunk || findClosestChunk(chunksRef.current, activeLine, 'left');
 
     if (chunk) {
+      clearGapTargetDecorations();
       const srcText = origModel.getLineContent(chunk.originalStart);
       triggerShiftAnimation('left-to-right', chunk.originalStart, srcText);
-      executeChunkCopyL2R(origModel, modModel, chunk, outRange);
+      collapseEditorGapViewZones(modEditor, chunk.modifiedStart);
+      executeChunkCopyL2R(origModel, modModel, chunk, outRange, modEditor);
       setRightEditorContent(modModel.getValue());
       setRightDirty(true);
       setLastModifiedSide('right');
@@ -1184,10 +1171,12 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
 
     if (activeSelection && activeSelection.side === 'right') {
+      clearGapTargetDecorations();
       const srcText = modModel.getLineContent(activeSelection.startLine);
       triggerShiftAnimation('right-to-left', activeSelection.startLine, srcText);
       const chunk = findClosestChunk(chunksRef.current, activeSelection.startLine, 'right');
-      executeSelectedLinesCopyR2L(origModel, modModel, activeSelection, chunk, outRange);
+      collapseEditorGapViewZones(origEditor, chunk ? chunk.originalStart : activeSelection.startLine);
+      executeSelectedLinesCopyR2L(origModel, modModel, activeSelection, chunk, outRange, origEditor);
       setLeftEditorContent(origModel.getValue());
       setLeftDirty(true);
       setLastModifiedSide('left');
@@ -1204,9 +1193,11 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     const chunk = activeDiffChunk || findClosestChunk(chunksRef.current, activeLine, 'right');
 
     if (chunk) {
+      clearGapTargetDecorations();
       const srcText = modModel.getLineContent(chunk.modifiedStart);
       triggerShiftAnimation('right-to-left', chunk.modifiedStart, srcText);
-      executeChunkCopyR2L(origModel, modModel, chunk, outRange);
+      collapseEditorGapViewZones(origEditor, chunk.originalStart);
+      executeChunkCopyR2L(origModel, modModel, chunk, outRange, origEditor);
       setLeftEditorContent(origModel.getValue());
       setLeftDirty(true);
       setLastModifiedSide('left');

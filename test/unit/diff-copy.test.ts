@@ -7,6 +7,7 @@ import {
   executeChunkCopyR2L,
   executeSelectedLinesCopyL2R,
   executeSelectedLinesCopyR2L,
+  collapseEditorGapViewZones,
   spliceLines,
   DiffChunk,
   computeUnchangedRanges,
@@ -329,6 +330,72 @@ describe('Diff Copy Engine', () => {
         { startLineNumber: 5, startColumn: 1, endLineNumber: 5, endColumn: 1 },
         { startLineNumber: 20, startColumn: 1, endLineNumber: 22, endColumn: 1 },
       ]);
+    });
+  });
+
+  describe('Zero-Jerk View Zone Collapse', () => {
+    it('synchronously removes matching gap view zones to prevent visual jump', () => {
+      const removedZones: string[] = [];
+      const mockEditor = {
+        getWhitespaces: () => [
+          { id: 'zone_header', afterLineNumber: 0, height: 20 },
+          { id: 'zone_gap_line_1', afterLineNumber: 1, height: 22 },
+          { id: 'zone_far_away', afterLineNumber: 80, height: 44 },
+        ],
+        changeViewZones: (cb: (accessor: any) => void) => {
+          cb({
+            removeZone: (id: string) => {
+              removedZones.push(id);
+            },
+          });
+        },
+      };
+
+      collapseEditorGapViewZones(mockEditor, 1);
+      expect(removedZones).toContain('zone_gap_line_1');
+      expect(removedZones).not.toContain('zone_far_away');
+    });
+
+    it('executeChunkCopyL2R collapses target editor gap viewzone before insertion', () => {
+      const removedZones: string[] = [];
+      let pushedEdits: any[] = [];
+      const mockOriginal = {
+        getLineCount: () => 10,
+        getLineMaxColumn: () => 50,
+        getValueInRange: () => '<encryption>false</encryption>',
+      };
+      const mockModified = {
+        getLineCount: () => 2,
+        getLineMaxColumn: () => 50,
+        pushEditOperations: (_state: any, edits: any[]) => {
+          pushedEdits = edits;
+        },
+      };
+      const mockEditor = {
+        getWhitespaces: () => [{ id: 'zone_gap_line_1', afterLineNumber: 1, height: 22 }],
+        changeViewZones: (cb: (accessor: any) => void) => {
+          cb({
+            removeZone: (id: string) => {
+              removedZones.push(id);
+            },
+          });
+        },
+      };
+
+      const chunk: DiffChunk = {
+        id: 'chunk_gap',
+        originalStart: 2,
+        originalEnd: 2,
+        modifiedStart: 1,
+        modifiedEnd: 0,
+      };
+
+      const outRange = { startLine: 0, endLine: 0 };
+      executeChunkCopyL2R(mockOriginal, mockModified, chunk, outRange, mockEditor);
+
+      expect(removedZones).toEqual(['zone_gap_line_1']);
+      expect(pushedEdits.length).toBe(1);
+      expect(pushedEdits[0].text).toContain('<encryption>false</encryption>');
     });
   });
 });

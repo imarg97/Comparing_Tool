@@ -126,6 +126,66 @@ export interface ChunkCopyRange {
 }
 
 /**
+ * Synchronously removes any Monaco diff alignment view zones (whitespaces) at or adjacent to
+ * the target line in the given editor before an edit operation is pushed.
+ * This prevents Monaco from temporarily rendering both the gap view zone AND the newly inserted line,
+ * which is the mechanical root cause of the visual jump/jerk before the diff worker finishes.
+ */
+export function collapseEditorGapViewZones(editor: any, targetAfterLine: number): void {
+  if (!editor) return;
+  try {
+    // 1. Monaco CodeEditor API: getWhitespaces()
+    if (typeof editor.getWhitespaces === 'function' && typeof editor.changeViewZones === 'function') {
+      const whitespaces = editor.getWhitespaces();
+      if (Array.isArray(whitespaces) && whitespaces.length > 0) {
+        const matchingIds: string[] = [];
+        for (const ws of whitespaces) {
+          if (!ws || ws.id === undefined) continue;
+          if (Math.abs(ws.afterLineNumber - targetAfterLine) <= 1) {
+            matchingIds.push(ws.id);
+          }
+        }
+        if (matchingIds.length > 0) {
+          editor.changeViewZones((accessor: any) => {
+            for (const id of matchingIds) {
+              try {
+                accessor.removeZone(id);
+              } catch {
+                // ignore
+              }
+            }
+          });
+        }
+      }
+    }
+
+    // 2. Direct DOM safety: Zero-out any active view-zone DOM elements near this position
+    const domNode = editor.getDomNode?.();
+    if (domNode) {
+      const vzElements = domNode.querySelectorAll?.('.view-zone, .diagonal-fill, .ced-diagonal-fill');
+      if (vzElements && vzElements.length > 0) {
+        vzElements.forEach((el: any) => {
+          try {
+            const vzParent = el.classList?.contains('view-zone') ? el : el.closest?.('.view-zone');
+            if (vzParent) {
+              vzParent.style.height = '0px';
+              vzParent.style.minHeight = '0px';
+              vzParent.style.maxHeight = '0px';
+              vzParent.style.opacity = '0';
+              vzParent.style.pointerEvents = 'none';
+            }
+          } catch {
+            // ignore
+          }
+        });
+      }
+    }
+  } catch {
+    // Non-fatal safety guard
+  }
+}
+
+/**
  * Executes Left-to-Right chunk copy directly within Monaco editor models.
  * Accurately handles replacements, insertions into gaps, and clean deletions.
  */
@@ -133,9 +193,13 @@ export function executeChunkCopyL2R(
   originalModel: any,
   modifiedModel: any,
   chunk: DiffChunk,
-  outRange?: ChunkCopyRange
+  outRange?: ChunkCopyRange,
+  targetEditor?: any
 ): boolean {
   if (!originalModel || !modifiedModel) return false;
+  if (targetEditor) {
+    collapseEditorGapViewZones(targetEditor, chunk.modifiedStart);
+  }
 
   const leftLineCount = originalModel.getLineCount();
   const rightLineCount = modifiedModel.getLineCount();
@@ -283,9 +347,13 @@ export function executeChunkCopyR2L(
   originalModel: any,
   modifiedModel: any,
   chunk: DiffChunk,
-  outRange?: ChunkCopyRange
+  outRange?: ChunkCopyRange,
+  targetEditor?: any
 ): boolean {
   if (!originalModel || !modifiedModel) return false;
+  if (targetEditor) {
+    collapseEditorGapViewZones(targetEditor, chunk.originalStart);
+  }
 
   const leftLineCount = originalModel.getLineCount();
   const rightLineCount = modifiedModel.getLineCount();
@@ -547,9 +615,13 @@ export function executeSelectedLinesCopyL2R(
   modifiedModel: any,
   selection: { startLine: number; endLine: number; text?: string },
   chunk?: DiffChunk | null,
-  outRange?: ChunkCopyRange
+  outRange?: ChunkCopyRange,
+  targetEditor?: any
 ): boolean {
   if (!originalModel || !modifiedModel) return false;
+  if (targetEditor) {
+    collapseEditorGapViewZones(targetEditor, chunk ? chunk.modifiedStart : selection.startLine);
+  }
 
   const leftLineCount = originalModel.getLineCount();
   const rightLineCount = modifiedModel.getLineCount();
@@ -688,9 +760,13 @@ export function executeSelectedLinesCopyR2L(
   modifiedModel: any,
   selection: { startLine: number; endLine: number; text?: string },
   chunk?: DiffChunk | null,
-  outRange?: ChunkCopyRange
+  outRange?: ChunkCopyRange,
+  targetEditor?: any
 ): boolean {
   if (!originalModel || !modifiedModel) return false;
+  if (targetEditor) {
+    collapseEditorGapViewZones(targetEditor, chunk ? chunk.originalStart : selection.startLine);
+  }
 
   const leftLineCount = originalModel.getLineCount();
   const rightLineCount = modifiedModel.getLineCount();
