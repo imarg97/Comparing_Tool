@@ -424,6 +424,12 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       document.querySelectorAll('.diffx-gap-cursor-indicator').forEach((node: any) => {
         node.remove();
       });
+      document.querySelectorAll('.diffx-gap-gutter-arrow').forEach((node: any) => {
+        node.remove();
+      });
+      document.querySelectorAll('.diffx-gap-active').forEach((node: any) => {
+        node.classList.remove('diffx-gap-active');
+      });
     } catch {
       // ignore
     }
@@ -443,10 +449,12 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         e.target?.element?.classList?.contains('diffx-line-copy-l2r') ||
         e.target?.element?.classList?.contains('diffx-glyph-copy-r2l') ||
         e.target?.element?.classList?.contains('diffx-line-copy-r2l') ||
+        e.target?.element?.classList?.contains('diffx-gap-gutter-arrow') ||
         Boolean(e.target?.element?.closest?.('.diffx-glyph-copy-l2r')) ||
         Boolean(e.target?.element?.closest?.('.diffx-line-copy-l2r')) ||
         Boolean(e.target?.element?.closest?.('.diffx-glyph-copy-r2l')) ||
-        Boolean(e.target?.element?.closest?.('.diffx-line-copy-r2l'));
+        Boolean(e.target?.element?.closest?.('.diffx-line-copy-r2l')) ||
+        Boolean(e.target?.element?.closest?.('.diffx-gap-gutter-arrow'));
 
       if (isGlyphArrow) return false;
 
@@ -500,13 +508,10 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         const vzTarget = el?.classList?.contains('view-zone')
           ? el
           : el?.closest?.('.view-zone') || el?.closest?.('.diagonal-fill') || el?.closest?.('.ced-diagonal-fill');
-        if (vzTarget) {
-          vzTarget.classList.add('diffx-active-gap-target');
-          if (!vzTarget.querySelector('.diffx-gap-cursor-indicator')) {
-            const cursorIndicator = document.createElement('div');
-            cursorIndicator.className = 'diffx-gap-cursor-indicator';
-            vzTarget.appendChild(cursorIndicator);
-          }
+
+        const editorDom = targetEditor.getDomNode?.();
+        if (editorDom) {
+          editorDom.classList.add('diffx-gap-active');
         }
 
         const model = targetEditor.getModel();
@@ -516,6 +521,79 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         const resolvedAfterLine = afterLineNumber !== null ? afterLineNumber : 0;
         const targetLine = Math.min(Math.max(1, resolvedAfterLine + 1), lineCount);
 
+        if (!matchedChunk) {
+          matchedChunk = chunks.find((c) =>
+            side === 'left'
+              ? c.originalStart === resolvedAfterLine && (c.originalEnd === 0 || c.originalEnd < c.originalStart)
+              : c.modifiedStart === resolvedAfterLine && (c.modifiedEnd === 0 || c.modifiedEnd < c.modifiedStart)
+          ) || null;
+        }
+
+        let cursorTop = 2;
+        let cursorHeight = 18;
+        let rowHeight = 22;
+
+        if (vzTarget) {
+          vzTarget.classList.add('diffx-active-gap-target');
+          const rect = vzTarget.getBoundingClientRect();
+          const clickY = e.event?.browserEvent?.clientY !== undefined
+            ? Math.max(0, e.event.browserEvent.clientY - rect.top)
+            : 0;
+          try {
+            const optHeight = targetEditor.getOption(66);
+            if (optHeight && typeof optHeight === 'number') rowHeight = optHeight;
+          } catch {
+            rowHeight = 22;
+          }
+          const numRows = Math.max(1, Math.round(rect.height / rowHeight));
+          const rowOffset = Math.max(0, Math.min(Math.floor(clickY / rowHeight), numRows - 1));
+          cursorTop = rowOffset * rowHeight + 2;
+          cursorHeight = Math.max(14, rowHeight - 4);
+          const arrowTop = rowOffset * rowHeight;
+
+          // Render blinking cursor caret inside the alignment gap
+          let cursorIndicator = vzTarget.querySelector('.diffx-gap-cursor-indicator');
+          if (!cursorIndicator) {
+            cursorIndicator = document.createElement('div');
+            cursorIndicator.className = 'diffx-gap-cursor-indicator';
+            vzTarget.appendChild(cursorIndicator);
+          }
+          (cursorIndicator as HTMLElement).style.top = `${cursorTop}px`;
+          (cursorIndicator as HTMLElement).style.height = `${cursorHeight}px`;
+
+          // Beyond Compare: Render the yellow gutter arrow in the margin for this gap row
+          if (editorDom) {
+            const marginZones = editorDom.querySelector('.margin-view-zones');
+            if (marginZones) {
+              const vzTop = vzTarget.style.top;
+              let matchingMarginZone: HTMLElement | null = null;
+              marginZones.querySelectorAll(':scope > div').forEach((mDiv: any) => {
+                if (mDiv.style.top === vzTop) {
+                  matchingMarginZone = mDiv;
+                }
+              });
+              if (matchingMarginZone) {
+                const marginArrow = document.createElement('div');
+                marginArrow.className = `diffx-gap-gutter-arrow diffx-gap-gutter-arrow-${side}`;
+                marginArrow.style.top = `${arrowTop}px`;
+                marginArrow.style.height = `${rowHeight}px`;
+                marginArrow.title = side === 'left' ? 'Copy from Right (⇦)' : 'Copy from Left (⇨)';
+                marginArrow.textContent = side === 'left' ? '⇨' : '⇦';
+                marginArrow.onclick = (arrowEv) => {
+                  arrowEv.stopPropagation();
+                  arrowEv.preventDefault();
+                  if (side === 'left') {
+                    handleCopyR2L();
+                  } else {
+                    handleCopyL2R();
+                  }
+                };
+                (matchingMarginZone as HTMLElement).appendChild(marginArrow);
+              }
+            }
+          }
+        }
+
         activeGapRef.current = {
           side,
           afterLineNumber: resolvedAfterLine,
@@ -523,19 +601,13 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
           chunk: matchedChunk,
         };
 
-        targetEditor.setPosition({ lineNumber: targetLine, column: 1 });
+        if (matchedChunk) {
+          setActiveDiffChunk(matchedChunk);
+        }
+
         targetEditor.focus();
         setActiveFocusSide(side);
         updateLineDetails(targetLine);
-
-        setTimeout(() => {
-          try {
-            targetEditor.setPosition({ lineNumber: targetLine, column: 1 });
-            targetEditor.focus();
-          } catch {
-            // ignore
-          }
-        }, 20);
 
         if (e.event) {
           e.event.preventDefault?.();
@@ -558,6 +630,9 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     const lineCount = model.getLineCount();
     const afterLine = activeGapRef.current.afterLineNumber;
     const cleanText = textToInsert.endsWith('\n') ? textToInsert : textToInsert + '\n';
+
+    // Synchronously collapse view zones in target editor BEFORE model modification to prevent any jerk
+    collapseEditorGapViewZones(editor, afterLine);
 
     if (afterLine === 0 || lineCount === 0) {
       const range = {
@@ -1054,7 +1129,23 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
             collapseEditorGapViewZones(modEditor, pos.lineNumber);
           }
         } else if (activeGapRef.current && activeGapRef.current.side === 'right') {
-          if (e.code === 'Enter' || e.browserEvent?.key === 'Enter') {
+          if (e.code === 'ArrowUp' || e.browserEvent?.key === 'ArrowUp') {
+            e.preventDefault();
+            e.stopPropagation();
+            const targetLine = Math.max(1, activeGapRef.current.afterLineNumber);
+            clearGapTargetDecorations();
+            modEditor.setPosition({ lineNumber: targetLine, column: modEditor.getModel()?.getLineMaxColumn(targetLine) || 1 });
+            modEditor.focus();
+            return;
+          } else if (e.code === 'ArrowDown' || e.browserEvent?.key === 'ArrowDown') {
+            e.preventDefault();
+            e.stopPropagation();
+            const targetLine = Math.min(modEditor.getModel()?.getLineCount() || 1, activeGapRef.current.afterLineNumber + 1);
+            clearGapTargetDecorations();
+            modEditor.setPosition({ lineNumber: targetLine, column: 1 });
+            modEditor.focus();
+            return;
+          } else if (e.code === 'Enter' || e.browserEvent?.key === 'Enter') {
             e.preventDefault();
             e.stopPropagation();
             insertIntoActiveGap(modEditor, 'right', '\n');
@@ -1128,7 +1219,23 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
             collapseEditorGapViewZones(origEditor, pos.lineNumber);
           }
         } else if (activeGapRef.current && activeGapRef.current.side === 'left') {
-          if (e.code === 'Enter' || e.browserEvent?.key === 'Enter') {
+          if (e.code === 'ArrowUp' || e.browserEvent?.key === 'ArrowUp') {
+            e.preventDefault();
+            e.stopPropagation();
+            const targetLine = Math.max(1, activeGapRef.current.afterLineNumber);
+            clearGapTargetDecorations();
+            origEditor.setPosition({ lineNumber: targetLine, column: origEditor.getModel()?.getLineMaxColumn(targetLine) || 1 });
+            origEditor.focus();
+            return;
+          } else if (e.code === 'ArrowDown' || e.browserEvent?.key === 'ArrowDown') {
+            e.preventDefault();
+            e.stopPropagation();
+            const targetLine = Math.min(origEditor.getModel()?.getLineCount() || 1, activeGapRef.current.afterLineNumber + 1);
+            clearGapTargetDecorations();
+            origEditor.setPosition({ lineNumber: targetLine, column: 1 });
+            origEditor.focus();
+            return;
+          } else if (e.code === 'Enter' || e.browserEvent?.key === 'Enter') {
             e.preventDefault();
             e.stopPropagation();
             insertIntoActiveGap(origEditor, 'left', '\n');
@@ -1208,6 +1315,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         // Check if click is in a diff alignment gap / view zone to place cursor cleanly
         const handledGap = handleDiffGapClick(origEditor, 'left', e, chunksRef.current);
         if (handledGap) return;
+        clearGapTargetDecorations();
 
         const line = e.target?.position?.lineNumber;
         if (!line) return;
@@ -1287,6 +1395,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         // Check if click is in a diff alignment gap / view zone to place cursor cleanly
         const handledGap = handleDiffGapClick(modEditor, 'right', e, chunksRef.current);
         if (handledGap) return;
+        clearGapTargetDecorations();
 
         const line = e.target?.position?.lineNumber;
         if (!line) return;

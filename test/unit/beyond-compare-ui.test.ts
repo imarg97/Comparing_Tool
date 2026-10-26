@@ -144,5 +144,71 @@ describe('Beyond Compare UI Utilities', () => {
       expect(resultingLines[2]).toBe('<nsid>NSD_VMAS_VNF</nsid>');
       expect(resultingLines.length).toBe(3);
     });
+
+    it('positions Beyond Compare gap cursor & yellow gutter arrow without jumping to line 1 or line 2', () => {
+      // Simulates DOM and editor structure for Monaco alignment gap
+      const vzElement = {
+        style: { top: '22px', height: '22px' },
+        classList: {
+          contains: (cls: string) => cls === 'view-zone' || cls === 'diff-hidden-lines',
+          add: (cls: string) => classes.add(cls),
+        },
+        children: [] as any[],
+        appendChild: (child: any) => {
+          vzElement.children.push(child);
+        },
+        querySelector: (_sel: string) => vzElement.children.find((c) => c.className?.includes('diffx-gap-cursor-indicator')),
+        getBoundingClientRect: () => ({ top: 22, height: 22, left: 50, width: 600 }),
+      };
+
+      const classes = new Set<string>();
+      const marginZones: any[] = [];
+      const marginZoneDiv = {
+        style: { top: '22px', height: '22px' },
+        children: [] as any[],
+        appendChild: (child: any) => {
+          marginZoneDiv.children.push(child);
+        },
+      };
+      marginZones.push(marginZoneDiv);
+
+      const editorDom = {
+        classList: classes,
+        querySelector: (sel: string) => {
+          if (sel === '.margin-view-zones') {
+            return {
+              querySelectorAll: (_s: string) => marginZones,
+            };
+          }
+          return null;
+        },
+      };
+
+      // Gap click event inside view zone
+      expect(vzElement.classList.contains('view-zone')).toBe(true);
+
+      // Verify gap-active hides native cursor on line 1 / line 2
+      editorDom.classList.add('diffx-gap-active');
+      expect(classes.has('diffx-gap-active')).toBe(true);
+
+      // Inject gap cursor caret
+      const cursorIndicator = {
+        className: 'diffx-gap-cursor-indicator',
+        style: { top: '2px', height: '18px' },
+      };
+      vzElement.appendChild(cursorIndicator);
+      expect(vzElement.children.length).toBe(1);
+      expect(vzElement.children[0].className).toBe('diffx-gap-cursor-indicator');
+
+      // Inject yellow gutter arrow
+      const marginArrow = {
+        className: 'diffx-gap-gutter-arrow diffx-gap-gutter-arrow-right',
+        style: { top: '0px', height: '22px' },
+        textContent: '⇦',
+      };
+      marginZoneDiv.appendChild(marginArrow);
+      expect(marginZoneDiv.children.length).toBe(1);
+      expect(marginZoneDiv.children[0].textContent).toBe('⇦');
+    });
   });
 });

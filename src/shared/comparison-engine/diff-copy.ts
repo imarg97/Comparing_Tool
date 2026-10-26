@@ -128,22 +128,33 @@ export interface ChunkCopyRange {
 }
 
 /**
- * Synchronously removes any Monaco diff alignment view zones (whitespaces) at or adjacent to
- * the target line in the given editor before an edit operation is pushed.
- * This prevents Monaco from temporarily rendering both the gap view zone AND the newly inserted line,
- * which is the mechanical root cause of the visual jump/jerk before the diff worker finishes.
+ * Synchronously collapses and removes any Monaco diff alignment view zones (whitespaces) at or adjacent to
+ * the target line in the given editor before and during an edit operation.
+ * 
+ * Crucial Fix for Monaco Diff Worker Jerk:
+ * Monaco's diff worker runs asynchronously. If a line is inserted into a gap while the ViewZone
+ * is still registered in Monaco's linesLayout, Monaco renders the new line below the ViewZone (e.g. Line 2).
+ * Then, 150-300ms later when the worker diff finishes, Monaco deletes the ViewZone and the line snaps up ("jerk").
+ * 
+ * By collapsing the whitespace height to 0 synchronously via Monaco's viewLayout.changeWhitespace AND
+ * hiding the ViewZone DOM element immediately BEFORE pushEditOperations, Monaco renders the new line
+ * directly at the gap location from frame 1 with ZERO jerk and ZERO jump.
  */
-export function collapseEditorGapViewZones(editor: any, targetAfterLine: number): void {
+export function collapseEditorGapViewZones(editor: any, targetAfterLine?: number): void {
   if (!editor) return;
   try {
-    // 1. Monaco CodeEditor API: getWhitespaces()
+    // 1. Monaco CodeEditor API: getWhitespaces() & changeViewZones()
     if (typeof editor.getWhitespaces === 'function' && typeof editor.changeViewZones === 'function') {
       const whitespaces = editor.getWhitespaces();
       if (Array.isArray(whitespaces) && whitespaces.length > 0) {
         const matchingIds: string[] = [];
         for (const ws of whitespaces) {
           if (!ws || ws.id === undefined) continue;
-          if (Math.abs(ws.afterLineNumber - targetAfterLine) <= 1) {
+          if (
+            targetAfterLine === undefined ||
+            targetAfterLine < 0 ||
+            Math.abs(ws.afterLineNumber - targetAfterLine) <= 1
+          ) {
             matchingIds.push(ws.id);
           }
         }
@@ -159,6 +170,57 @@ export function collapseEditorGapViewZones(editor: any, targetAfterLine: number)
           });
         }
       }
+    }
+
+    // 2. Monaco internal linesLayout whitespace collapse (synchronously sets height to 0)
+    const viewModel = typeof editor._getViewModel === 'function' ? editor._getViewModel() : null;
+    const viewLayout = viewModel?.viewLayout || editor._view?.viewLayout;
+
+    if (viewLayout && typeof viewLayout.changeWhitespace === 'function') {
+      const whitespaces = typeof editor.getWhitespaces === 'function' ? editor.getWhitespaces() : [];
+      if (Array.isArray(whitespaces) && whitespaces.length > 0) {
+        viewLayout.changeWhitespace((accessor: any) => {
+          for (const ws of whitespaces) {
+            if (!ws || ws.id === undefined) continue;
+            if (
+              targetAfterLine === undefined ||
+              targetAfterLine < 0 ||
+              Math.abs(ws.afterLineNumber - targetAfterLine) <= 1
+            ) {
+              if (typeof accessor.changeOneWhitespace === 'function') {
+                accessor.changeOneWhitespace(ws.id, ws.afterLineNumber, 0);
+              }
+              if (typeof accessor.removeWhitespace === 'function') {
+                accessor.removeWhitespace(ws.id);
+              }
+            }
+          }
+        });
+      }
+    }
+
+    // 3. Synchronous DOM level collapse to prevent any visual frame flicker
+    const domNode = typeof editor.getDomNode === 'function' ? editor.getDomNode() : null;
+    if (domNode) {
+      domNode.classList.add('diffx-instant-gap-fill');
+      const zones = domNode.querySelectorAll(
+        '.view-zone, .margin-view-zones > div, .diff-hidden-lines, .diagonal-fill, .ced-diagonal-fill'
+      );
+      zones.forEach((z: HTMLElement) => {
+        z.style.setProperty('height', '0px', 'important');
+        z.style.setProperty('min-height', '0px', 'important');
+        z.style.setProperty('max-height', '0px', 'important');
+        z.style.setProperty('display', 'none', 'important');
+        z.style.setProperty('opacity', '0', 'important');
+        z.style.setProperty('pointer-events', 'none', 'important');
+      });
+      setTimeout(() => {
+        try {
+          domNode.classList.remove('diffx-instant-gap-fill');
+        } catch {
+          // ignore
+        }
+      }, 350);
     }
   } catch {
     // Non-fatal safety guard
@@ -199,6 +261,11 @@ export function executeChunkCopyL2R(
 
   const hasRightLines = chunk.modifiedStart > 0 && chunk.modifiedEnd >= chunk.modifiedStart;
 
+  // Collapse view zones in target editor BEFORE applying edits to prevent any vertical bounce
+  if (targetEditor) {
+    collapseEditorGapViewZones(targetEditor, chunk.modifiedStart);
+  }
+
   // Case 1: Both sides have content -> Direct replacement of target lines
   if (hasLeftContent && hasRightLines) {
     const startLine = Math.min(chunk.modifiedStart, rightLineCount);
@@ -213,9 +280,6 @@ export function executeChunkCopyL2R(
     if (outRange) {
       outRange.startLine = startLine;
       outRange.endLine = startLine + leftInsertedLineCount - 1;
-    }
-    if (targetEditor) {
-      collapseEditorGapViewZones(targetEditor, chunk.modifiedStart);
     }
     return true;
   }
@@ -266,9 +330,6 @@ export function executeChunkCopyL2R(
         outRange.endLine = insertLine + leftInsertedLineCount - 1;
       }
     }
-    if (targetEditor) {
-      collapseEditorGapViewZones(targetEditor, chunk.modifiedStart);
-    }
     return true;
   }
 
@@ -316,9 +377,6 @@ export function executeChunkCopyL2R(
         outRange.endLine = prevLine;
       }
     }
-    if (targetEditor) {
-      collapseEditorGapViewZones(targetEditor, chunk.modifiedStart);
-    }
     return true;
   }
 
@@ -359,6 +417,11 @@ export function executeChunkCopyR2L(
 
   const hasLeftLines = chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart;
 
+  // Collapse view zones in target editor BEFORE applying edits to prevent any vertical bounce
+  if (targetEditor) {
+    collapseEditorGapViewZones(targetEditor, chunk.originalStart);
+  }
+
   // Case 1: Both sides have content -> Direct replacement of target lines
   if (hasRightContent && hasLeftLines) {
     const startLine = Math.min(chunk.originalStart, leftLineCount);
@@ -373,9 +436,6 @@ export function executeChunkCopyR2L(
     if (outRange) {
       outRange.startLine = startLine;
       outRange.endLine = startLine + rightInsertedLineCount - 1;
-    }
-    if (targetEditor) {
-      collapseEditorGapViewZones(targetEditor, chunk.originalStart);
     }
     return true;
   }
@@ -423,9 +483,6 @@ export function executeChunkCopyR2L(
         outRange.endLine = insertLine + rightInsertedLineCount - 1;
       }
     }
-    if (targetEditor) {
-      collapseEditorGapViewZones(targetEditor, chunk.originalStart);
-    }
     return true;
   }
 
@@ -472,9 +529,6 @@ export function executeChunkCopyR2L(
         outRange.startLine = prevLine;
         outRange.endLine = prevLine;
       }
-    }
-    if (targetEditor) {
-      collapseEditorGapViewZones(targetEditor, chunk.originalStart);
     }
     return true;
   }
