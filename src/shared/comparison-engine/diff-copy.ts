@@ -56,13 +56,15 @@ export function findChunkAtLine(
 
 /**
  * Finds the closest diff chunk to a given line number (used for snapping click or jump)
+ * Supports an optional maxDistance to prevent snapping across large unrelated distances.
  */
 export function findClosestChunk(
   chunks: DiffChunk[],
   line: number,
-  side: 'left' | 'right'
+  side: 'left' | 'right',
+  maxDistance?: number
 ): DiffChunk | null {
-  if (!chunks.length) return null;
+  if (!chunks.length || line <= 0) return null;
   const direct = findChunkAtLine(chunks, line, side);
   if (direct) return direct;
 
@@ -77,7 +79,7 @@ export function findClosestChunk(
       targetStart = c.modifiedStart > 0 ? c.modifiedStart : c.originalStart;
     }
     const dist = Math.abs(line - targetStart);
-    if (dist < minDistance) {
+    if (dist < minDistance && (maxDistance === undefined || dist <= maxDistance)) {
       minDistance = dist;
       closest = c;
     }
@@ -596,9 +598,70 @@ export function computeDiffRanges(
 }
 
 /**
+ * Maps a 1-based line number from one side (left or right) to the corresponding
+ * 1-based line number on the opposite side based on all diff chunks between them.
+ * Accounts for all line count deltas caused by diff insertions, deletions, and modifications above this line.
+ */
+export function mapLineNumber(
+  chunks: DiffChunk[],
+  line: number,
+  fromSide: 'left' | 'right'
+): number {
+  if (line <= 0) return 1;
+  if (!chunks || !chunks.length) return line;
+
+  const sorted = [...chunks].sort((a, b) => {
+    const aStart = fromSide === 'left' ? (a.originalStart || a.modifiedStart) : (a.modifiedStart || a.originalStart);
+    const bStart = fromSide === 'left' ? (b.originalStart || b.modifiedStart) : (b.modifiedStart || b.originalStart);
+    return aStart - bStart;
+  });
+
+  let delta = 0;
+
+  for (const c of sorted) {
+    const sStart = fromSide === 'left' ? c.originalStart : c.modifiedStart;
+    const sEnd = fromSide === 'left' ? c.originalEnd : c.modifiedEnd;
+    const tStart = fromSide === 'left' ? c.modifiedStart : c.originalStart;
+    const tEnd = fromSide === 'left' ? c.modifiedEnd : c.originalEnd;
+
+    const sCount = (sStart > 0 && sEnd >= sStart) ? (sEnd - sStart + 1) : 0;
+    const tCount = (tStart > 0 && tEnd >= tStart) ? (tEnd - tStart + 1) : 0;
+
+    // Check if line falls strictly before this chunk
+    if (sCount > 0 && line < sStart) {
+      return Math.max(1, line + delta);
+    }
+    if (sCount === 0 && line <= sStart) {
+      return Math.max(1, line + delta);
+    }
+
+    // Check if line falls inside this chunk
+    if (sCount > 0 && line >= sStart && line <= sEnd) {
+      const offset = line - sStart;
+      if (tCount > 0) {
+        if (offset < tCount) {
+          return tStart + offset;
+        } else {
+          return tEnd;
+        }
+      } else {
+        return Math.max(1, tStart);
+      }
+    }
+
+    // Line is after this chunk: accumulate delta
+    delta += (tCount - sCount);
+  }
+
+  return Math.max(1, line + delta);
+}
+
+/**
  * Copies specifically selected lines from Left (Original) to Right (Modified).
  * Matches Beyond Compare fine-grained selection copying:
  * Replaces corresponding target lines if target has lines, or inserts into gap cleanly.
+ * When the selection does not intersect a diff chunk, accurately maps lines using mapLineNumber
+ * and never hijacks unrelated diff gaps above.
  */
 export function executeSelectedLinesCopyL2R(
   originalModel: any,
@@ -606,12 +669,10 @@ export function executeSelectedLinesCopyL2R(
   selection: { startLine: number; endLine: number; text?: string },
   chunk?: DiffChunk | null,
   outRange?: ChunkCopyRange,
-  targetEditor?: any
+  targetEditor?: any,
+  allChunks?: DiffChunk[]
 ): boolean {
   if (!originalModel || !modifiedModel) return false;
-  if (targetEditor) {
-    collapseEditorGapViewZones(targetEditor, chunk ? chunk.modifiedStart : selection.startLine);
-  }
 
   const leftLineCount = originalModel.getLineCount();
   const rightLineCount = modifiedModel.getLineCount();
@@ -626,10 +687,27 @@ export function executeSelectedLinesCopyL2R(
   });
   const lineCount = eLine - sLine + 1;
 
-  if (chunk) {
-    const sStart = chunk.originalStart;
-    const tStart = chunk.modifiedStart;
-    const tEnd = chunk.modifiedEnd;
+  // Validate chunk: Only treat chunk as valid if it actually intersects this selection range!
+  const isChunkValid = Boolean(
+    chunk &&
+    (
+      (chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart && chunk.originalStart <= eLine && chunk.originalEnd >= sLine) ||
+      (chunk.originalEnd === 0 && chunk.originalStart >= sLine && chunk.originalStart <= eLine)
+    )
+  );
+  const validChunk = isChunkValid ? chunk : null;
+
+  if (targetEditor) {
+    collapseEditorGapViewZones(
+      targetEditor,
+      validChunk ? validChunk.modifiedStart : mapLineNumber(allChunks || [], sLine, 'left')
+    );
+  }
+
+  if (validChunk) {
+    const sStart = validChunk.originalStart;
+    const tStart = validChunk.modifiedStart;
+    const tEnd = validChunk.modifiedEnd;
     const tHasLines = tStart > 0 && tEnd >= tStart;
 
     if (tHasLines && rightLineCount > 0) {
@@ -724,18 +802,50 @@ export function executeSelectedLinesCopyL2R(
     }
   }
 
-  // Fallback if no diff chunk is associated: direct replacement/insert at selection line
-  const targetLine = Math.min(sLine, Math.max(1, rightLineCount));
+  // Fallback if selection does NOT intersect a diff chunk:
+  // Map selection line range accurately to target lines using mapLineNumber (respects diffs above!)
+  const chunksList = allChunks || [];
+  const targetStart = mapLineNumber(chunksList, sLine, 'left');
+  const targetEnd = mapLineNumber(chunksList, eLine, 'left');
+
+  if (rightLineCount === 0) {
+    const range = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
+    modifiedModel.pushEditOperations([], [{ range, text: selectedText }], () => null);
+    if (outRange) {
+      outRange.startLine = 1;
+      outRange.endLine = lineCount;
+    }
+    return true;
+  }
+
+  if (targetStart > rightLineCount) {
+    const lastCol = modifiedModel.getLineMaxColumn(rightLineCount);
+    const range = {
+      startLineNumber: rightLineCount,
+      startColumn: lastCol,
+      endLineNumber: rightLineCount,
+      endColumn: lastCol,
+    };
+    modifiedModel.pushEditOperations([], [{ range, text: '\n' + selectedText }], () => null);
+    if (outRange) {
+      outRange.startLine = rightLineCount + 1;
+      outRange.endLine = rightLineCount + lineCount;
+    }
+    return true;
+  }
+
+  const clampedTargetStart = Math.max(1, Math.min(targetStart, rightLineCount));
+  const clampedTargetEnd = Math.max(clampedTargetStart, Math.min(targetEnd, rightLineCount));
   const range = {
-    startLineNumber: targetLine,
+    startLineNumber: clampedTargetStart,
     startColumn: 1,
-    endLineNumber: targetLine,
-    endColumn: modifiedModel.getLineMaxColumn(targetLine),
+    endLineNumber: clampedTargetEnd,
+    endColumn: modifiedModel.getLineMaxColumn(clampedTargetEnd),
   };
   modifiedModel.pushEditOperations([], [{ range, text: selectedText }], () => null);
   if (outRange) {
-    outRange.startLine = targetLine;
-    outRange.endLine = targetLine + lineCount - 1;
+    outRange.startLine = clampedTargetStart;
+    outRange.endLine = clampedTargetStart + lineCount - 1;
   }
   return true;
 }
@@ -744,6 +854,8 @@ export function executeSelectedLinesCopyL2R(
  * Copies specifically selected lines from Right (Modified) to Left (Original).
  * Respects difference chunk boundaries, replacing only the corresponding lines on the
  * left without destroying unchanged code below the chunk.
+ * When the selection does not intersect a diff chunk, accurately maps lines using mapLineNumber
+ * and never hijacks unrelated diff gaps above.
  */
 export function executeSelectedLinesCopyR2L(
   originalModel: any,
@@ -751,12 +863,10 @@ export function executeSelectedLinesCopyR2L(
   selection: { startLine: number; endLine: number; text?: string },
   chunk?: DiffChunk | null,
   outRange?: ChunkCopyRange,
-  targetEditor?: any
+  targetEditor?: any,
+  allChunks?: DiffChunk[]
 ): boolean {
   if (!originalModel || !modifiedModel) return false;
-  if (targetEditor) {
-    collapseEditorGapViewZones(targetEditor, chunk ? chunk.originalStart : selection.startLine);
-  }
 
   const leftLineCount = originalModel.getLineCount();
   const rightLineCount = modifiedModel.getLineCount();
@@ -771,10 +881,27 @@ export function executeSelectedLinesCopyR2L(
   });
   const lineCount = eLine - sLine + 1;
 
-  if (chunk) {
-    const sStart = chunk.modifiedStart;
-    const tStart = chunk.originalStart;
-    const tEnd = chunk.originalEnd;
+  // Validate chunk: Only treat chunk as valid if it actually intersects this selection range!
+  const isChunkValid = Boolean(
+    chunk &&
+    (
+      (chunk.modifiedStart > 0 && chunk.modifiedEnd >= chunk.modifiedStart && chunk.modifiedStart <= eLine && chunk.modifiedEnd >= sLine) ||
+      (chunk.modifiedEnd === 0 && chunk.modifiedStart >= sLine && chunk.modifiedStart <= eLine)
+    )
+  );
+  const validChunk = isChunkValid ? chunk : null;
+
+  if (targetEditor) {
+    collapseEditorGapViewZones(
+      targetEditor,
+      validChunk ? validChunk.originalStart : mapLineNumber(allChunks || [], sLine, 'right')
+    );
+  }
+
+  if (validChunk) {
+    const sStart = validChunk.modifiedStart;
+    const tStart = validChunk.originalStart;
+    const tEnd = validChunk.originalEnd;
     const tHasLines = tStart > 0 && tEnd >= tStart;
 
     if (tHasLines && leftLineCount > 0) {
@@ -869,18 +996,50 @@ export function executeSelectedLinesCopyR2L(
     }
   }
 
-  // Fallback if no diff chunk is associated: direct replacement/insert at selection line
-  const targetLine = Math.min(sLine, Math.max(1, leftLineCount));
+  // Fallback if selection does NOT intersect a diff chunk:
+  // Map selection line range accurately to target lines using mapLineNumber (respects diffs above!)
+  const chunksList = allChunks || [];
+  const targetStart = mapLineNumber(chunksList, sLine, 'right');
+  const targetEnd = mapLineNumber(chunksList, eLine, 'right');
+
+  if (leftLineCount === 0) {
+    const range = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
+    originalModel.pushEditOperations([], [{ range, text: selectedText }], () => null);
+    if (outRange) {
+      outRange.startLine = 1;
+      outRange.endLine = lineCount;
+    }
+    return true;
+  }
+
+  if (targetStart > leftLineCount) {
+    const lastCol = originalModel.getLineMaxColumn(leftLineCount);
+    const range = {
+      startLineNumber: leftLineCount,
+      startColumn: lastCol,
+      endLineNumber: leftLineCount,
+      endColumn: lastCol,
+    };
+    originalModel.pushEditOperations([], [{ range, text: '\n' + selectedText }], () => null);
+    if (outRange) {
+      outRange.startLine = leftLineCount + 1;
+      outRange.endLine = leftLineCount + lineCount;
+    }
+    return true;
+  }
+
+  const clampedTargetStart = Math.max(1, Math.min(targetStart, leftLineCount));
+  const clampedTargetEnd = Math.max(clampedTargetStart, Math.min(targetEnd, leftLineCount));
   const range = {
-    startLineNumber: targetLine,
+    startLineNumber: clampedTargetStart,
     startColumn: 1,
-    endLineNumber: targetLine,
-    endColumn: originalModel.getLineMaxColumn(targetLine),
+    endLineNumber: clampedTargetEnd,
+    endColumn: originalModel.getLineMaxColumn(clampedTargetEnd),
   };
   originalModel.pushEditOperations([], [{ range, text: selectedText }], () => null);
   if (outRange) {
-    outRange.startLine = targetLine;
-    outRange.endLine = targetLine + lineCount - 1;
+    outRange.startLine = clampedTargetStart;
+    outRange.endLine = clampedTargetStart + lineCount - 1;
   }
   return true;
 }

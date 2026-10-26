@@ -12,6 +12,7 @@ import {
   DiffChunk,
   computeUnchangedRanges,
   computeDiffRanges,
+  mapLineNumber,
 } from '../../src/shared/comparison-engine/diff-copy.js';
 
 describe('Diff Copy Engine', () => {
@@ -414,6 +415,121 @@ describe('Diff Copy Engine', () => {
       expect(lines[0]).toBe('<sys>');
       expect(lines[1]).toBe('<encryption>false</encryption>');
       expect(lines[2]).toBe('<nsid>TEST</nsid>');
+    });
+  });
+
+  describe('mapLineNumber & Non-Overlapping Selection Copy', () => {
+    const chunkAtLine2: DiffChunk = {
+      id: 'chunk_gap_line_2',
+      originalStart: 2,
+      originalEnd: 2,
+      modifiedStart: 1,
+      modifiedEnd: 0,
+    };
+
+    it('maps line numbers accurately before, inside, and after diff gaps', () => {
+      // Line 1 is before Chunk 1
+      expect(mapLineNumber([chunkAtLine2], 1, 'left')).toBe(1);
+      expect(mapLineNumber([chunkAtLine2], 1, 'right')).toBe(1);
+
+      // Line 2 on left is inside Chunk 1 (which has 0 lines on right, anchored at line 1)
+      expect(mapLineNumber([chunkAtLine2], 2, 'left')).toBe(1);
+
+      // Lines after Chunk 1: Left lines are shifted by -1 on Right because Left has +1 line in Chunk 1
+      expect(mapLineNumber([chunkAtLine2], 3, 'left')).toBe(2);
+      expect(mapLineNumber([chunkAtLine2], 7, 'left')).toBe(6);
+      expect(mapLineNumber([chunkAtLine2], 8, 'left')).toBe(7);
+      expect(mapLineNumber([chunkAtLine2], 9, 'left')).toBe(8);
+
+      // Reverse direction: Right lines are shifted by +1 on Left
+      expect(mapLineNumber([chunkAtLine2], 2, 'right')).toBe(3);
+      expect(mapLineNumber([chunkAtLine2], 6, 'right')).toBe(7);
+      expect(mapLineNumber([chunkAtLine2], 7, 'right')).toBe(8);
+      expect(mapLineNumber([chunkAtLine2], 8, 'right')).toBe(9);
+    });
+
+    it('never hijacks an unrelated diff gap above when copying selected lines L2R', () => {
+      let pushedEdits: any[] = [];
+      const mockOriginal = {
+        getLineCount: () => 10,
+        getLineMaxColumn: () => 60,
+        getValueInRange: ({ startLineNumber, endLineNumber }: any) => {
+          if (startLineNumber === 7 && endLineNumber === 9) {
+            return '<item name="5">epsilon</item>\n<item name="6">zeta</item>\n<item name="7">eta</item>';
+          }
+          return '';
+        },
+      };
+      const mockModified = {
+        getLineCount: () => 9,
+        getLineMaxColumn: () => 60,
+        pushEditOperations: (_before: any, edits: any[]) => {
+          pushedEdits = edits;
+        },
+      };
+
+      const outRange = { startLine: 0, endLine: 0 };
+      // User selects lines 7–9. Even if caller mistakenly passes chunkAtLine2 (which does not intersect lines 7–9),
+      // the engine must reject chunkAtLine2 and map lines 7–9 to lines 6–8 on the right!
+      const res = executeSelectedLinesCopyL2R(
+        mockOriginal,
+        mockModified,
+        { startLine: 7, endLine: 9 },
+        chunkAtLine2,
+        outRange,
+        undefined,
+        [chunkAtLine2]
+      );
+
+      expect(res).toBe(true);
+      expect(pushedEdits.length).toBe(1);
+      // Replaces lines 6–8 on right (NEVER inserts at line 2 gap!)
+      expect(pushedEdits[0].range.startLineNumber).toBe(6);
+      expect(pushedEdits[0].range.endLineNumber).toBe(8);
+      expect(pushedEdits[0].text).toContain('<item name="5">epsilon</item>');
+      expect(outRange.startLine).toBe(6);
+      expect(outRange.endLine).toBe(8);
+    });
+
+    it('never hijacks an unrelated diff gap above when copying selected lines R2L', () => {
+      let pushedEdits: any[] = [];
+      const mockOriginal = {
+        getLineCount: () => 10,
+        getLineMaxColumn: () => 60,
+        pushEditOperations: (_before: any, edits: any[]) => {
+          pushedEdits = edits;
+        },
+      };
+      const mockModified = {
+        getLineCount: () => 9,
+        getLineMaxColumn: () => 60,
+        getValueInRange: ({ startLineNumber, endLineNumber }: any) => {
+          if (startLineNumber === 6 && endLineNumber === 8) {
+            return '<item name="5">epsilon</item>\n<item name="6">zeta</item>\n<item name="7">eta</item>';
+          }
+          return '';
+        },
+      };
+
+      const outRange = { startLine: 0, endLine: 0 };
+      const res = executeSelectedLinesCopyR2L(
+        mockOriginal,
+        mockModified,
+        { startLine: 6, endLine: 8 },
+        chunkAtLine2,
+        outRange,
+        undefined,
+        [chunkAtLine2]
+      );
+
+      expect(res).toBe(true);
+      expect(pushedEdits.length).toBe(1);
+      // Replaces lines 7–9 on left
+      expect(pushedEdits[0].range.startLineNumber).toBe(7);
+      expect(pushedEdits[0].range.endLineNumber).toBe(9);
+      expect(pushedEdits[0].text).toContain('<item name="5">epsilon</item>');
+      expect(outRange.startLine).toBe(7);
+      expect(outRange.endLine).toBe(9);
     });
   });
 });
