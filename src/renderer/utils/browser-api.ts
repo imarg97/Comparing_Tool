@@ -420,7 +420,7 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
     },
 
     openInSystemExplorer: async () => true,
-    getAppVersion: async () => '2.1.0 (Web Preview)',
+    getAppVersion: async () => '2.2.0 (Web Preview)',
     getPlatform: async () => 'browser',
   };
 }
