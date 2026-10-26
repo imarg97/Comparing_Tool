@@ -454,24 +454,32 @@
     opacity: 0.95;
     transform: translate3d(0, 0, 0) scale(0.98);
   }
-  50% {
+  40% {
     opacity: 1;
-    transform: translate3d(calc(25%), 0, 0) scale(1.03);
+    transform: translate3d(calc(24vw), 0, 0) scale(1.04);
+  }
+  85% {
+    opacity: 0.95;
+    transform: translate3d(calc(46vw), 0, 0) scale(1.01);
   }
   100% {
     opacity: 0;
-    transform: translate3d(calc(50% + 24px), 0, 0) scale(1);
+    transform: translate3d(calc(48vw), 0, 0) scale(1);
   }
 }
 
 @keyframes diffx-fly-r2l {
   0% {
     opacity: 0.95;
-    transform: translate3d(calc(50% + 24px), 0, 0) scale(0.98);
+    transform: translate3d(calc(48vw), 0, 0) scale(0.98);
   }
-  50% {
+  40% {
     opacity: 1;
-    transform: translate3d(calc(25%), 0, 0) scale(1.03);
+    transform: translate3d(calc(24vw), 0, 0) scale(1.04);
+  }
+  85% {
+    opacity: 0.95;
+    transform: translate3d(calc(2vw), 0, 0) scale(1.01);
   }
   100% {
     opacity: 0;
@@ -488,24 +496,17 @@
   cursor: text !important;
 }
 
-.diffx-active-gap-target {
-  background-color: rgba(59, 130, 246, 0.08) !important;
-  outline: 1px dashed rgba(59, 130, 246, 0.5) !important;
-  outline-offset: -1px !important;
-  position: relative !important;
-  cursor: text !important;
-}
-
 .dark .diffx-active-gap-target {
   background-color: rgba(99, 102, 241, 0.12) !important;
-  outline: 1px dashed rgba(129, 140, 248, 0.5) !important;
+  outline: 1.5px dashed rgba(129, 140, 248, 0.6) !important;
   outline-offset: -1px !important;
   position: relative !important;
   cursor: text !important;
 }
 
 /* Hides Monaco's native cursor and line highlight while cursor is in an alignment gap */
-.diffx-gap-active .cursors-layer {
+.diffx-gap-active .cursors-layer,
+.diffx-gap-active .cursor {
   opacity: 0 !important;
   display: none !important;
   visibility: hidden !important;
@@ -531,6 +532,49 @@
 .dark .diffx-gap-cursor-indicator {
   background-color: #ffffff;
   box-shadow: 0 0 3px rgba(255, 255, 255, 0.9), 0 0 8px rgba(96, 165, 250, 0.6);
+}
+
+/* Seamless in-place preview inside viewzone before model diff catches up */
+.diffx-gap-filled-line {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding-left: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  color: #93c5fd;
+  background: rgba(30, 58, 138, 0.25);
+  pointer-events: none;
+  z-index: 20;
+  white-space: pre;
+}
+
+.dark .diffx-gap-filled-line {
+  color: #bfdbfe;
+  background: rgba(30, 58, 138, 0.35);
+}
+
+.diffx-gap-arrival-pulse {
+  animation: diffx-arrival-pulse 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes diffx-arrival-pulse {
+  0% {
+    background-color: rgba(234, 179, 8, 0.45);
+    box-shadow: 0 0 16px rgba(234, 179, 8, 0.6);
+  }
+  50% {
+    background-color: rgba(234, 179, 8, 0.25);
+    box-shadow: 0 0 8px rgba(234, 179, 8, 0.3);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
 }
 
 /* Beyond Compare style yellow gutter arrow for empty gap rows */

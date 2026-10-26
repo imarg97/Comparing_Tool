@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { detectLanguage } from '../../src/renderer/views/TextCompare/TextCompareView.js';
 import { detectFormatFromPath } from '../../src/renderer/views/StructuredCompare/StructuredCompareView.js';
-import { executeChunkCopyL2R } from '../../src/shared/comparison-engine/diff-copy.js';
+import {
+  executeChunkCopyL2R,
+  findChunkAtGap,
+  collapseEditorGapViewZones,
+} from '../../src/shared/comparison-engine/diff-copy.js';
 
 describe('Beyond Compare UI Utilities', () => {
   describe('detectLanguage', () => {
@@ -209,6 +213,78 @@ describe('Beyond Compare UI Utilities', () => {
       marginZoneDiv.appendChild(marginArrow);
       expect(marginZoneDiv.children.length).toBe(1);
       expect(marginZoneDiv.children[0].textContent).toBe('⇦');
+    });
+
+    it('findChunkAtGap accurately locates diff chunks across alignment gaps', () => {
+      const chunks = [
+        {
+          id: 'chunk_1',
+          originalStart: 2,
+          originalEnd: 2,
+          modifiedStart: 1,
+          modifiedEnd: 0,
+        },
+        {
+          id: 'chunk_2',
+          originalStart: 10,
+          originalEnd: 15,
+          modifiedStart: 9,
+          modifiedEnd: 9,
+        },
+        {
+          id: 'chunk_3',
+          originalStart: 20,
+          originalEnd: 0,
+          modifiedStart: 21,
+          modifiedEnd: 25,
+        },
+      ];
+
+      // Gap on right after line 1
+      const rightGapChunk = findChunkAtGap(chunks, 1, 'right');
+      expect(rightGapChunk).not.toBeNull();
+      expect(rightGapChunk?.id).toBe('chunk_1');
+
+      // Gap on left after line 20
+      const leftGapChunk = findChunkAtGap(chunks, 20, 'left');
+      expect(leftGapChunk).not.toBeNull();
+      expect(leftGapChunk?.id).toBe('chunk_3');
+    });
+
+    it('collapseEditorGapViewZones collapses zone height to 0 synchronously', () => {
+      const zoneDelegate = {
+        afterLineNumber: 1,
+        heightInPx: 22,
+        heightInLines: 1,
+        domNode: {
+          style: { height: '22px', display: 'block', opacity: '1' },
+        },
+      };
+
+      const mockEditor = {
+        _view: {
+          viewZones: {
+            _zones: {
+              z1: {
+                afterLineNumber: 1,
+                delegate: zoneDelegate,
+              },
+            },
+          },
+        },
+        changeViewZones: (cb: (accessor: any) => void) => {
+          cb({
+            layoutZone: (id: string) => expect(id).toBe('z1'),
+            removeZone: (id: string) => expect(id).toBe('z1'),
+          });
+        },
+      };
+
+      collapseEditorGapViewZones(mockEditor, 1);
+      expect(zoneDelegate.heightInPx).toBe(0);
+      expect(zoneDelegate.heightInLines).toBe(0);
+      expect(zoneDelegate.domNode.style.height).toBe('0px');
+      expect(zoneDelegate.domNode.style.display).toBe('none');
     });
   });
 });

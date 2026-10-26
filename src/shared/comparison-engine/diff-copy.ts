@@ -89,6 +89,50 @@ export function findClosestChunk(
 }
 
 /**
+ * Locates the diff chunk corresponding to an alignment gap (empty space).
+ * In Beyond Compare: when an empty space is clicked on the right, it maps
+ * to the chunk where modifiedEnd === 0 (or modifiedStart aligns with the gap).
+ */
+export function findChunkAtGap(
+  chunks: DiffChunk[],
+  afterLine: number,
+  gapSide: 'left' | 'right'
+): DiffChunk | null {
+  if (!Array.isArray(chunks) || chunks.length === 0) return null;
+
+  for (const c of chunks) {
+    if (gapSide === 'right') {
+      // Gap on right editor: left has content, right is empty or insertion gap
+      const isRightGap = c.modifiedEnd === 0 || c.modifiedEnd < c.modifiedStart;
+      if (isRightGap) {
+        if (
+          c.modifiedStart === afterLine ||
+          c.modifiedStart === afterLine + 1 ||
+          Math.abs(c.modifiedStart - afterLine) <= 1
+        ) {
+          return c;
+        }
+      }
+    } else {
+      // Gap on left editor: right has content, left is empty or insertion gap
+      const isLeftGap = c.originalEnd === 0 || c.originalEnd < c.originalStart;
+      if (isLeftGap) {
+        if (
+          c.originalStart === afterLine ||
+          c.originalStart === afterLine + 1 ||
+          Math.abs(c.originalStart - afterLine) <= 1
+        ) {
+          return c;
+        }
+      }
+    }
+  }
+
+  // Fallback: match any chunk that spans near afterLine on the gap side
+  return findClosestChunk(chunks, Math.max(1, afterLine), gapSide, 1);
+}
+
+/**
  * Splices lines from source text into target text at exact 1-based line positions.
  * Used for direct paragraph copy and mouse range selections.
  */
@@ -143,7 +187,47 @@ export interface ChunkCopyRange {
 export function collapseEditorGapViewZones(editor: any, targetAfterLine?: number): void {
   if (!editor) return;
   try {
-    // 1. Monaco CodeEditor API: getWhitespaces() & changeViewZones()
+    // 1. Monaco CodeEditor internal ViewZones: set delegate height to 0 and layoutZone to collapse linesLayout immediately
+    const viewZonesPart = editor._view?.viewZones || editor._viewZones;
+    if (viewZonesPart && viewZonesPart._zones && typeof editor.changeViewZones === 'function') {
+      editor.changeViewZones((accessor: any) => {
+        for (const key of Object.keys(viewZonesPart._zones)) {
+          const zone = viewZonesPart._zones[key];
+          if (!zone) continue;
+          const delegate = zone.delegate;
+          const afterLine = delegate?.afterLineNumber ?? zone.afterLineNumber;
+          if (
+            targetAfterLine === undefined ||
+            targetAfterLine < 0 ||
+            Math.abs(afterLine - targetAfterLine) <= 1
+          ) {
+            if (delegate) {
+              delegate.heightInPx = 0;
+              delegate.heightInLines = 0;
+              if (delegate.domNode) {
+                delegate.domNode.style.height = '0px';
+                delegate.domNode.style.display = 'none';
+                delegate.domNode.style.opacity = '0';
+              }
+            }
+            if (typeof accessor.layoutZone === 'function') {
+              try {
+                accessor.layoutZone(key);
+              } catch {
+                // ignore
+              }
+            }
+            try {
+              accessor.removeZone(key);
+            } catch {
+              // ignore
+            }
+          }
+        }
+      });
+    }
+
+    // 2. Monaco CodeEditor API: getWhitespaces() & changeViewZones()
     if (typeof editor.getWhitespaces === 'function' && typeof editor.changeViewZones === 'function') {
       const whitespaces = editor.getWhitespaces();
       if (Array.isArray(whitespaces) && whitespaces.length > 0) {
@@ -172,7 +256,7 @@ export function collapseEditorGapViewZones(editor: any, targetAfterLine?: number
       }
     }
 
-    // 2. Monaco internal linesLayout whitespace collapse (synchronously sets height to 0)
+    // 3. Monaco internal linesLayout whitespace collapse (synchronously sets height to 0)
     const viewModel = typeof editor._getViewModel === 'function' ? editor._getViewModel() : null;
     const viewLayout = viewModel?.viewLayout || editor._view?.viewLayout;
 
@@ -199,7 +283,7 @@ export function collapseEditorGapViewZones(editor: any, targetAfterLine?: number
       }
     }
 
-    // 3. Synchronous DOM level collapse to prevent any visual frame flicker
+    // 4. Synchronous DOM level collapse to prevent any visual frame flicker
     const domNode = typeof editor.getDomNode === 'function' ? editor.getDomNode() : null;
     if (domNode) {
       domNode.classList.add('diffx-instant-gap-fill');
