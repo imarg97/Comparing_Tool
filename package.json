@@ -7,7 +7,7 @@
   "main": "dist-electron/main/index.js",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && tsc -p tsconfig.electron.json",
+    "build": "tsc && vite build && tsc -p tsconfig.electron.json && cp src/main/preload.cjs dist-electron/main/preload.cjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc --noEmit",

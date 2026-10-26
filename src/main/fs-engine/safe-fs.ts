@@ -167,7 +167,13 @@ export async function saveSafeFile(request: SaveRequest): Promise<SaveResult> {
 
   try {
     await fs.promises.writeFile(tempFile, request.content, 'utf-8');
-    await fs.promises.rename(tempFile, targetPath);
+    try {
+      await fs.promises.rename(tempFile, targetPath);
+    } catch {
+      // Windows fallback: if atomic rename fails on existing target file, copy and unlink temp
+      await fs.promises.copyFile(tempFile, targetPath);
+      await fs.promises.unlink(tempFile);
+    }
     const stat = await fs.promises.stat(targetPath);
 
     return {

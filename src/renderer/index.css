@@ -20,7 +20,7 @@
     background: #f3f4f6;
   }
   .dark ::-webkit-scrollbar-track {
-    background: #12121a;
+    background: #000000;
   }
   ::-webkit-scrollbar-thumb {
     background: #cbd5e1;
@@ -28,45 +28,45 @@
     border: 2px solid #f3f4f6;
   }
   .dark ::-webkit-scrollbar-thumb {
-    background: #28283c;
+    background: #262626;
     border-radius: 4px;
-    border: 2px solid #12121a;
+    border: 2px solid #000000;
   }
   ::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
   }
   .dark ::-webkit-scrollbar-thumb:hover {
-    background: #3c3d56;
+    background: #404040;
   }
 }
 
-/* Deep Midnight Slate Dark Theme Palette */
+/* Pure Pitch Black Dark Theme Palette (User Requirement) */
 .dark {
-  background-color: #12121a;
-  color: #e2e8f0;
+  background-color: #000000;
+  color: #f8fafc;
 }
 
 .dark .dark\:bg-black {
-  background-color: #161622 !important;
+  background-color: #000000 !important;
 }
 
 .dark .dark\:bg-\[\#0a0a0a\],
 .dark .dark\:bg-\[\#0c0c0c\],
 .dark .dark\:bg-\[\#141414\] {
-  background-color: #181824 !important;
+  background-color: #0a0a0a !important;
 }
 
 .dark .dark\:bg-\[\#111111\],
 .dark .dark\:bg-\[\#080808\] {
-  background-color: #14141e !important;
+  background-color: #050505 !important;
 }
 
 .dark .dark\:bg-neutral-900 {
-  background-color: #1c1c2a !important;
+  background-color: #111111 !important;
 }
 
 .dark .dark\:bg-neutral-950 {
-  background-color: #14141e !important;
+  background-color: #050505 !important;
 }
 
 .dark .dark\:border-neutral-800 {
@@ -277,7 +277,7 @@
 
 .dark .monaco-diff-editor .diagonal-fill,
 .dark .monaco-diff-editor .ced-diagonal-fill {
-  background-color: #13141d !important;
+  background-color: #000000 !important;
 }
 
 /* Disable Monaco built-in revert icon, gutter menu, and diff review clutter */

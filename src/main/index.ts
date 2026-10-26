@@ -21,11 +21,11 @@ function createMainWindow(): BrowserWindow {
     height: 880,
     minWidth: 960,
     minHeight: 640,
-    backgroundColor: '#090d16',
+    backgroundColor: '#000000',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     trafficLightPosition: { x: 14, y: 14 },
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,

@@ -359,7 +359,40 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     }
   };
 
-  // Handle click on diff alignment empty space (view zone / gap) to place cursor right in the gap
+  // Helper to immediately collapse view zones in the editor DOM and Monaco layout to prevent visual jerk/jump on diff copying
+  const collapseEditorViewZones = (editor: any) => {
+    try {
+      if (!editor) return;
+      const domNode = editor.getDomNode?.();
+      if (!domNode) return;
+
+      const vzElements = domNode.querySelectorAll('[monaco-view-zone], .view-zone, .margin-view-zone');
+      vzElements.forEach((el: any) => {
+        el.style.height = '0px';
+        el.style.minHeight = '0px';
+        el.style.display = 'none';
+      });
+
+      if (typeof editor.changeViewZones === 'function') {
+        editor.changeViewZones((accessor: any) => {
+          vzElements.forEach((el: any) => {
+            const id = el.getAttribute('monaco-view-zone');
+            if (id) {
+              try {
+                accessor.removeZone(id);
+              } catch {
+                // ignore
+              }
+            }
+          });
+        });
+      }
+    } catch {
+      // Non-fatal
+    }
+  };
+
+  // Handle click on diff alignment empty space (view zone / gap) to place cursor cleanly without document mutation
   const handleDiffGapClick = (
     targetEditor: any,
     side: 'left' | 'right',
@@ -428,25 +461,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
 
         const lineCount = model.getLineCount();
         const resolvedAfterLine = afterLineNumber !== null ? afterLineNumber : 0;
-        const targetLine = Math.min(Math.max(1, resolvedAfterLine + 1), lineCount + 1);
-
-        const currentLineText = targetLine <= lineCount ? model.getLineContent(targetLine) : null;
-        if (currentLineText !== '') {
-          if (targetLine > lineCount) {
-            const maxCol = model.getLineMaxColumn(lineCount);
-            model.pushEditOperations(
-              [],
-              [{ range: { startLineNumber: lineCount, startColumn: maxCol, endLineNumber: lineCount, endColumn: maxCol }, text: '\n' }],
-              () => null
-            );
-          } else {
-            model.pushEditOperations(
-              [],
-              [{ range: { startLineNumber: targetLine, startColumn: 1, endLineNumber: targetLine, endColumn: 1 }, text: '\n' }],
-              () => null
-            );
-          }
-        }
+        const targetLine = Math.min(Math.max(1, resolvedAfterLine + 1), lineCount);
 
         targetEditor.setPosition({ lineNumber: targetLine, column: 1 });
         targetEditor.focus();
@@ -1008,6 +1023,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         if (chunk || activeSelection) {
           if (chunk) setActiveDiffChunk(chunk);
           if (isGlyphArrowClick) {
+            collapseEditorViewZones(modEditor);
             const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
             if (activeSelection && activeSelection.side === 'left') {
               executeSelectedLinesCopyL2R(origEditor.getModel(), modEditor.getModel(), activeSelection, chunk, outRange);
@@ -1061,6 +1077,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         if (chunk || activeSelection) {
           if (chunk) setActiveDiffChunk(chunk);
           if (isGlyphArrowClick) {
+            collapseEditorViewZones(origEditor);
             const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
             if (activeSelection && activeSelection.side === 'right') {
               executeSelectedLinesCopyR2L(origEditor.getModel(), modEditor.getModel(), activeSelection, chunk, outRange);
@@ -1139,6 +1156,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     const modModel = modEditor.getModel();
     if (!origModel || !modModel) return;
 
+    collapseEditorViewZones(modEditor);
     const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
 
     if (activeSelection && activeSelection.side === 'left') {
@@ -1184,6 +1202,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     const modModel = modEditor.getModel();
     if (!origModel || !modModel) return;
 
+    collapseEditorViewZones(origEditor);
     const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
 
     if (activeSelection && activeSelection.side === 'right') {
@@ -1225,10 +1244,13 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
   // Single active line copy L -> R
   const handleCopyActiveLineL2R = () => {
     if (!diffEditorRef.current || cursorLineNumber === null) return;
-    const modModel = diffEditorRef.current.getModifiedEditor().getModel();
-    const origModel = diffEditorRef.current.getOriginalEditor().getModel();
+    const modEditor = diffEditorRef.current.getModifiedEditor();
+    const origEditor = diffEditorRef.current.getOriginalEditor();
+    const modModel = modEditor.getModel();
+    const origModel = origEditor.getModel();
     if (!modModel || !origModel) return;
 
+    collapseEditorViewZones(modEditor);
     const leftLine = cursorLineNumber <= origModel.getLineCount() ? origModel.getLineContent(cursorLineNumber) : '';
     const rightLineNum = Math.min(cursorLineNumber, modModel.getLineCount());
     const range = {
@@ -1248,10 +1270,13 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
   // Single active line copy R -> L
   const handleCopyActiveLineR2L = () => {
     if (!diffEditorRef.current || cursorLineNumber === null) return;
-    const modModel = diffEditorRef.current.getModifiedEditor().getModel();
-    const origModel = diffEditorRef.current.getOriginalEditor().getModel();
+    const modEditor = diffEditorRef.current.getModifiedEditor();
+    const origEditor = diffEditorRef.current.getOriginalEditor();
+    const modModel = modEditor.getModel();
+    const origModel = origEditor.getModel();
     if (!modModel || !origModel) return;
 
+    collapseEditorViewZones(origEditor);
     const rightLine = cursorLineNumber <= modModel.getLineCount() ? modModel.getLineContent(cursorLineNumber) : '';
     const leftLineNum = Math.min(cursorLineNumber, origModel.getLineCount());
     const range = {
@@ -1887,18 +1912,18 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
                     { token: 'delimiter.xml', foreground: '38bdf8' },
                   ],
                   colors: {
-                    'editor.background': '#161622',
+                    'editor.background': '#000000',
                     'editor.foreground': '#f8fafc',
-                    'editorGutter.background': '#13141d',
+                    'editorGutter.background': '#000000',
                     'editorLineNumber.foreground': '#64748b',
                     'editorLineNumber.activeForeground': '#f8fafc',
-                    'editor.selectionBackground': '#6366f155',
-                    'editor.selectionHighlightBackground': '#6366f133',
+                    'editor.selectionBackground': '#3b82f644',
+                    'editor.selectionHighlightBackground': '#3b82f622',
                     'diffEditor.insertedTextBackground': '#584116',
                     'diffEditor.removedTextBackground': '#5c1c24',
                     'diffEditor.insertedLineBackground': '#352915',
                     'diffEditor.removedLineBackground': '#2e151b',
-                    'diffEditor.diagonalFill': '#13141d',
+                    'diffEditor.diagonalFill': '#000000',
                     'diffEditorGutter.insertedLineBackground': '#00000000',
                     'diffEditorGutter.removedLineBackground': '#00000000',
                   },

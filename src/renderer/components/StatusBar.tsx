@@ -13,7 +13,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({
   durationMs,
 }) => {
   return (
-    <footer className="h-6 bg-neutral-100 dark:bg-[#14141e] border-t border-neutral-300 dark:border-[#262638] text-[11px] text-neutral-600 dark:text-neutral-400 flex items-center justify-between px-3 select-none flex-shrink-0">
+    <footer className="h-6 bg-neutral-100 dark:bg-black border-t border-neutral-300 dark:border-neutral-800 text-[11px] text-neutral-600 dark:text-neutral-400 flex items-center justify-between px-3 select-none flex-shrink-0">
       <div className="flex items-center space-x-3">
         <span className="flex items-center space-x-1 text-neutral-800 dark:text-neutral-200">
           <HardDrive className="w-3 h-3 text-neutral-500 dark:text-neutral-400" />
