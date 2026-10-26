@@ -115,8 +115,11 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
   // File Content State
   const [leftData, setLeftData] = useState<FileContentResult | null>(null);
   const [rightData, setRightData] = useState<FileContentResult | null>(null);
-  const [leftEditorContent, setLeftEditorContent] = useState<string>('');
-  const [rightEditorContent, setRightEditorContent] = useState<string>('');
+  const [leftInitialContent, setLeftInitialContent] = useState<string>('');
+  const [rightInitialContent, setRightInitialContent] = useState<string>('');
+  const leftContentRef = useRef<string>('');
+  const rightContentRef = useRef<string>('');
+  const [totalLineCount, setTotalLineCount] = useState<number>(1);
 
   const [isLoading, setIsLoading] = useState(false);
   const [diffError, setDiffError] = useState<string | null>(null);
@@ -202,8 +205,10 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       registerBrowserFile(rightItem.file.name, rightItem.file, 'right');
       const leftTxt = await leftItem.file.text();
       const rightTxt = await rightItem.file.text();
-      setLeftEditorContent(leftTxt);
-      setRightEditorContent(rightTxt);
+      setLeftInitialContent(leftTxt);
+      setRightInitialContent(rightTxt);
+      leftContentRef.current = leftTxt;
+      rightContentRef.current = rightTxt;
       setLeftDirty(false);
       setRightDirty(false);
       onSetLeftPath(leftItem.path);
@@ -215,12 +220,14 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       registerBrowserFile(item.file.name, item.file, targetSide);
       const txt = await item.file.text();
       if (targetSide === 'left') {
-        setLeftEditorContent(txt);
+        setLeftInitialContent(txt);
+        leftContentRef.current = txt;
         setLeftDirty(false);
         onSetLeftPath(item.path);
         onUpdateStatus(`Loaded Left file: ${item.path}`);
       } else {
-        setRightEditorContent(txt);
+        setRightInitialContent(txt);
+        rightContentRef.current = txt;
         setRightDirty(false);
         onSetRightPath(item.path);
         onUpdateStatus(`Loaded Right file: ${item.path}`);
@@ -600,21 +607,25 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         if (leftPath) {
           leftRes = await window.diffxAPI.readFile(leftPath, undefined, 'left');
           setLeftData(leftRes);
-          setLeftEditorContent(leftRes.content);
+          setLeftInitialContent(leftRes.content);
+          leftContentRef.current = leftRes.content;
           setLeftDirty(false);
         } else {
           setLeftData(null);
-          setLeftEditorContent('');
+          setLeftInitialContent('');
+          leftContentRef.current = '';
         }
 
         if (rightPath) {
           rightRes = await window.diffxAPI.readFile(rightPath, undefined, 'right');
           setRightData(rightRes);
-          setRightEditorContent(rightRes.content);
+          setRightInitialContent(rightRes.content);
+          rightContentRef.current = rightRes.content;
           setRightDirty(false);
         } else {
           setRightData(null);
-          setRightEditorContent('');
+          setRightInitialContent('');
+          rightContentRef.current = '';
         }
 
         // Compare whitespace and raw identity
@@ -660,13 +671,13 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
   // Re-evaluate comparison whenever options change
   useEffect(() => {
     if (leftData && rightData) {
-      const comp = compareTextContent(leftEditorContent, rightEditorContent, options);
+      const comp = compareTextContent(leftContentRef.current, rightContentRef.current, options);
       setDiffStats((prev) => ({
         ...prev,
         whitespaceDifferenceOnly: comp.whitespaceDifferenceOnly,
       }));
     }
-  }, [options, leftEditorContent, rightEditorContent, leftData, rightData]);
+  }, [options, leftData, rightData]);
 
   // Update line details when cursor moves or content updates
   const updateLineDetails = (lineNum: number) => {
@@ -834,10 +845,13 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       // Right Editor Listeners
       modEditor.onDidChangeModelContent(() => {
         const val = modEditor.getValue();
-        setRightEditorContent(val);
+        rightContentRef.current = val;
         setRightDirty(val !== (rightData?.content ?? ''));
         const pos = modEditor.getPosition();
         if (pos) updateLineDetails(pos.lineNumber);
+        const lLines = origEditor.getModel()?.getLineCount() || 1;
+        const rLines = modEditor.getModel()?.getLineCount() || 1;
+        setTotalLineCount(Math.max(1, lLines, rLines));
       });
 
       modEditor.onDidChangeCursorPosition((e: any) => {
@@ -921,10 +935,13 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
 
       origEditor.onDidChangeModelContent(() => {
         const val = origEditor.getValue();
-        setLeftEditorContent(val);
+        leftContentRef.current = val;
         setLeftDirty(val !== (leftData?.content ?? ''));
         const pos = origEditor.getPosition();
         if (pos) updateLineDetails(pos.lineNumber);
+        const lLines = origEditor.getModel()?.getLineCount() || 1;
+        const rLines = modEditor.getModel()?.getLineCount() || 1;
+        setTotalLineCount(Math.max(1, lLines, rLines));
       });
 
       origEditor.onDidChangeCursorPosition((e: any) => {
@@ -982,7 +999,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             if (activeSelection && activeSelection.side === 'left') {
               collapseEditorGapViewZones(modEditor, chunk ? chunk.modifiedStart : activeSelection.startLine);
               executeSelectedLinesCopyL2R(origEditor.getModel(), modEditor.getModel(), activeSelection, chunk, outRange, modEditor);
-              setRightEditorContent(modEditor.getValue());
+              rightContentRef.current = modEditor.getValue();
               setRightDirty(true);
               setLastModifiedSide('right');
               setActiveFocusSide('right');
@@ -994,7 +1011,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             } else if (chunk) {
               collapseEditorGapViewZones(modEditor, chunk.modifiedStart);
               executeChunkCopyL2R(origEditor.getModel(), modEditor.getModel(), chunk, outRange, modEditor);
-              setRightEditorContent(modEditor.getValue());
+              rightContentRef.current = modEditor.getValue();
               setRightDirty(true);
               setLastModifiedSide('right');
               setActiveFocusSide('right');
@@ -1040,7 +1057,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             if (activeSelection && activeSelection.side === 'right') {
               collapseEditorGapViewZones(origEditor, chunk ? chunk.originalStart : activeSelection.startLine);
               executeSelectedLinesCopyR2L(origEditor.getModel(), modEditor.getModel(), activeSelection, chunk, outRange, origEditor);
-              setLeftEditorContent(origEditor.getValue());
+              leftContentRef.current = origEditor.getValue();
               setLeftDirty(true);
               setLastModifiedSide('left');
               setActiveFocusSide('left');
@@ -1052,7 +1069,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             } else if (chunk) {
               collapseEditorGapViewZones(origEditor, chunk.originalStart);
               executeChunkCopyR2L(origEditor.getModel(), modEditor.getModel(), chunk, outRange, origEditor);
-              setLeftEditorContent(origEditor.getValue());
+              leftContentRef.current = origEditor.getValue();
               setLeftDirty(true);
               setLastModifiedSide('left');
               setActiveFocusSide('left');
@@ -1126,7 +1143,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       const chunk = findClosestChunk(chunksRef.current, activeSelection.startLine, 'left');
       collapseEditorGapViewZones(modEditor, chunk ? chunk.modifiedStart : activeSelection.startLine);
       executeSelectedLinesCopyL2R(origModel, modModel, activeSelection, chunk, outRange, modEditor);
-      setRightEditorContent(modModel.getValue());
+      rightContentRef.current = modModel.getValue();
       setRightDirty(true);
       setLastModifiedSide('right');
       setActiveFocusSide('right');
@@ -1147,7 +1164,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       triggerShiftAnimation('left-to-right', chunk.originalStart, srcText);
       collapseEditorGapViewZones(modEditor, chunk.modifiedStart);
       executeChunkCopyL2R(origModel, modModel, chunk, outRange, modEditor);
-      setRightEditorContent(modModel.getValue());
+      rightContentRef.current = modModel.getValue();
       setRightDirty(true);
       setLastModifiedSide('right');
       setActiveFocusSide('right');
@@ -1177,7 +1194,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       const chunk = findClosestChunk(chunksRef.current, activeSelection.startLine, 'right');
       collapseEditorGapViewZones(origEditor, chunk ? chunk.originalStart : activeSelection.startLine);
       executeSelectedLinesCopyR2L(origModel, modModel, activeSelection, chunk, outRange, origEditor);
-      setLeftEditorContent(origModel.getValue());
+      leftContentRef.current = origModel.getValue();
       setLeftDirty(true);
       setLastModifiedSide('left');
       setActiveFocusSide('left');
@@ -1198,7 +1215,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       triggerShiftAnimation('right-to-left', chunk.modifiedStart, srcText);
       collapseEditorGapViewZones(origEditor, chunk.originalStart);
       executeChunkCopyR2L(origModel, modModel, chunk, outRange, origEditor);
-      setLeftEditorContent(origModel.getValue());
+      leftContentRef.current = origModel.getValue();
       setLeftDirty(true);
       setLastModifiedSide('left');
       setActiveFocusSide('left');
@@ -1231,7 +1248,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       endColumn: modModel.getLineMaxColumn(rightLineNum),
     };
     modModel.pushEditOperations([], [{ range, text: leftLine }], () => null);
-    setRightEditorContent(modModel.getValue());
+    rightContentRef.current = modModel.getValue();
     setRightDirty(true);
     flashCopiedHighlight('left', cursorLineNumber, cursorLineNumber, false);
     flashCopiedHighlight('right', rightLineNum, rightLineNum, false);
@@ -1257,7 +1274,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       endColumn: origModel.getLineMaxColumn(leftLineNum),
     };
     origModel.pushEditOperations([], [{ range, text: rightLine }], () => null);
-    setLeftEditorContent(origModel.getValue());
+    leftContentRef.current = origModel.getValue();
     setLeftDirty(true);
     flashCopiedHighlight('right', cursorLineNumber, cursorLineNumber, false);
     flashCopiedHighlight('left', leftLineNum, leftLineNum, false);
@@ -1267,16 +1284,18 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
   // Safe Save Operations (Direct save without modal popups - Beyond Compare style)
   const handleSaveLeft = async () => {
     if (!leftPath) return;
+    const content = diffEditorRef.current?.getOriginalEditor()?.getValue() ?? leftContentRef.current;
     if (window.diffxAPI) {
       const res = await window.diffxAPI.saveFile({
         filePath: leftPath,
-        content: leftEditorContent,
+        content,
         createBackup: false,
       });
       if (res.success) {
         setLeftDirty(false);
+        leftContentRef.current = content;
         if (leftData) {
-          setLeftData({ ...leftData, content: leftEditorContent });
+          setLeftData({ ...leftData, content });
         }
         onUpdateStatus(`Saved left file: ${leftPath.split(/[/\\]/).pop()}`);
       } else {
@@ -1287,16 +1306,18 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
 
   const handleSaveRight = async () => {
     if (!rightPath) return;
+    const content = diffEditorRef.current?.getModifiedEditor()?.getValue() ?? rightContentRef.current;
     if (window.diffxAPI) {
       const res = await window.diffxAPI.saveFile({
         filePath: rightPath,
-        content: rightEditorContent,
+        content,
         createBackup: false,
       });
       if (res.success) {
         setRightDirty(false);
+        rightContentRef.current = content;
         if (rightData) {
-          setRightData({ ...rightData, content: rightEditorContent });
+          setRightData({ ...rightData, content });
         }
         onUpdateStatus(`Saved right file: ${rightPath.split(/[/\\]/).pop()}`);
       } else {
@@ -1307,14 +1328,14 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
 
   const handleRevertAll = () => {
     if (leftData) {
-      setLeftEditorContent(leftData.content);
+      leftContentRef.current = leftData.content;
       if (diffEditorRef.current) {
         diffEditorRef.current.getOriginalEditor().setValue(leftData.content);
       }
       setLeftDirty(false);
     }
     if (rightData) {
-      setRightEditorContent(rightData.content);
+      rightContentRef.current = rightData.content;
       if (diffEditorRef.current) {
         diffEditorRef.current.getModifiedEditor().setValue(rightData.content);
       }
@@ -1726,11 +1747,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         {(leftPath || rightPath) && (
           <DiffOverviewMap
             chunks={diffChunks}
-            totalLines={Math.max(
-              1,
-              leftEditorContent.split('\n').length,
-              rightEditorContent.split('\n').length
-            )}
+            totalLines={totalLineCount}
             currentLine={cursorLineNumber || 1}
             onScrollToChunk={handleJumpToChunk}
             onScrollToLine={(line) => {
@@ -1841,8 +1858,8 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             <DiffEditor
               height="100%"
               language={language}
-              original={leftEditorContent}
-              modified={rightEditorContent}
+              original={leftInitialContent}
+              modified={rightInitialContent}
               theme={theme === 'dark' ? 'beyond-compare-dark' : 'beyond-compare-light'}
               beforeMount={(monaco) => {
                 monaco.editor.defineTheme('beyond-compare-light', {

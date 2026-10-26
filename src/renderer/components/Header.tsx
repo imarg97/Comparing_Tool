@@ -83,6 +83,9 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="font-bold text-[11px] tracking-tight text-neutral-900 dark:text-neutral-100">
               DiffX
             </span>
+            <span className="px-1.5 py-0.5 text-[9px] font-semibold rounded bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30">
+              v2.1.0
+            </span>
             <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-normal">
               • {tabLabels[activeTab]}
             </span>
@@ -413,7 +416,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
                 <div className="my-1 border-t border-neutral-200 dark:border-neutral-800" />
                 <div className="px-3 py-1.5 text-[11px] text-neutral-500">
-                  DiffX Comparison Suite v2.0.0<br />
+                  DiffX Comparison Suite v2.1.0<br />
                   High-Precision Comparison Engine
                 </div>
               </div>

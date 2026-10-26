@@ -97,8 +97,11 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
   // File Data
   const [leftData, setLeftData] = useState<FileContentResult | null>(null);
   const [rightData, setRightData] = useState<FileContentResult | null>(null);
-  const [leftEditorContent, setLeftEditorContent] = useState<string>('');
-  const [rightEditorContent, setRightEditorContent] = useState<string>('');
+  const [leftInitialContent, setLeftInitialContent] = useState<string>('');
+  const [rightInitialContent, setRightInitialContent] = useState<string>('');
+  const leftContentRef = useRef<string>('');
+  const rightContentRef = useRef<string>('');
+  const [totalLineCount, setTotalLineCount] = useState<number>(1);
 
   // Dirty State
   const [leftDirty, setLeftDirty] = useState(false);
@@ -177,8 +180,11 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       registerBrowserFile(rightItem.file.name, rightItem.file, 'right');
       const leftTxt = await leftItem.file.text();
       const rightTxt = await rightItem.file.text();
-      setLeftEditorContent(leftTxt);
-      setRightEditorContent(rightTxt);
+      setLeftInitialContent(leftTxt);
+      setRightInitialContent(rightTxt);
+      leftContentRef.current = leftTxt;
+      rightContentRef.current = rightTxt;
+      setTotalLineCount(Math.max(1, leftTxt.split('\n').length, rightTxt.split('\n').length));
       setLeftDirty(false);
       setRightDirty(false);
       onSetLeftPath(leftItem.path);
@@ -190,12 +196,16 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       registerBrowserFile(item.file.name, item.file, targetSide);
       const txt = await item.file.text();
       if (targetSide === 'left') {
-        setLeftEditorContent(txt);
+        setLeftInitialContent(txt);
+        leftContentRef.current = txt;
+        setTotalLineCount((prev) => Math.max(1, txt.split('\n').length, prev));
         setLeftDirty(false);
         onSetLeftPath(item.path);
         onUpdateStatus(`Loaded Left config: ${item.path}`);
       } else {
-        setRightEditorContent(txt);
+        setRightInitialContent(txt);
+        rightContentRef.current = txt;
+        setTotalLineCount((prev) => Math.max(1, txt.split('\n').length, prev));
         setRightDirty(false);
         onSetRightPath(item.path);
         onUpdateStatus(`Loaded Right config: ${item.path}`);
@@ -571,8 +581,10 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     } else {
       setLeftData(null);
       setRightData(null);
-      setLeftEditorContent('');
-      setRightEditorContent('');
+      setLeftInitialContent('');
+      setRightInitialContent('');
+      leftContentRef.current = '';
+      rightContentRef.current = '';
       setDiffResult(null);
     }
   }, [leftPath, rightPath]);
@@ -590,22 +602,28 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         if (leftPath) {
           leftRes = await window.diffxAPI.readFile(leftPath, undefined, 'left');
           setLeftData(leftRes);
-          setLeftEditorContent(leftRes.content);
+          setLeftInitialContent(leftRes.content);
+          leftContentRef.current = leftRes.content;
           setLeftDirty(false);
         } else {
           setLeftData(null);
-          setLeftEditorContent('');
+          setLeftInitialContent('');
+          leftContentRef.current = '';
         }
 
         if (rightPath) {
           rightRes = await window.diffxAPI.readFile(rightPath, undefined, 'right');
           setRightData(rightRes);
-          setRightEditorContent(rightRes.content);
+          setRightInitialContent(rightRes.content);
+          rightContentRef.current = rightRes.content;
           setRightDirty(false);
         } else {
           setRightData(null);
-          setRightEditorContent('');
+          setRightInitialContent('');
+          rightContentRef.current = '';
         }
+
+        setTotalLineCount(Math.max(1, (leftRes?.content || '').split('\n').length, (rightRes?.content || '').split('\n').length));
 
         // Run structured comparison
         if (leftRes?.content && rightRes?.content) {
@@ -685,8 +703,8 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
 
   // Re-run semantic diff whenever format or noise filter or editor edits change
   useEffect(() => {
-    if (leftEditorContent && rightEditorContent) {
-      runStructuredDiff(leftEditorContent, rightEditorContent, format);
+    if (leftContentRef.current && rightContentRef.current) {
+      runStructuredDiff(leftContentRef.current, rightContentRef.current, format);
     }
   }, [format, filterKubernetes, ignoreKeysInput]);
 
@@ -851,10 +869,13 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       // Right Editor Listeners
       modEditor.onDidChangeModelContent(() => {
         const val = modEditor.getValue();
-        setRightEditorContent(val);
+        rightContentRef.current = val;
         setRightDirty(val !== (rightData?.content ?? ''));
         const pos = modEditor.getPosition();
         if (pos) updateLineDetails(pos.lineNumber);
+        const lLines = origEditor.getModel()?.getLineCount() || 1;
+        const rLines = modEditor.getModel()?.getLineCount() || 1;
+        setTotalLineCount(Math.max(1, lLines, rLines));
       });
 
       modEditor.onDidChangeCursorPosition((e: any) => {
@@ -939,10 +960,13 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       // Left Editor Listeners
       origEditor.onDidChangeModelContent(() => {
         const val = origEditor.getValue();
-        setLeftEditorContent(val);
+        leftContentRef.current = val;
         setLeftDirty(val !== (leftData?.content ?? ''));
         const pos = origEditor.getPosition();
         if (pos) updateLineDetails(pos.lineNumber);
+        const lLines = origEditor.getModel()?.getLineCount() || 1;
+        const rLines = modEditor.getModel()?.getLineCount() || 1;
+        setTotalLineCount(Math.max(1, lLines, rLines));
       });
 
       origEditor.onDidChangeCursorPosition((e: any) => {
@@ -1000,7 +1024,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
             if (activeSelection && activeSelection.side === 'left') {
               collapseEditorGapViewZones(modEditor, chunk ? chunk.modifiedStart : activeSelection.startLine);
               executeSelectedLinesCopyL2R(origEditor.getModel(), modEditor.getModel(), activeSelection, chunk, outRange, modEditor);
-              setRightEditorContent(modEditor.getValue());
+              rightContentRef.current = modEditor.getValue();
               setRightDirty(true);
               setLastModifiedSide('right');
               setActiveFocusSide('right');
@@ -1012,7 +1036,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
             } else if (chunk) {
               collapseEditorGapViewZones(modEditor, chunk.modifiedStart);
               executeChunkCopyL2R(origEditor.getModel(), modEditor.getModel(), chunk, outRange, modEditor);
-              setRightEditorContent(modEditor.getValue());
+              rightContentRef.current = modEditor.getValue();
               setRightDirty(true);
               setLastModifiedSide('right');
               setActiveFocusSide('right');
@@ -1058,7 +1082,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
             if (activeSelection && activeSelection.side === 'right') {
               collapseEditorGapViewZones(origEditor, chunk ? chunk.originalStart : activeSelection.startLine);
               executeSelectedLinesCopyR2L(origEditor.getModel(), modEditor.getModel(), activeSelection, chunk, outRange, origEditor);
-              setLeftEditorContent(origEditor.getValue());
+              leftContentRef.current = origEditor.getValue();
               setLeftDirty(true);
               setLastModifiedSide('left');
               setActiveFocusSide('left');
@@ -1070,7 +1094,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
             } else if (chunk) {
               collapseEditorGapViewZones(origEditor, chunk.originalStart);
               executeChunkCopyR2L(origEditor.getModel(), modEditor.getModel(), chunk, outRange, origEditor);
-              setLeftEditorContent(origEditor.getValue());
+              leftContentRef.current = origEditor.getValue();
               setLeftDirty(true);
               setLastModifiedSide('left');
               setActiveFocusSide('left');
@@ -1144,7 +1168,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       collapseEditorGapViewZones(modEditor, chunk ? chunk.modifiedStart : activeSelection.startLine);
       executeSelectedLinesCopyL2R(origModel, modModel, activeSelection, chunk, outRange, modEditor);
       const updated = modModel.getValue();
-      setRightEditorContent(updated);
+      rightContentRef.current = updated;
       setRightDirty(true);
       setLastModifiedSide('right');
       setActiveFocusSide('right');
@@ -1166,7 +1190,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       collapseEditorGapViewZones(modEditor, chunk.modifiedStart);
       executeChunkCopyL2R(origModel, modModel, chunk, outRange, modEditor);
       const updated = modModel.getValue();
-      setRightEditorContent(updated);
+      rightContentRef.current = updated;
       setRightDirty(true);
       setLastModifiedSide('right');
       setActiveFocusSide('right');
@@ -1197,7 +1221,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       collapseEditorGapViewZones(origEditor, chunk ? chunk.originalStart : activeSelection.startLine);
       executeSelectedLinesCopyR2L(origModel, modModel, activeSelection, chunk, outRange, origEditor);
       const updated = origModel.getValue();
-      setLeftEditorContent(updated);
+      leftContentRef.current = updated;
       setLeftDirty(true);
       setLastModifiedSide('left');
       setActiveFocusSide('left');
@@ -1219,7 +1243,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       collapseEditorGapViewZones(origEditor, chunk.originalStart);
       executeChunkCopyR2L(origModel, modModel, chunk, outRange, origEditor);
       const updated = origModel.getValue();
-      setLeftEditorContent(updated);
+      leftContentRef.current = updated;
       setLeftDirty(true);
       setLastModifiedSide('left');
       setActiveFocusSide('left');
@@ -1252,7 +1276,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       endColumn: modModel.getLineMaxColumn(rightLineNum),
     };
     modModel.pushEditOperations([], [{ range, text: leftLine }], () => null);
-    setRightEditorContent(modModel.getValue());
+    rightContentRef.current = modModel.getValue();
     setRightDirty(true);
     flashCopiedHighlight('left', cursorLineNumber, cursorLineNumber, false);
     flashCopiedHighlight('right', rightLineNum, rightLineNum, false);
@@ -1278,7 +1302,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       endColumn: origModel.getLineMaxColumn(leftLineNum),
     };
     origModel.pushEditOperations([], [{ range, text: rightLine }], () => null);
-    setLeftEditorContent(origModel.getValue());
+    leftContentRef.current = origModel.getValue();
     setLeftDirty(true);
     flashCopiedHighlight('right', cursorLineNumber, cursorLineNumber, false);
     flashCopiedHighlight('left', leftLineNum, leftLineNum, false);
@@ -1288,16 +1312,18 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
   // Safe Save Operations (Direct save without modal popups - Beyond Compare style)
   const handleSaveLeft = async () => {
     if (!leftPath) return;
+    const content = diffEditorRef.current?.getOriginalEditor()?.getValue() ?? leftContentRef.current;
     if (window.diffxAPI) {
       const res = await window.diffxAPI.saveFile({
         filePath: leftPath,
-        content: leftEditorContent,
+        content,
         createBackup: false,
       });
       if (res.success) {
         setLeftDirty(false);
+        leftContentRef.current = content;
         if (leftData) {
-          setLeftData({ ...leftData, content: leftEditorContent });
+          setLeftData({ ...leftData, content });
         }
         onUpdateStatus(`Saved left file: ${leftPath.split(/[/\\]/).pop()}`);
       } else {
@@ -1308,16 +1334,18 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
 
   const handleSaveRight = async () => {
     if (!rightPath) return;
+    const content = diffEditorRef.current?.getModifiedEditor()?.getValue() ?? rightContentRef.current;
     if (window.diffxAPI) {
       const res = await window.diffxAPI.saveFile({
         filePath: rightPath,
-        content: rightEditorContent,
+        content,
         createBackup: false,
       });
       if (res.success) {
         setRightDirty(false);
+        rightContentRef.current = content;
         if (rightData) {
-          setRightData({ ...rightData, content: rightEditorContent });
+          setRightData({ ...rightData, content });
         }
         onUpdateStatus(`Saved right file: ${rightPath.split(/[/\\]/).pop()}`);
       } else {
@@ -1328,14 +1356,14 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
 
   const handleRevertAll = () => {
     if (leftData) {
-      setLeftEditorContent(leftData.content);
+      leftContentRef.current = leftData.content;
       if (diffEditorRef.current) {
         diffEditorRef.current.getOriginalEditor().setValue(leftData.content);
       }
       setLeftDirty(false);
     }
     if (rightData) {
-      setRightEditorContent(rightData.content);
+      rightContentRef.current = rightData.content;
       if (diffEditorRef.current) {
         diffEditorRef.current.getModifiedEditor().setValue(rightData.content);
       }
@@ -1741,11 +1769,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         {(leftPath || rightPath) && (
           <DiffOverviewMap
             chunks={diffChunks}
-            totalLines={Math.max(
-              1,
-              leftEditorContent.split('\n').length,
-              rightEditorContent.split('\n').length
-            )}
+            totalLines={totalLineCount}
             currentLine={cursorLineNumber || 1}
             onScrollToChunk={handleJumpToChunk}
             onScrollToLine={(line) => {
@@ -1856,8 +1880,8 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
             <DiffEditor
               height="100%"
               language={editorLanguage}
-              original={leftEditorContent}
-              modified={rightEditorContent}
+              original={leftInitialContent}
+              modified={rightInitialContent}
               theme={theme === 'dark' ? 'beyond-compare-dark' : 'beyond-compare-light'}
               beforeMount={(monaco) => {
                 monaco.editor.defineTheme('beyond-compare-light', {
