@@ -431,20 +431,35 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     }
   };
 
+  const [activeGapState, setActiveGapState] = useState<{
+    side: 'left' | 'right';
+    afterLineNumber: number;
+    rowOffset?: number;
+    effectiveLineNumber?: number;
+    targetInsertLine: number;
+    chunk: DiffChunk | null;
+  } | null>(null);
+
   const activeGapRef = useRef<{
     side: 'left' | 'right';
     afterLineNumber: number;
+    rowOffset?: number;
+    effectiveLineNumber?: number;
     targetInsertLine: number;
     chunk: DiffChunk | null;
   } | null>(null);
 
   const clearGapTargetDecorations = () => {
     activeGapRef.current = null;
+    setActiveGapState(null);
     try {
       document.querySelectorAll('.diffx-active-gap-target').forEach((node: any) => {
         node.classList.remove('diffx-active-gap-target');
       });
       document.querySelectorAll('.diffx-gap-cursor-indicator').forEach((node: any) => {
+        node.remove();
+      });
+      document.querySelectorAll('.diffx-gap-row-active').forEach((node: any) => {
         node.remove();
       });
       document.querySelectorAll('.diffx-gap-active').forEach((node: any) => {
@@ -453,6 +468,50 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     } catch {
       // ignore
     }
+  };
+
+  const updateGapCursorElement = (editorDom: HTMLElement | null, rowOffset: number) => {
+    if (!editorDom) return;
+    const vz = editorDom.querySelector('.diffx-active-gap-target') as HTMLElement | null;
+    if (!vz) return;
+    const rowHeight = 22;
+    const cursorTop = rowOffset * rowHeight + 2;
+    const cursorHeight = Math.max(14, rowHeight - 4);
+    const cursorIndicator = vz.querySelector('.diffx-gap-cursor-indicator') as HTMLElement | null;
+    if (cursorIndicator) {
+      cursorIndicator.style.top = `${cursorTop}px`;
+      cursorIndicator.style.height = `${cursorHeight}px`;
+    }
+    const rowActive = vz.querySelector('.diffx-gap-row-active') as HTMLElement | null;
+    if (rowActive) {
+      rowActive.style.top = `${rowOffset * rowHeight}px`;
+      rowActive.style.height = `${rowHeight}px`;
+    }
+  };
+
+  const isGapEventTarget = (target: HTMLElement | null): boolean => {
+    if (!target) return false;
+    if (
+      target.classList?.contains('diffx-gap-gutter-arrow') ||
+      target.closest?.('.diffx-gap-gutter-arrow')
+    ) {
+      return false;
+    }
+    return Boolean(
+      target.classList?.contains('view-zone') ||
+      target.classList?.contains('diagonal-fill') ||
+      target.classList?.contains('ced-diagonal-fill') ||
+      target.classList?.contains('diff-hidden-lines') ||
+      target.classList?.contains('diffx-active-gap-target') ||
+      target.classList?.contains('diffx-gap-cursor-indicator') ||
+      target.classList?.contains('diffx-gap-row-active') ||
+      target.closest?.('.view-zone') ||
+      target.closest?.('.diagonal-fill') ||
+      target.closest?.('.ced-diagonal-fill') ||
+      target.closest?.('.diff-hidden-lines') ||
+      target.closest?.('.diffx-active-gap-target') ||
+      target.closest?.('.margin-view-zones')
+    );
   };
 
   // Synchronize permanent Beyond Compare yellow gutter arrows for all diff alignment gaps (view zones)
@@ -479,8 +538,8 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       rowHeight = 22;
     }
 
-    const origMargin = origDom.querySelector('.margin-view-zones') as HTMLElement | null;
-    const modMargin = modDom.querySelector('.margin-view-zones') as HTMLElement | null;
+    const origMargin = (origDom.querySelector('.margin-view-zones') || origDom.querySelector('.margin')) as HTMLElement | null;
+    const modMargin = (modDom.querySelector('.margin-view-zones') || modDom.querySelector('.margin')) as HTMLElement | null;
 
     const activeKeys = new Set<string>();
 
@@ -491,34 +550,31 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         const topPx = origEditor.getTopForLineNumber(chunk.originalStart);
         const numRows = Math.max(1, chunk.originalEnd - chunk.originalStart + 1);
 
-        let targetContainer: HTMLElement | null = null;
-        modMargin.querySelectorAll(':scope > div').forEach((mDiv: any) => {
-          const topVal = parseFloat(mDiv.style.top || '-1');
-          if (Math.abs(topVal - topPx) <= 3) {
-            targetContainer = mDiv;
+        for (let r = 0; r < numRows; r++) {
+          const arrowKey = `mod-gap-${chunk.id || chunk.originalStart}-${r}`;
+          activeKeys.add(arrowKey);
+          let arrow = modMargin.querySelector(`[data-arrow-key="${arrowKey}"]`) as HTMLElement | null;
+          if (!arrow) {
+            arrow = document.createElement('div');
+            arrow.className = 'diffx-gap-gutter-arrow diffx-gap-gutter-arrow-right';
+            arrow.setAttribute('data-arrow-key', arrowKey);
+            arrow.title = 'Copy empty space Right ⇦ Left (delete left line)';
+            const onArrowClick = (e: Event) => {
+              e.stopPropagation();
+              e.preventDefault();
+              handleCopyR2L(chunk);
+            };
+            arrow.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); }, true);
+            arrow.addEventListener('mousedown', (e) => { e.stopPropagation(); e.preventDefault(); }, true);
+            arrow.addEventListener('click', onArrowClick, true);
+            modMargin.appendChild(arrow);
           }
-        });
-
-        if (targetContainer) {
-          for (let r = 0; r < numRows; r++) {
-            const arrowKey = `mod-gap-${chunk.id || chunk.originalStart}-${r}`;
-            activeKeys.add(arrowKey);
-            let arrow = (targetContainer as HTMLElement).querySelector(`[data-arrow-key="${arrowKey}"]`) as HTMLElement | null;
-            if (!arrow) {
-              arrow = document.createElement('div');
-              arrow.className = 'diffx-gap-gutter-arrow diffx-gap-gutter-arrow-right';
-              arrow.setAttribute('data-arrow-key', arrowKey);
-              arrow.style.top = `${r * rowHeight}px`;
-              arrow.style.height = `${rowHeight}px`;
-              arrow.title = 'Copy empty space Right ⇦ Left (delete left lines)';
-              arrow.onclick = (e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                handleCopyR2L(chunk);
-              };
-              (targetContainer as HTMLElement).appendChild(arrow);
-            }
-          }
+          arrow.style.position = 'absolute';
+          arrow.style.top = `${topPx + (r * rowHeight)}px`;
+          arrow.style.height = `${rowHeight}px`;
+          arrow.style.left = '0';
+          arrow.style.width = '100%';
+          arrow.style.display = 'block';
         }
       }
 
@@ -528,34 +584,31 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         const topPx = modEditor.getTopForLineNumber(chunk.modifiedStart);
         const numRows = Math.max(1, chunk.modifiedEnd - chunk.modifiedStart + 1);
 
-        let targetContainer: HTMLElement | null = null;
-        origMargin.querySelectorAll(':scope > div').forEach((mDiv: any) => {
-          const topVal = parseFloat(mDiv.style.top || '-1');
-          if (Math.abs(topVal - topPx) <= 3) {
-            targetContainer = mDiv;
+        for (let r = 0; r < numRows; r++) {
+          const arrowKey = `orig-gap-${chunk.id || chunk.modifiedStart}-${r}`;
+          activeKeys.add(arrowKey);
+          let arrow = origMargin.querySelector(`[data-arrow-key="${arrowKey}"]`) as HTMLElement | null;
+          if (!arrow) {
+            arrow = document.createElement('div');
+            arrow.className = 'diffx-gap-gutter-arrow diffx-gap-gutter-arrow-left';
+            arrow.setAttribute('data-arrow-key', arrowKey);
+            arrow.title = 'Copy empty space Left ⇨ Right (delete right line)';
+            const onArrowClick = (e: Event) => {
+              e.stopPropagation();
+              e.preventDefault();
+              handleCopyL2R(chunk);
+            };
+            arrow.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); }, true);
+            arrow.addEventListener('mousedown', (e) => { e.stopPropagation(); e.preventDefault(); }, true);
+            arrow.addEventListener('click', onArrowClick, true);
+            origMargin.appendChild(arrow);
           }
-        });
-
-        if (targetContainer) {
-          for (let r = 0; r < numRows; r++) {
-            const arrowKey = `orig-gap-${chunk.id || chunk.modifiedStart}-${r}`;
-            activeKeys.add(arrowKey);
-            let arrow = (targetContainer as HTMLElement).querySelector(`[data-arrow-key="${arrowKey}"]`) as HTMLElement | null;
-            if (!arrow) {
-              arrow = document.createElement('div');
-              arrow.className = 'diffx-gap-gutter-arrow diffx-gap-gutter-arrow-left';
-              arrow.setAttribute('data-arrow-key', arrowKey);
-              arrow.style.top = `${r * rowHeight}px`;
-              arrow.style.height = `${rowHeight}px`;
-              arrow.title = 'Copy empty space Left ⇨ Right (delete right lines)';
-              arrow.onclick = (e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                handleCopyL2R(chunk);
-              };
-              (targetContainer as HTMLElement).appendChild(arrow);
-            }
-          }
+          arrow.style.position = 'absolute';
+          arrow.style.top = `${topPx + (r * rowHeight)}px`;
+          arrow.style.height = `${rowHeight}px`;
+          arrow.style.left = '0';
+          arrow.style.width = '100%';
+          arrow.style.display = 'block';
         }
       }
     });
@@ -599,15 +652,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       const targetType = e.target?.type;
       // Monaco MouseTargetType: 5 is GUTTER_VIEW_ZONE, 8 is CONTENT_VIEW_ZONE
       const isViewZoneType = targetType === 5 || targetType === 8;
-      const hasViewZoneClass =
-        rawTarget.classList?.contains('view-zone') ||
-        rawTarget.classList?.contains('diff-hidden-lines') ||
-        rawTarget.classList?.contains('diagonal-fill') ||
-        rawTarget.classList?.contains('ced-diagonal-fill') ||
-        Boolean(rawTarget.closest?.('.view-zone')) ||
-        Boolean(rawTarget.closest?.('.diff-hidden-lines')) ||
-        Boolean(rawTarget.closest?.('.diagonal-fill')) ||
-        Boolean(rawTarget.closest?.('.margin-view-zones > div'));
+      const hasViewZoneClass = isGapEventTarget(rawTarget);
 
       if (!isViewZoneType && !hasViewZoneClass) return false;
 
@@ -719,14 +764,30 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         cursorIndicator.style.top = `${cursorTop}px`;
         cursorIndicator.style.height = `${cursorHeight}px`;
         cursorIndicator.style.display = 'block';
+
+        // Render active line highlight row inside the alignment gap
+        let activeRowHighlight = vzTarget.querySelector('.diffx-gap-row-active') as HTMLElement | null;
+        if (!activeRowHighlight) {
+          activeRowHighlight = document.createElement('div');
+          activeRowHighlight.className = 'diffx-gap-row-active';
+          vzTarget.appendChild(activeRowHighlight);
+        }
+        activeRowHighlight.style.top = `${rowOffset * rowHeight}px`;
+        activeRowHighlight.style.height = `${rowHeight}px`;
+        activeRowHighlight.style.display = 'block';
       }
+
+      const effectiveLineNumber = resolvedAfterLine + rowOffset + 1;
 
       activeGapRef.current = {
         side,
         afterLineNumber: resolvedAfterLine,
+        rowOffset,
+        effectiveLineNumber,
         targetInsertLine: targetLine,
         chunk: matchedChunk,
       };
+      setActiveGapState(activeGapRef.current);
 
       if (matchedChunk) {
         setActiveDiffChunk(matchedChunk);
@@ -736,7 +797,8 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       // NEVER call targetEditor.focus() here as Monaco would jump native cursor to line 2
       editorDom.focus({ preventScroll: true });
       setActiveFocusSide(side);
-      updateLineDetails(targetLine);
+      setCursorLineNumber(effectiveLineNumber);
+      onUpdateStatus(`Line ${effectiveLineNumber} (Empty Space) : Col 1`);
       syncGapGutterArrows();
       return true;
     } catch {
@@ -1216,18 +1278,41 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
           if (e.code === 'ArrowUp' || e.browserEvent?.key === 'ArrowUp') {
             e.preventDefault();
             e.stopPropagation();
-            const targetLine = Math.max(1, activeGapRef.current.afterLineNumber);
-            clearGapTargetDecorations();
-            origEditor.setPosition({ lineNumber: targetLine, column: origEditor.getModel()?.getLineMaxColumn(targetLine) || 1 });
-            origEditor.focus();
+            const curOffset = activeGapRef.current.rowOffset ?? 0;
+            if (curOffset > 0) {
+              activeGapRef.current.rowOffset = curOffset - 1;
+              const effLine = activeGapRef.current.afterLineNumber + activeGapRef.current.rowOffset + 1;
+              activeGapRef.current.effectiveLineNumber = effLine;
+              setCursorLineNumber(effLine);
+              onUpdateStatus(`Line ${effLine} (Empty Space) : Col 1`);
+              updateGapCursorElement(origDom, activeGapRef.current.rowOffset);
+            } else {
+              const targetLine = Math.max(1, activeGapRef.current.afterLineNumber);
+              clearGapTargetDecorations();
+              origEditor.setPosition({ lineNumber: targetLine, column: origEditor.getModel()?.getLineMaxColumn(targetLine) || 1 });
+              origEditor.focus();
+            }
             return;
           } else if (e.code === 'ArrowDown' || e.browserEvent?.key === 'ArrowDown') {
             e.preventDefault();
             e.stopPropagation();
-            const targetLine = Math.min(origEditor.getModel()?.getLineCount() || 1, activeGapRef.current.afterLineNumber + 1);
-            clearGapTargetDecorations();
-            origEditor.setPosition({ lineNumber: targetLine, column: 1 });
-            origEditor.focus();
+            const curOffset = activeGapRef.current.rowOffset ?? 0;
+            const vz = origDom?.querySelector('.diffx-active-gap-target') as HTMLElement | null;
+            const vzHeight = vz ? vz.offsetHeight : 22;
+            const numRows = Math.max(1, Math.round(vzHeight / 22));
+            if (curOffset < numRows - 1) {
+              activeGapRef.current.rowOffset = curOffset + 1;
+              const effLine = activeGapRef.current.afterLineNumber + activeGapRef.current.rowOffset + 1;
+              activeGapRef.current.effectiveLineNumber = effLine;
+              setCursorLineNumber(effLine);
+              onUpdateStatus(`Line ${effLine} (Empty Space) : Col 1`);
+              updateGapCursorElement(origDom, activeGapRef.current.rowOffset);
+            } else {
+              const targetLine = Math.min(origEditor.getModel()?.getLineCount() || 1, activeGapRef.current.afterLineNumber + 1);
+              clearGapTargetDecorations();
+              origEditor.setPosition({ lineNumber: targetLine, column: 1 });
+              origEditor.focus();
+            }
             return;
           } else if (e.code === 'Enter' || e.browserEvent?.key === 'Enter') {
             e.preventDefault();
@@ -1265,38 +1350,27 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         }, true);
       }
 
-      // DOM capture mousedown listeners: intercepts clicks on alignment gaps before Monaco's mouseHandler
-      // This stops Monaco's suppressMouseDown: true from forcing the cursor to line 1 or 2
-      const onOrigDomMouseDown = (e: MouseEvent) => {
-        const target = e.target as HTMLElement | null;
-        if (!target) return;
-        const isArrow =
-          target.classList.contains('diffx-gap-gutter-arrow') ||
-          Boolean(target.closest('.diffx-gap-gutter-arrow'));
-        if (isArrow) return;
-
-        const isGap =
-          target.classList.contains('view-zone') ||
-          target.classList.contains('diagonal-fill') ||
-          target.classList.contains('ced-diagonal-fill') ||
-          target.classList.contains('diff-hidden-lines') ||
-          Boolean(target.closest('.view-zone')) ||
-          Boolean(target.closest('.diagonal-fill')) ||
-          Boolean(target.closest('.diff-hidden-lines')) ||
-          Boolean(target.closest('.margin-view-zones > div'));
-
-        if (isGap) {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
+      // DOM capture pointerdown/mousedown listeners: intercepts clicks on alignment gaps before Monaco's pointer dispatch
+      // Completely eliminates Monaco's cursor snap and prevents any jerk/jump to line 1 or 2
+      const onOrigDomPointer = (e: any) => {
+        const target = (e.target instanceof HTMLElement ? e.target : e.target?.element) as HTMLElement | null;
+        if (isGapEventTarget(target)) {
+          e.preventDefault?.();
+          e.stopPropagation?.();
+          e.stopImmediatePropagation?.();
           handleDiffGapClick(origEditor, 'left', e, chunksRef.current);
-        } else {
+        } else if (
+          target &&
+          !target.classList?.contains('diffx-gap-gutter-arrow') &&
+          !target.closest?.('.diffx-gap-gutter-arrow')
+        ) {
           clearGapTargetDecorations();
         }
       };
 
       if (origDom) {
-        origDom.addEventListener('mousedown', onOrigDomMouseDown, true);
+        origDom.addEventListener('pointerdown', onOrigDomPointer, true);
+        origDom.addEventListener('mousedown', onOrigDomPointer, true);
       }
 
       // Paste listener for right editor: zero-jump native paste & trigger flash animation
@@ -1340,18 +1414,41 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
           if (e.code === 'ArrowUp' || e.browserEvent?.key === 'ArrowUp') {
             e.preventDefault();
             e.stopPropagation();
-            const targetLine = Math.max(1, activeGapRef.current.afterLineNumber);
-            clearGapTargetDecorations();
-            modEditor.setPosition({ lineNumber: targetLine, column: modEditor.getModel()?.getLineMaxColumn(targetLine) || 1 });
-            modEditor.focus();
+            const curOffset = activeGapRef.current.rowOffset ?? 0;
+            if (curOffset > 0) {
+              activeGapRef.current.rowOffset = curOffset - 1;
+              const effLine = activeGapRef.current.afterLineNumber + activeGapRef.current.rowOffset + 1;
+              activeGapRef.current.effectiveLineNumber = effLine;
+              setCursorLineNumber(effLine);
+              onUpdateStatus(`Line ${effLine} (Empty Space) : Col 1`);
+              updateGapCursorElement(modDom, activeGapRef.current.rowOffset);
+            } else {
+              const targetLine = Math.max(1, activeGapRef.current.afterLineNumber);
+              clearGapTargetDecorations();
+              modEditor.setPosition({ lineNumber: targetLine, column: modEditor.getModel()?.getLineMaxColumn(targetLine) || 1 });
+              modEditor.focus();
+            }
             return;
           } else if (e.code === 'ArrowDown' || e.browserEvent?.key === 'ArrowDown') {
             e.preventDefault();
             e.stopPropagation();
-            const targetLine = Math.min(modEditor.getModel()?.getLineCount() || 1, activeGapRef.current.afterLineNumber + 1);
-            clearGapTargetDecorations();
-            modEditor.setPosition({ lineNumber: targetLine, column: 1 });
-            modEditor.focus();
+            const curOffset = activeGapRef.current.rowOffset ?? 0;
+            const vz = modDom?.querySelector('.diffx-active-gap-target') as HTMLElement | null;
+            const vzHeight = vz ? vz.offsetHeight : 22;
+            const numRows = Math.max(1, Math.round(vzHeight / 22));
+            if (curOffset < numRows - 1) {
+              activeGapRef.current.rowOffset = curOffset + 1;
+              const effLine = activeGapRef.current.afterLineNumber + activeGapRef.current.rowOffset + 1;
+              activeGapRef.current.effectiveLineNumber = effLine;
+              setCursorLineNumber(effLine);
+              onUpdateStatus(`Line ${effLine} (Empty Space) : Col 1`);
+              updateGapCursorElement(modDom, activeGapRef.current.rowOffset);
+            } else {
+              const targetLine = Math.min(modEditor.getModel()?.getLineCount() || 1, activeGapRef.current.afterLineNumber + 1);
+              clearGapTargetDecorations();
+              modEditor.setPosition({ lineNumber: targetLine, column: 1 });
+              modEditor.focus();
+            }
             return;
           } else if (e.code === 'Enter' || e.browserEvent?.key === 'Enter') {
             e.preventDefault();
@@ -1389,37 +1486,27 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         }, true);
       }
 
-      // DOM capture mousedown listeners for right editor: intercepts clicks on alignment gaps before Monaco's mouseHandler
-      const onModDomMouseDown = (e: MouseEvent) => {
-        const target = e.target as HTMLElement | null;
-        if (!target) return;
-        const isArrow =
-          target.classList.contains('diffx-gap-gutter-arrow') ||
-          Boolean(target.closest('.diffx-gap-gutter-arrow'));
-        if (isArrow) return;
-
-        const isGap =
-          target.classList.contains('view-zone') ||
-          target.classList.contains('diagonal-fill') ||
-          target.classList.contains('ced-diagonal-fill') ||
-          target.classList.contains('diff-hidden-lines') ||
-          Boolean(target.closest('.view-zone')) ||
-          Boolean(target.closest('.diagonal-fill')) ||
-          Boolean(target.closest('.diff-hidden-lines')) ||
-          Boolean(target.closest('.margin-view-zones > div'));
-
-        if (isGap) {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
+      // DOM capture pointerdown/mousedown listeners: intercepts clicks on alignment gaps before Monaco's pointer dispatch
+      // Completely eliminates Monaco's cursor snap and prevents any jerk/jump to line 1 or 2
+      const onModDomPointer = (e: any) => {
+        const target = (e.target instanceof HTMLElement ? e.target : e.target?.element) as HTMLElement | null;
+        if (isGapEventTarget(target)) {
+          e.preventDefault?.();
+          e.stopPropagation?.();
+          e.stopImmediatePropagation?.();
           handleDiffGapClick(modEditor, 'right', e, chunksRef.current);
-        } else {
+        } else if (
+          target &&
+          !target.classList?.contains('diffx-gap-gutter-arrow') &&
+          !target.closest?.('.diffx-gap-gutter-arrow')
+        ) {
           clearGapTargetDecorations();
         }
       };
 
       if (modDom) {
-        modDom.addEventListener('mousedown', onModDomMouseDown, true);
+        modDom.addEventListener('pointerdown', onModDomPointer, true);
+        modDom.addEventListener('mousedown', onModDomPointer, true);
       }
 
       // Unsuppress Monaco's view zones so Monaco doesn't force mouse-down suppression
@@ -1721,7 +1808,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       return;
     }
 
-    let chunk = targetChunk || activeDiffChunk;
+    let chunk = targetChunk || (activeGapRef.current?.side === 'left' ? activeGapRef.current.chunk : null) || activeDiffChunk;
     if (!chunk && activeGapRef.current) {
       chunk = activeGapRef.current.chunk || findChunkAtGap(chunksRef.current, activeGapRef.current.afterLineNumber, activeGapRef.current.side);
     }
@@ -1748,7 +1835,8 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       if (outRange.startLine > 0) {
         flashCopiedHighlight('right', outRange.startLine, outRange.endLine, false);
       }
-      onUpdateStatus(`Copied diff chunk Left ⇨ Right`);
+      const isGapDelete = chunk.originalEnd === 0 && chunk.modifiedStart > 0;
+      onUpdateStatus(isGapDelete ? `Copied empty space Left ⇨ Right (deleted line(s) on Right)` : `Copied diff chunk Left ⇨ Right`);
     }
   };
 
@@ -1794,7 +1882,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       return;
     }
 
-    let chunk = targetChunk || activeDiffChunk;
+    let chunk = targetChunk || (activeGapRef.current?.side === 'right' ? activeGapRef.current.chunk : null) || activeDiffChunk;
     if (!chunk && activeGapRef.current) {
       chunk = activeGapRef.current.chunk || findChunkAtGap(chunksRef.current, activeGapRef.current.afterLineNumber, activeGapRef.current.side);
     }
@@ -1821,7 +1909,8 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       if (outRange.startLine > 0) {
         flashCopiedHighlight('left', outRange.startLine, outRange.endLine, false);
       }
-      onUpdateStatus(`Copied diff chunk Right ⇦ Left`);
+      const isGapDelete = chunk.modifiedEnd === 0 && chunk.originalStart > 0;
+      onUpdateStatus(isGapDelete ? `Copied empty space Right ⇦ Left (deleted line(s) on Left)` : `Copied diff chunk Right ⇦ Left`);
     }
   };
 
@@ -2469,6 +2558,41 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             </div>
           )}
 
+          {/* Beyond Compare Floating Gap Action Box when cursor is on an Empty Space */}
+          {!activeSelection && activeGapState && (
+            <div
+              className="diffx-gap-action-box absolute z-30 top-3 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3.5 py-1.5 rounded-full shadow-2xl border border-yellow-500/50 bg-neutral-900/95 text-white backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-150"
+            >
+              <span className="text-[11px] font-medium text-yellow-300">
+                Empty Space on <span className="text-white font-semibold">{activeGapState.side === 'left' ? 'Left' : 'Right'}</span> (Line {activeGapState.effectiveLineNumber || activeGapState.afterLineNumber + 1})
+              </span>
+              <div className="h-3 w-px bg-neutral-700" />
+              <button
+                onClick={() => {
+                  if (activeGapState.side === 'left') {
+                    handleCopyL2R();
+                  } else {
+                    handleCopyR2L();
+                  }
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-yellow-600 hover:bg-yellow-500 active:scale-95 text-white transition shadow-sm cursor-pointer"
+                title={activeGapState.side === 'left' ? "Copy empty space Left ⇨ Right (delete right line)" : "Copy empty space Right ⇦ Left (delete left line)"}
+              >
+                <span>{activeGapState.side === 'left' ? 'Copy Empty Space to Right' : 'Copy Empty Space to Left'}</span>
+                <span className="text-sm font-bold">{activeGapState.side === 'left' ? '⇨' : '⇦'}</span>
+              </button>
+              <button
+                onClick={() => {
+                  clearGapTargetDecorations();
+                }}
+                className="p-1 rounded-full hover:bg-neutral-800 text-neutral-400 hover:text-white transition cursor-pointer"
+                title="Dismiss"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* UI/UX Pro Max: Flying Shift Transfer Ghost Pill */}
           {activeShiftFlyer && (
             <div
@@ -2649,6 +2773,9 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
                 renderGutterMenu: false,
                 renderOverviewRuler: false,
                 diffWordWrap: 'off',
+                smoothScrolling: false,
+                cursorSmoothCaretAnimation: 'off',
+                cursorBlinking: 'blink',
                 glyphMargin: false,
                 lineDecorationsWidth: 20,
                 lineNumbers: 'on',

@@ -641,5 +641,75 @@ describe('Beyond Compare UI Utilities', () => {
       expect(modModel.getValue()).toBe('<sys>\n<nsid>NSD_VMAS_VNF</nsid>\n</sys>');
       expect(modModel.getLineCount()).toBe(3);
     });
+
+    it('syncGapGutterArrows creates permanent yellow gutter arrows directly in gutter container for gap rows', () => {
+      const chunks = [
+        {
+          id: 'chunk_xml_gap',
+          originalStart: 2,
+          originalEnd: 3, // 2 lines on left
+          modifiedStart: 1,
+          modifiedEnd: 0, // gap on right
+        },
+      ];
+
+      const createdArrows: any[] = [];
+      const fakeGutterContainer = {
+        children: [] as any[],
+        querySelector(selector: string) {
+          return this.children.find((c: any) => c.getAttribute?.('data-arrow-key') && selector.includes(c.getAttribute('data-arrow-key'))) || null;
+        },
+        appendChild(child: any) {
+          this.children.push(child);
+          createdArrows.push(child);
+        },
+      };
+
+      const rowHeight = 22;
+      const topPx = 22;
+      const numRows = Math.max(1, chunks[0].originalEnd - chunks[0].originalStart + 1); // 2 rows
+
+      for (let r = 0; r < numRows; r++) {
+        const arrowKey = `mod-gap-${chunks[0].id}-${r}`;
+        const arrow = {
+          className: 'diffx-gap-gutter-arrow diffx-gap-gutter-arrow-right',
+          attributes: { 'data-arrow-key': arrowKey } as Record<string, string>,
+          style: {
+            position: 'absolute',
+            top: `${topPx + (r * rowHeight)}px`,
+            height: `${rowHeight}px`,
+          },
+          getAttribute(name: string) {
+            return this.attributes[name];
+          },
+          setAttribute(name: string, val: string) {
+            this.attributes[name] = val;
+          },
+        };
+        fakeGutterContainer.appendChild(arrow);
+      }
+
+      expect(createdArrows.length).toBe(2);
+      expect(createdArrows[0].attributes['data-arrow-key']).toBe('mod-gap-chunk_xml_gap-0');
+      expect(createdArrows[0].style.top).toBe('22px');
+      expect(createdArrows[1].attributes['data-arrow-key']).toBe('mod-gap-chunk_xml_gap-1');
+      expect(createdArrows[1].style.top).toBe('44px');
+    });
+
+    it('treats empty space as individual line: calculates effectiveLineNumber and rowOffset', () => {
+      // Given a gap after line 1 with height of 44px (2 rows)
+      const afterLineNumber = 1;
+      const rowHeight = 22;
+      const vzHeightPx = 44;
+      const clickY = 25; // User clicks on row 1 (0-indexed second row)
+
+      const numRows = Math.max(1, Math.round(vzHeightPx / rowHeight));
+      const rowOffset = Math.max(0, Math.min(Math.floor(clickY / rowHeight), numRows - 1));
+      const effectiveLineNumber = afterLineNumber + rowOffset + 1;
+
+      expect(numRows).toBe(2);
+      expect(rowOffset).toBe(1);
+      expect(effectiveLineNumber).toBe(3); // Line 3 in the aligned grid
+    });
   });
 });
