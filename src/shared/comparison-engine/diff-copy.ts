@@ -914,6 +914,103 @@ export function mapTargetBeforeLine(
  * 
  * If targetStart > targetEnd (target side has a gap), inserts selectedText into the gap.
  */
+export interface TargetRangeResult {
+  isGapInsert: boolean;
+  insertAfterLine: number;
+  replaceStart: number;
+  replaceEnd: number;
+}
+
+/**
+ * Computes the exact target line range corresponding to a selection [sLine..eLine].
+ * Follows Beyond Compare's exact coordinate mapping:
+ * - Equal lines map 1:1 via mapLineNumber without expanding into adjacent alignment gaps.
+ * - Diff chunks with content on both sides map to the chunk's target line range.
+ * - Gap chunks are only included if the selection strictly spans ACROSS the gap (sLine <= sStart && eLine > sStart).
+ * - Target gap insertions (where target has no lines) insert cleanly without overwriting.
+ */
+export function computeTargetRangeForSelection(
+  chunks: DiffChunk[],
+  sLine: number,
+  eLine: number,
+  fromSide: 'left' | 'right',
+  targetLineCount: number
+): TargetRangeResult {
+  const targetLines: number[] = [];
+  let isGapInsert = false;
+  let gapInsertAfter = 0;
+
+  for (let line = sLine; line <= eLine; line++) {
+    let inChunk = false;
+    for (const c of chunks) {
+      const sStart = fromSide === 'left' ? c.originalStart : c.modifiedStart;
+      const sEnd = fromSide === 'left' ? c.originalEnd : c.modifiedEnd;
+      const tStart = fromSide === 'left' ? c.modifiedStart : c.originalStart;
+      const tEnd = fromSide === 'left' ? c.modifiedEnd : c.originalEnd;
+
+      const sCount = (sStart > 0 && sEnd >= sStart) ? (sEnd - sStart + 1) : 0;
+      const tCount = (tStart > 0 && tEnd >= tStart) ? (tEnd - tStart + 1) : 0;
+
+      if (sCount > 0 && line >= sStart && line <= sEnd) {
+        inChunk = true;
+        if (tCount > 0) {
+          for (let tl = tStart; tl <= tEnd; tl++) {
+            targetLines.push(tl);
+          }
+        } else {
+          isGapInsert = true;
+          gapInsertAfter = tStart;
+        }
+        break;
+      }
+    }
+
+    if (!inChunk) {
+      const mapped = mapLineNumber(chunks, line, fromSide);
+      if (mapped > 0) {
+        targetLines.push(mapped);
+      }
+    }
+  }
+
+  // Check if selection strictly spans across any gap chunk (sLine <= sStart && eLine > sStart)
+  for (const c of chunks) {
+    const sStart = fromSide === 'left' ? c.originalStart : c.modifiedStart;
+    const sEnd = fromSide === 'left' ? c.originalEnd : c.modifiedEnd;
+    const tStart = fromSide === 'left' ? c.modifiedStart : c.originalStart;
+    const tEnd = fromSide === 'left' ? c.modifiedEnd : c.originalEnd;
+
+    const sCount = (sStart > 0 && sEnd >= sStart) ? (sEnd - sStart + 1) : 0;
+    const tCount = (tStart > 0 && tEnd >= tStart) ? (tEnd - tStart + 1) : 0;
+
+    if (sCount === 0 && sLine <= sStart && eLine > sStart) {
+      if (tCount > 0) {
+        for (let tl = tStart; tl <= tEnd; tl++) {
+          targetLines.push(tl);
+        }
+      }
+    }
+  }
+
+  if (targetLines.length > 0) {
+    const replaceStart = Math.min(...targetLines);
+    const replaceEnd = Math.max(...targetLines);
+    return {
+      isGapInsert: false,
+      insertAfterLine: 0,
+      replaceStart,
+      replaceEnd,
+    };
+  }
+
+  return {
+    isGapInsert: isGapInsert || targetLines.length === 0,
+    insertAfterLine: Math.min(targetLineCount, Math.max(0, gapInsertAfter)),
+    replaceStart: 0,
+    replaceEnd: 0,
+  };
+}
+
 export function executeSelectedLinesCopyL2R(
   originalModel: any,
   modifiedModel: any,
@@ -939,22 +1036,19 @@ export function executeSelectedLinesCopyL2R(
   });
 
   const chunks = allChunks && allChunks.length ? allChunks : (chunk ? [chunk] : []);
-
-  // Compute boundary projection on Right editor
-  const targetAfterLine = sLine === 1 ? 0 : mapTargetAfterLine(chunks, sLine - 1, 'left');
-  const targetBeforeLine = eLine >= leftLineCount ? rightLineCount + 1 : mapTargetBeforeLine(chunks, eLine + 1, 'left', rightLineCount);
-
-  const targetStart = targetAfterLine + 1;
-  const targetEnd = targetBeforeLine - 1;
+  const targetInfo = computeTargetRangeForSelection(chunks, sLine, eLine, 'left', rightLineCount);
 
   if (targetEditor) {
-    collapseEditorGapViewZones(targetEditor, targetAfterLine);
+    collapseEditorGapViewZones(
+      targetEditor,
+      targetInfo.isGapInsert ? targetInfo.insertAfterLine : targetInfo.replaceStart - 1
+    );
   }
 
-  // Branch 1: Target has existing lines inside this projection window -> REPLACE
-  if (targetStart <= targetEnd && targetStart <= rightLineCount && rightLineCount > 0) {
-    const replaceStart = Math.max(1, targetStart);
-    const replaceEnd = Math.max(replaceStart, Math.min(rightLineCount, targetEnd));
+  // Branch 1: Target has existing lines inside this mapped range -> REPLACE
+  if (!targetInfo.isGapInsert && targetInfo.replaceStart > 0 && rightLineCount > 0) {
+    const replaceStart = Math.max(1, Math.min(rightLineCount, targetInfo.replaceStart));
+    const replaceEnd = Math.max(replaceStart, Math.min(rightLineCount, targetInfo.replaceEnd));
     const range = {
       startLineNumber: replaceStart,
       startColumn: 1,
@@ -969,9 +1063,9 @@ export function executeSelectedLinesCopyL2R(
     return true;
   }
 
-  // Branch 2: Target side has no lines between targetAfterLine and targetBeforeLine (GAP) -> INSERT
-  if (rightLineCount === 0 || targetAfterLine === 0) {
-    // Gap before line 1
+  // Branch 2: Target side has a GAP -> INSERT
+  const insertAfter = targetInfo.insertAfterLine;
+  if (rightLineCount === 0 || insertAfter === 0) {
     const range = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
     const content = rightLineCount > 0 ? selectedText + '\n' : selectedText;
     modifiedModel.pushEditOperations([], [{ range, text: content }], () => null);
@@ -982,8 +1076,7 @@ export function executeSelectedLinesCopyL2R(
     return true;
   }
 
-  if (targetAfterLine >= rightLineCount) {
-    // Gap after the last line of the file
+  if (insertAfter >= rightLineCount) {
     const lastLine = rightLineCount;
     const lastCol = modifiedModel.getLineMaxColumn(lastLine);
     const range = {
@@ -1000,8 +1093,7 @@ export function executeSelectedLinesCopyL2R(
     return true;
   }
 
-  // Gap between targetAfterLine and targetAfterLine + 1
-  const insertLine = targetAfterLine + 1;
+  const insertLine = insertAfter + 1;
   const range = {
     startLineNumber: insertLine,
     startColumn: 1,
@@ -1016,17 +1108,6 @@ export function executeSelectedLinesCopyL2R(
   return true;
 }
 
-/**
- * Copies specifically selected lines from Right (Modified) to Left (Original).
- * Matches Beyond Compare continuous range projection:
- * Calculates the bounding projection of the selection onto the original document:
- * targetAfterLine = sLine === 1 ? 0 : mapLineNumber(chunks, sLine - 1, 'right')
- * targetBeforeLine = eLine >= rightLineCount ? leftLineCount + 1 : mapLineNumber(chunks, eLine + 1, 'right')
- * 
- * If targetStart (targetAfterLine + 1) <= targetEnd (targetBeforeLine - 1),
- * replaces existing lines [targetStart, targetEnd] on left with selectedText.
- * If targetStart > targetEnd (gap on left), inserts selectedText into the gap.
- */
 export function executeSelectedLinesCopyR2L(
   originalModel: any,
   modifiedModel: any,
@@ -1052,22 +1133,19 @@ export function executeSelectedLinesCopyR2L(
   });
 
   const chunks = allChunks && allChunks.length ? allChunks : (chunk ? [chunk] : []);
-
-  // Compute boundary projection on Left editor
-  const targetAfterLine = sLine === 1 ? 0 : mapTargetAfterLine(chunks, sLine - 1, 'right');
-  const targetBeforeLine = eLine >= rightLineCount ? leftLineCount + 1 : mapTargetBeforeLine(chunks, eLine + 1, 'right', leftLineCount);
-
-  const targetStart = targetAfterLine + 1;
-  const targetEnd = targetBeforeLine - 1;
+  const targetInfo = computeTargetRangeForSelection(chunks, sLine, eLine, 'right', leftLineCount);
 
   if (targetEditor) {
-    collapseEditorGapViewZones(targetEditor, targetAfterLine);
+    collapseEditorGapViewZones(
+      targetEditor,
+      targetInfo.isGapInsert ? targetInfo.insertAfterLine : targetInfo.replaceStart - 1
+    );
   }
 
-  // Branch 1: Target has existing lines inside this projection window -> REPLACE
-  if (targetStart <= targetEnd && targetStart <= leftLineCount && leftLineCount > 0) {
-    const replaceStart = Math.max(1, targetStart);
-    const replaceEnd = Math.max(replaceStart, Math.min(leftLineCount, targetEnd));
+  // Branch 1: Target has existing lines inside this mapped range -> REPLACE
+  if (!targetInfo.isGapInsert && targetInfo.replaceStart > 0 && leftLineCount > 0) {
+    const replaceStart = Math.max(1, Math.min(leftLineCount, targetInfo.replaceStart));
+    const replaceEnd = Math.max(replaceStart, Math.min(leftLineCount, targetInfo.replaceEnd));
     const range = {
       startLineNumber: replaceStart,
       startColumn: 1,
@@ -1082,9 +1160,9 @@ export function executeSelectedLinesCopyR2L(
     return true;
   }
 
-  // Branch 2: Target side has no lines between targetAfterLine and targetBeforeLine (GAP) -> INSERT
-  if (leftLineCount === 0 || targetAfterLine === 0) {
-    // Gap before line 1
+  // Branch 2: Target side has a GAP -> INSERT
+  const insertAfter = targetInfo.insertAfterLine;
+  if (leftLineCount === 0 || insertAfter === 0) {
     const range = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
     const content = leftLineCount > 0 ? selectedText + '\n' : selectedText;
     originalModel.pushEditOperations([], [{ range, text: content }], () => null);
@@ -1095,8 +1173,7 @@ export function executeSelectedLinesCopyR2L(
     return true;
   }
 
-  if (targetAfterLine >= leftLineCount) {
-    // Gap after the last line of the file
+  if (insertAfter >= leftLineCount) {
     const lastLine = leftLineCount;
     const lastCol = originalModel.getLineMaxColumn(lastLine);
     const range = {
@@ -1113,8 +1190,7 @@ export function executeSelectedLinesCopyR2L(
     return true;
   }
 
-  // Gap between targetAfterLine and targetAfterLine + 1
-  const insertLine = targetAfterLine + 1;
+  const insertLine = insertAfter + 1;
   const range = {
     startLineNumber: insertLine,
     startColumn: 1,

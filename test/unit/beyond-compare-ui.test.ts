@@ -428,14 +428,88 @@ describe('Beyond Compare UI Utilities', () => {
         },
       ];
 
-      // User selects Right lines 2 to 3 (<nsid> and </sys>) and copies to Left
-      const selection = { startLine: 2, endLine: 3 };
+      // Case A: User selects ONLY Right line 2 (<nsid>) and copies to Left
+      // Crucial: Must NEVER delete line 2 (<encryption>) on the Left!
+      const selectionOnlyNsid = { startLine: 2, endLine: 2 };
       const outRange = { startLine: 0, endLine: 0 };
 
       const res = executeSelectedLinesCopyR2L(
         origModel,
         modModel,
-        selection,
+        selectionOnlyNsid,
+        null,
+        outRange,
+        null,
+        chunks
+      );
+
+      expect(res).toBe(true);
+      const leftLines = origModel.getValue().split('\n');
+      expect(leftLines).toEqual([
+        '<sys>',
+        '<encryption>false</encryption>',
+        '<nsid>NSD_VMAS_VNF</nsid>',
+        '</sys>',
+      ]);
+      expect(leftLines.length).toBe(4);
+    });
+
+    it('selecting across a gap from Line 1 to Line 2 on Right replaces gap lines on Left', () => {
+      class FakeModel {
+        lines: string[];
+        constructor(content: string) {
+          this.lines = content.split('\n');
+        }
+        getLineCount() {
+          return this.lines.length;
+        }
+        getLineMaxColumn(line: number) {
+          return (this.lines[line - 1] || '').length + 1;
+        }
+        getValueInRange(range: any) {
+          return this.lines.slice(range.startLineNumber - 1, range.endLineNumber).join('\n');
+        }
+        pushEditOperations(_beforeCursorState: any, edits: any[]) {
+          for (const edit of edits) {
+            const { range, text } = edit;
+            const linesBefore = this.lines.slice(0, range.startLineNumber - 1);
+            const currentLine = this.lines[range.startLineNumber - 1] || '';
+            const beforeCol = currentLine.substring(0, range.startColumn - 1);
+            const endCurrentLine = this.lines[range.endLineNumber - 1] || '';
+            const afterCol = endCurrentLine.substring(range.endColumn - 1);
+            const linesAfter = this.lines.slice(range.endLineNumber);
+
+            const newMiddle = beforeCol + text + afterCol;
+            const replaced = [...linesBefore, ...newMiddle.split('\n'), ...linesAfter];
+            this.lines = replaced;
+          }
+        }
+        getValue() {
+          return this.lines.join('\n');
+        }
+      }
+
+      const origModel = new FakeModel('<sys>\n<encryption>false</encryption>\n<nsid>NSD_VMAS_VNF</nsid>\n</sys>');
+      const modModel = new FakeModel('<sys>\n<nsid>NSD_VMAS_VNF</nsid>\n</sys>');
+
+      const chunks = [
+        {
+          id: 'chunk_0',
+          originalStart: 2,
+          originalEnd: 2,
+          modifiedStart: 1,
+          modifiedEnd: 0,
+        },
+      ];
+
+      // Selection on Right spans from line 1 across the gap to line 2 (<nsid>)
+      const selectionSpanningGap = { startLine: 1, endLine: 2 };
+      const outRange = { startLine: 0, endLine: 0 };
+
+      const res = executeSelectedLinesCopyR2L(
+        origModel,
+        modModel,
+        selectionSpanningGap,
         chunks[0],
         outRange,
         null,
