@@ -2168,7 +2168,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
                 renderMarginRevertIcon: false,
                 renderGutterMenu: false,
                 renderOverviewRuler: false,
-                diffWordWrap: 'on',
+                diffWordWrap: 'off',
                 glyphMargin: false,
                 lineDecorationsWidth: 20,
                 lineNumbers: 'on',
@@ -2178,8 +2178,8 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
                 matchBrackets: 'never',
                 renderValidationDecorations: 'off',
                 stickyScroll: { enabled: false },
-                maxComputationTime: 0,
-                diffAlgorithm: 'advanced',
+                maxComputationTime: 2000,
+                diffAlgorithm: 'legacy',
                 hideUnchangedRegions: { enabled: false },
               } as any}
             />

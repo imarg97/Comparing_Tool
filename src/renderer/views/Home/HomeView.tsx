@@ -246,7 +246,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
       {/* ================= BOTTOM DIFFX INFO BANNER (MODERN TECH PALETTE) ================= */}
       {showBottomBanner && (
-        <div className="bg-[#0f172a] dark:bg-[#080c16] text-slate-100 dark:text-neutral-200 border-t border-slate-800 dark:border-neutral-850 px-6 py-2.5 flex items-center justify-between text-xs flex-shrink-0 shadow-lg relative z-10">
+        <div className="bg-[#0f172a] dark:bg-black text-slate-100 dark:text-neutral-200 border-t border-slate-800 dark:border-neutral-800 px-6 py-2.5 flex items-center justify-between text-xs flex-shrink-0 shadow-lg relative z-10">
           <div className="grid grid-cols-4 gap-6 max-w-5xl w-full">
             <div>
               <div className="font-semibold uppercase tracking-wider text-[11px] mb-1 text-sky-400 dark:text-sky-300">

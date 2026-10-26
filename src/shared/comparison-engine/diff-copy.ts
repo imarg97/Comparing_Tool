@@ -158,28 +158,6 @@ export function collapseEditorGapViewZones(editor: any, targetAfterLine: number)
         }
       }
     }
-
-    // 2. Direct DOM safety: Zero-out any active view-zone DOM elements near this position
-    const domNode = editor.getDomNode?.();
-    if (domNode) {
-      const vzElements = domNode.querySelectorAll?.('.view-zone, .diagonal-fill, .ced-diagonal-fill');
-      if (vzElements && vzElements.length > 0) {
-        vzElements.forEach((el: any) => {
-          try {
-            const vzParent = el.classList?.contains('view-zone') ? el : el.closest?.('.view-zone');
-            if (vzParent) {
-              vzParent.style.height = '0px';
-              vzParent.style.minHeight = '0px';
-              vzParent.style.maxHeight = '0px';
-              vzParent.style.opacity = '0';
-              vzParent.style.pointerEvents = 'none';
-            }
-          } catch {
-            // ignore
-          }
-        });
-      }
-    }
   } catch {
     // Non-fatal safety guard
   }
@@ -197,9 +175,6 @@ export function executeChunkCopyL2R(
   targetEditor?: any
 ): boolean {
   if (!originalModel || !modifiedModel) return false;
-  if (targetEditor) {
-    collapseEditorGapViewZones(targetEditor, chunk.modifiedStart);
-  }
 
   const leftLineCount = originalModel.getLineCount();
   const rightLineCount = modifiedModel.getLineCount();
@@ -236,6 +211,9 @@ export function executeChunkCopyL2R(
     if (outRange) {
       outRange.startLine = startLine;
       outRange.endLine = startLine + leftInsertedLineCount - 1;
+    }
+    if (targetEditor) {
+      collapseEditorGapViewZones(targetEditor, chunk.modifiedStart);
     }
     return true;
   }
@@ -286,6 +264,9 @@ export function executeChunkCopyL2R(
         outRange.endLine = insertLine + leftInsertedLineCount - 1;
       }
     }
+    if (targetEditor) {
+      collapseEditorGapViewZones(targetEditor, chunk.modifiedStart);
+    }
     return true;
   }
 
@@ -333,6 +314,9 @@ export function executeChunkCopyL2R(
         outRange.endLine = prevLine;
       }
     }
+    if (targetEditor) {
+      collapseEditorGapViewZones(targetEditor, chunk.modifiedStart);
+    }
     return true;
   }
 
@@ -351,9 +335,6 @@ export function executeChunkCopyR2L(
   targetEditor?: any
 ): boolean {
   if (!originalModel || !modifiedModel) return false;
-  if (targetEditor) {
-    collapseEditorGapViewZones(targetEditor, chunk.originalStart);
-  }
 
   const leftLineCount = originalModel.getLineCount();
   const rightLineCount = modifiedModel.getLineCount();
@@ -390,6 +371,9 @@ export function executeChunkCopyR2L(
     if (outRange) {
       outRange.startLine = startLine;
       outRange.endLine = startLine + rightInsertedLineCount - 1;
+    }
+    if (targetEditor) {
+      collapseEditorGapViewZones(targetEditor, chunk.originalStart);
     }
     return true;
   }
@@ -437,6 +421,9 @@ export function executeChunkCopyR2L(
         outRange.endLine = insertLine + rightInsertedLineCount - 1;
       }
     }
+    if (targetEditor) {
+      collapseEditorGapViewZones(targetEditor, chunk.originalStart);
+    }
     return true;
   }
 
@@ -483,6 +470,9 @@ export function executeChunkCopyR2L(
         outRange.startLine = prevLine;
         outRange.endLine = prevLine;
       }
+    }
+    if (targetEditor) {
+      collapseEditorGapViewZones(targetEditor, chunk.originalStart);
     }
     return true;
   }

@@ -2,7 +2,7 @@
  * IPC Handler Registration & Dispatcher (Main Process)
  */
 
-import { dialog, ipcMain, shell, BrowserWindow } from 'electron';
+import { app, dialog, ipcMain, shell, BrowserWindow } from 'electron';
 import * as path from 'path';
 import {
   CopyRequest,
@@ -158,6 +158,6 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   });
 
   // Metadata
-  ipcMain.handle('app:version', () => '1.0.0');
+  ipcMain.handle('app:version', () => app.getVersion());
   ipcMain.handle('app:platform', () => process.platform);
 }

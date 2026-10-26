@@ -367,7 +367,7 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
     },
 
     saveFile: async (request: SaveRequest) => {
-      // In browser, save directly in memory and application storage without downloading draft files
+      // In browser, save directly in memory and application storage, and trigger browser file download
       const cleanName = request.filePath.split(/[/\\]/).pop() || 'file.txt';
 
       // Update in-memory file cache
@@ -381,6 +381,23 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
         localStorage.setItem(`diffx_saved_${request.filePath}`, request.content);
       } catch {
         // storage quota non-fatal
+      }
+
+      // Direct disk download trigger for browser users
+      try {
+        if (typeof document !== 'undefined') {
+          const blob = new Blob([request.content], { type: 'text/plain;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = cleanName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 2000);
+        }
+      } catch {
+        // non-fatal
       }
 
       return {
@@ -403,7 +420,7 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
     },
 
     openInSystemExplorer: async () => true,
-    getAppVersion: async () => '1.0.0 (Web Preview)',
+    getAppVersion: async () => '2.1.0 (Web Preview)',
     getPlatform: async () => 'browser',
   };
 }

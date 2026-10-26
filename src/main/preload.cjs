@@ -4,8 +4,42 @@
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
+// Cache dropped file paths in preload to bridge File objects across context isolation
+const droppedFileCache = new Map();
+
+if (typeof window !== 'undefined') {
+  window.addEventListener(
+    'drop',
+    (e) => {
+      try {
+        if (e.dataTransfer && e.dataTransfer.files) {
+          for (let i = 0; i < e.dataTransfer.files.length; i++) {
+            const file = e.dataTransfer.files[i];
+            if (webUtils && typeof webUtils.getPathForFile === 'function') {
+              try {
+                const p = webUtils.getPathForFile(file);
+                if (p) {
+                  const key = `${file.name}_${file.size}_${file.lastModified}`;
+                  droppedFileCache.set(key, p);
+                  droppedFileCache.set(file.name, p);
+                }
+              } catch {
+                // ignore
+              }
+            }
+          }
+        }
+      } catch {
+        // non-fatal
+      }
+    },
+    true
+  );
+}
+
 const api = {
   getPathForFile: (file) => {
+    if (!file) return '';
     try {
       if (webUtils && typeof webUtils.getPathForFile === 'function') {
         const p = webUtils.getPathForFile(file);
@@ -13,6 +47,13 @@ const api = {
       }
     } catch {
       // fallback
+    }
+    const key = `${file.name || ''}_${file.size || ''}_${file.lastModified || ''}`;
+    if (droppedFileCache.has(key)) {
+      return droppedFileCache.get(key);
+    }
+    if (file.name && droppedFileCache.has(file.name)) {
+      return droppedFileCache.get(file.name);
     }
     return file.path || '';
   },
