@@ -395,7 +395,25 @@ describe('Diff Copy Engine', () => {
 
       expect(removedZones).toEqual(['zone_gap_line_1']);
       expect(pushedEdits.length).toBe(1);
-      expect(pushedEdits[0].text).toContain('<encryption>false</encryption>');
+      expect(pushedEdits[0].text).toBe('<encryption>false</encryption>\n');
+      expect(pushedEdits[0].range).toEqual({
+        startLineNumber: 2,
+        startColumn: 1,
+        endLineNumber: 2,
+        endColumn: 1,
+      });
+    });
+
+    it('ensures inserting into an alignment gap never concatenates with following line', () => {
+      const source = '<sys>\n<encryption>false</encryption>\n<nsid>TEST</nsid>';
+      const target = '<sys>\n<nsid>TEST</nsid>';
+      // Splice source line 2 into target gap between line 1 and line 2 (targetStart: 2, targetEnd: 0)
+      const result = spliceLines(source, target, 2, 2, 2, 0);
+      const lines = result.split('\n');
+      expect(lines.length).toBe(3);
+      expect(lines[0]).toBe('<sys>');
+      expect(lines[1]).toBe('<encryption>false</encryption>');
+      expect(lines[2]).toBe('<nsid>TEST</nsid>');
     });
   });
 });

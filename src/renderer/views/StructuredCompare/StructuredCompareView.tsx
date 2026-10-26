@@ -400,7 +400,15 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     }
   };
 
+  const activeGapRef = useRef<{
+    side: 'left' | 'right';
+    afterLineNumber: number;
+    targetInsertLine: number;
+    chunk: DiffChunk | null;
+  } | null>(null);
+
   const clearGapTargetDecorations = () => {
+    activeGapRef.current = null;
     try {
       document.querySelectorAll('.diffx-active-gap-target').forEach((node: any) => {
         node.classList.remove('diffx-active-gap-target');
@@ -451,6 +459,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       }
 
       const line = e.target?.position?.lineNumber;
+      let matchedChunk: DiffChunk | null = null;
       if (afterLineNumber === null) {
         if (isViewZoneType || hasViewZoneClass) {
           const refLine = line || cursorLineNumber || 1;
@@ -460,6 +469,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
               : c.modifiedStart === refLine && (c.modifiedEnd === 0 || c.modifiedEnd < c.modifiedStart)
           );
           if (matchingChunk) {
+            matchedChunk = matchingChunk;
             afterLineNumber = side === 'left' ? matchingChunk.originalStart : matchingChunk.modifiedStart;
           } else if (line) {
             afterLineNumber = line;
@@ -471,6 +481,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
               : c.modifiedStart === line && (c.modifiedEnd === 0 || c.modifiedEnd < c.modifiedStart)
           );
           if (matchingChunk) {
+            matchedChunk = matchingChunk;
             afterLineNumber = line;
           }
         }
@@ -497,6 +508,13 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         const resolvedAfterLine = afterLineNumber !== null ? afterLineNumber : 0;
         const targetLine = Math.min(Math.max(1, resolvedAfterLine + 1), lineCount);
 
+        activeGapRef.current = {
+          side,
+          afterLineNumber: resolvedAfterLine,
+          targetInsertLine: targetLine,
+          chunk: matchedChunk,
+        };
+
         targetEditor.setPosition({ lineNumber: targetLine, column: 1 });
         targetEditor.focus();
         setActiveFocusSide(side);
@@ -521,6 +539,67 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       // non-fatal
     }
     return false;
+  };
+
+  // Beyond Compare clean gap insertion: inserts text as new lines into alignment gaps without merging into existing text
+  const insertIntoActiveGap = (editor: any, side: 'left' | 'right', textToInsert: string): boolean => {
+    if (!activeGapRef.current || activeGapRef.current.side !== side) return false;
+    const model = editor.getModel();
+    if (!model) return false;
+
+    const lineCount = model.getLineCount();
+    const afterLine = activeGapRef.current.afterLineNumber;
+    const cleanText = textToInsert.endsWith('\n') ? textToInsert : textToInsert + '\n';
+
+    if (afterLine === 0 || lineCount === 0) {
+      const range = {
+        startLineNumber: 1,
+        startColumn: 1,
+        endLineNumber: 1,
+        endColumn: 1,
+      };
+      model.pushEditOperations([], [{ range, text: cleanText }], () => null);
+    } else if (afterLine >= lineCount) {
+      const lastCol = model.getLineMaxColumn(lineCount);
+      const range = {
+        startLineNumber: lineCount,
+        startColumn: lastCol,
+        endLineNumber: lineCount,
+        endColumn: lastCol,
+      };
+      model.pushEditOperations([], [{ range, text: '\n' + textToInsert.replace(/\n$/, '') }], () => null);
+    } else {
+      const targetLine = afterLine + 1;
+      const range = {
+        startLineNumber: targetLine,
+        startColumn: 1,
+        endLineNumber: targetLine,
+        endColumn: 1,
+      };
+      model.pushEditOperations([], [{ range, text: cleanText }], () => null);
+    }
+
+    if (side === 'left') {
+      leftContentRef.current = model.getValue();
+      setLeftDirty(true);
+    } else {
+      rightContentRef.current = model.getValue();
+      setRightDirty(true);
+    }
+
+    const insertedLineCount = cleanText.split('\n').length - 1;
+    const targetStart = Math.min(afterLine + 1, model.getLineCount());
+    const targetEnd = Math.min(targetStart + insertedLineCount - 1, model.getLineCount());
+
+    activeGapRef.current = null;
+    clearGapTargetDecorations();
+    collapseEditorGapViewZones(editor, afterLine);
+
+    flashCopiedHighlight(side, targetStart, targetEnd, false);
+    editor.setPosition({ lineNumber: targetEnd, column: model.getLineMaxColumn(targetEnd) });
+    editor.focus();
+    onUpdateStatus(`Inserted ${insertedLineCount} line(s) into alignment gap cleanly`);
+    return true;
   };
 
   // View Filter: All (*), Diffs (≠), Same (=)
@@ -903,7 +982,6 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
 
       // Paste listener for right editor: zero-jump native paste & trigger flash animation
       modEditor.onDidPaste((e: any) => {
-        clearGapTargetDecorations();
         const pasteRange = e.range;
         if (!pasteRange) return;
         const startLine = pasteRange.startLineNumber;
@@ -917,21 +995,67 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         onUpdateStatus('Pasted content cleanly without jumping');
       });
 
-      // Keydown listener for right editor: collapse viewzones on paste or typing into gap
-      modEditor.onKeyDown((e: any) => {
+      // Keydown listener for right editor: clean gap paste (Ctrl+V) & typing into gaps without text merging
+      modEditor.onKeyDown(async (e: any) => {
         if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyV' || e.browserEvent?.key === 'v')) {
+          if (activeGapRef.current && activeGapRef.current.side === 'right') {
+            e.preventDefault();
+            e.stopPropagation();
+            try {
+              const clipText = await navigator.clipboard.readText();
+              if (clipText) {
+                insertIntoActiveGap(modEditor, 'right', clipText);
+              }
+            } catch {
+              // fallback
+            }
+            return;
+          }
           clearGapTargetDecorations();
           const pos = modEditor.getPosition();
           if (pos) {
             collapseEditorGapViewZones(modEditor, pos.lineNumber - 1);
             collapseEditorGapViewZones(modEditor, pos.lineNumber);
           }
+        } else if (activeGapRef.current && activeGapRef.current.side === 'right') {
+          if (e.code === 'Enter' || e.browserEvent?.key === 'Enter') {
+            e.preventDefault();
+            e.stopPropagation();
+            insertIntoActiveGap(modEditor, 'right', '\n');
+          } else if (
+            e.browserEvent &&
+            !e.ctrlKey &&
+            !e.metaKey &&
+            !e.altKey &&
+            e.browserEvent.key &&
+            e.browserEvent.key.length === 1
+          ) {
+            e.preventDefault();
+            e.stopPropagation();
+            insertIntoActiveGap(modEditor, 'right', e.browserEvent.key);
+          } else if (e.code === 'Escape' || e.code === 'Backspace') {
+            clearGapTargetDecorations();
+          }
         }
       });
 
+      // DOM capture paste listener for right editor (handles mouse right-click paste)
+      const modDom = modEditor.getDomNode();
+      if (modDom) {
+        modDom.addEventListener('paste', (e: ClipboardEvent) => {
+          if (activeGapRef.current && activeGapRef.current.side === 'right') {
+            const clipText = e.clipboardData?.getData('text/plain');
+            if (clipText) {
+              e.preventDefault();
+              e.stopPropagation();
+              insertIntoActiveGap(modEditor, 'right', clipText);
+            }
+          }
+        }, true);
+      }
+
       // Paste listener for left editor: zero-jump native paste & trigger flash animation
       origEditor.onDidPaste((e: any) => {
-        clearGapTargetDecorations();
         const pasteRange = e.range;
         if (!pasteRange) return;
         const startLine = pasteRange.startLineNumber;
@@ -945,17 +1069,64 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         onUpdateStatus('Pasted content cleanly without jumping');
       });
 
-      // Keydown listener for left editor: collapse viewzones on paste or typing into gap
-      origEditor.onKeyDown((e: any) => {
+      // Keydown listener for left editor: clean gap paste (Ctrl+V) & typing into gaps without text merging
+      origEditor.onKeyDown(async (e: any) => {
         if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyV' || e.browserEvent?.key === 'v')) {
+          if (activeGapRef.current && activeGapRef.current.side === 'left') {
+            e.preventDefault();
+            e.stopPropagation();
+            try {
+              const clipText = await navigator.clipboard.readText();
+              if (clipText) {
+                insertIntoActiveGap(origEditor, 'left', clipText);
+              }
+            } catch {
+              // fallback
+            }
+            return;
+          }
           clearGapTargetDecorations();
           const pos = origEditor.getPosition();
           if (pos) {
             collapseEditorGapViewZones(origEditor, pos.lineNumber - 1);
             collapseEditorGapViewZones(origEditor, pos.lineNumber);
           }
+        } else if (activeGapRef.current && activeGapRef.current.side === 'left') {
+          if (e.code === 'Enter' || e.browserEvent?.key === 'Enter') {
+            e.preventDefault();
+            e.stopPropagation();
+            insertIntoActiveGap(origEditor, 'left', '\n');
+          } else if (
+            e.browserEvent &&
+            !e.ctrlKey &&
+            !e.metaKey &&
+            !e.altKey &&
+            e.browserEvent.key &&
+            e.browserEvent.key.length === 1
+          ) {
+            e.preventDefault();
+            e.stopPropagation();
+            insertIntoActiveGap(origEditor, 'left', e.browserEvent.key);
+          } else if (e.code === 'Escape' || e.code === 'Backspace') {
+            clearGapTargetDecorations();
+          }
         }
       });
+
+      // DOM capture paste listener for left editor (handles mouse right-click paste)
+      const origDom = origEditor.getDomNode();
+      if (origDom) {
+        origDom.addEventListener('paste', (e: ClipboardEvent) => {
+          if (activeGapRef.current && activeGapRef.current.side === 'left') {
+            const clipText = e.clipboardData?.getData('text/plain');
+            if (clipText) {
+              e.preventDefault();
+              e.stopPropagation();
+              insertIntoActiveGap(origEditor, 'left', clipText);
+            }
+          }
+        }, true);
+      }
 
       // Left Editor Listeners
       origEditor.onDidChangeModelContent(() => {
@@ -1257,7 +1428,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
 
 
 
-  // Single active line copy L -> R
+  // Single active line copy L -> R (respects alignment gaps)
   const handleCopyActiveLineL2R = () => {
     if (!diffEditorRef.current || cursorLineNumber === null) return;
     const modEditor = diffEditorRef.current.getModifiedEditor();
@@ -1265,6 +1436,26 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     const modModel = modEditor.getModel();
     const origModel = origEditor.getModel();
     if (!modModel || !origModel) return;
+
+    const chunk = findChunkAtLine(chunksRef.current, cursorLineNumber, 'left') || findClosestChunk(chunksRef.current, cursorLineNumber, 'left');
+    if (chunk) {
+      clearGapTargetDecorations();
+      const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
+      const srcText = origModel.getLineContent(chunk.originalStart || cursorLineNumber);
+      triggerShiftAnimation('left-to-right', chunk.originalStart || cursorLineNumber, srcText);
+      collapseEditorGapViewZones(modEditor, chunk.modifiedStart);
+      executeChunkCopyL2R(origModel, modModel, chunk, outRange, modEditor);
+      rightContentRef.current = modModel.getValue();
+      setRightDirty(true);
+      setLastModifiedSide('right');
+      setActiveFocusSide('right');
+      flashCopiedHighlight('left', chunk.originalStart, chunk.originalEnd || chunk.originalStart, false);
+      if (outRange.startLine > 0) {
+        flashCopiedHighlight('right', outRange.startLine, outRange.endLine, false);
+      }
+      onUpdateStatus(`Copied diff chunk Left ⇨ Right`);
+      return;
+    }
 
     const leftLine = cursorLineNumber <= origModel.getLineCount() ? origModel.getLineContent(cursorLineNumber) : '';
     triggerShiftAnimation('left-to-right', cursorLineNumber, leftLine);
@@ -1283,7 +1474,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     onUpdateStatus(`Copied line ${cursorLineNumber} Left ⇨ Right`);
   };
 
-  // Single active line copy R -> L
+  // Single active line copy R -> L (respects alignment gaps)
   const handleCopyActiveLineR2L = () => {
     if (!diffEditorRef.current || cursorLineNumber === null) return;
     const modEditor = diffEditorRef.current.getModifiedEditor();
@@ -1291,6 +1482,26 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     const modModel = modEditor.getModel();
     const origModel = origEditor.getModel();
     if (!modModel || !origModel) return;
+
+    const chunk = findChunkAtLine(chunksRef.current, cursorLineNumber, 'right') || findClosestChunk(chunksRef.current, cursorLineNumber, 'right');
+    if (chunk) {
+      clearGapTargetDecorations();
+      const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
+      const srcText = modModel.getLineContent(chunk.modifiedStart || cursorLineNumber);
+      triggerShiftAnimation('right-to-left', chunk.modifiedStart || cursorLineNumber, srcText);
+      collapseEditorGapViewZones(origEditor, chunk.originalStart);
+      executeChunkCopyR2L(origModel, modModel, chunk, outRange, origEditor);
+      leftContentRef.current = origModel.getValue();
+      setLeftDirty(true);
+      setLastModifiedSide('left');
+      setActiveFocusSide('left');
+      flashCopiedHighlight('right', chunk.modifiedStart, chunk.modifiedEnd || chunk.modifiedStart, false);
+      if (outRange.startLine > 0) {
+        flashCopiedHighlight('left', outRange.startLine, outRange.endLine, false);
+      }
+      onUpdateStatus(`Copied diff chunk Right ⇦ Left`);
+      return;
+    }
 
     const rightLine = cursorLineNumber <= modModel.getLineCount() ? modModel.getLineContent(cursorLineNumber) : '';
     triggerShiftAnimation('right-to-left', cursorLineNumber, rightLine);

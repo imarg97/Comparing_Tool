@@ -237,7 +237,14 @@
 
 .monaco-diff-editor .diagonal-fill,
 .monaco-diff-editor .ced-diagonal-fill {
-  background-color: #f1f5f9 !important;
+  background-color: #f8fafc !important;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 5px,
+    rgba(148, 163, 184, 0.22) 5px,
+    rgba(148, 163, 184, 0.22) 10px
+  ) !important;
 }
 
 /* Dark Mode: Calibrated deep dark theme matching user screenshot */
@@ -277,7 +284,14 @@
 
 .dark .monaco-diff-editor .diagonal-fill,
 .dark .monaco-diff-editor .ced-diagonal-fill {
-  background-color: #000000 !important;
+  background-color: #0b0b0e !important;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 5px,
+    rgba(255, 255, 255, 0.08) 5px,
+    rgba(255, 255, 255, 0.08) 10px
+  ) !important;
 }
 
 /* Disable Monaco built-in revert icon, gutter menu, and diff review clutter */
