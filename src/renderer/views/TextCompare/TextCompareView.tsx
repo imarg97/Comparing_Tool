@@ -458,15 +458,6 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     }
   };
 
-  function escapeHtml(str: string): string {
-    return str
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
-
   // Handle click on diff alignment empty space (view zone / gap) to place cursor cleanly without document mutation
   const handleDiffGapClick = (
     targetEditor: any,
@@ -1656,13 +1647,6 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       const srcText = origModel.getLineContent(chunk.originalStart);
       triggerShiftAnimation('left-to-right', chunk.originalStart, srcText);
 
-      // Instant seamless preview inside destination gap before model diff catches up
-      const modDom = modEditor.getDomNode?.();
-      const activeGapTarget = modDom?.querySelector?.('.diffx-active-gap-target') as HTMLElement | null;
-      if (activeGapTarget) {
-        activeGapTarget.innerHTML = `<div class="diffx-gap-filled-line diffx-gap-arrival-pulse">${escapeHtml(srcText)}</div>`;
-      }
-
       collapseEditorGapViewZones(modEditor, chunk.modifiedStart);
       clearGapTargetDecorations();
       executeChunkCopyL2R(origModel, modModel, chunk, outRange, modEditor);
@@ -1733,13 +1717,6 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     if (chunk) {
       const srcText = modModel.getLineContent(chunk.modifiedStart);
       triggerShiftAnimation('right-to-left', chunk.modifiedStart, srcText);
-
-      // Instant seamless preview inside destination gap before model diff catches up
-      const origDom = origEditor.getDomNode?.();
-      const activeGapTarget = origDom?.querySelector?.('.diffx-active-gap-target') as HTMLElement | null;
-      if (activeGapTarget) {
-        activeGapTarget.innerHTML = `<div class="diffx-gap-filled-line diffx-gap-arrival-pulse">${escapeHtml(srcText)}</div>`;
-      }
 
       collapseEditorGapViewZones(origEditor, chunk.originalStart);
       clearGapTargetDecorations();

@@ -3,6 +3,8 @@ import { detectLanguage } from '../../src/renderer/views/TextCompare/TextCompare
 import { detectFormatFromPath } from '../../src/renderer/views/StructuredCompare/StructuredCompareView.js';
 import {
   executeChunkCopyL2R,
+  executeSelectedLinesCopyL2R,
+  executeSelectedLinesCopyR2L,
   findChunkAtGap,
   collapseEditorGapViewZones,
 } from '../../src/shared/comparison-engine/diff-copy.js';
@@ -285,6 +287,168 @@ describe('Beyond Compare UI Utilities', () => {
       expect(zoneDelegate.heightInLines).toBe(0);
       expect(zoneDelegate.domNode.style.height).toBe('0px');
       expect(zoneDelegate.domNode.style.display).toBe('none');
+    });
+
+    it('resolves multi-line selection copy spanning across diff gap and identical lines without duplicates (Bug Fix)', () => {
+      // Recreates the exact scenario from user screenshot media_1793038600956_16c68607.png:
+      // Left side has 4 lines:
+      // 1: <sys>
+      // 2: <encryption>false</encryption> (diff gap on right)
+      // 3: <nsid>NSD_VMAS_VNF</nsid>     (matches line 2 on right)
+      // 4: </sys>
+      // Right side has 3 lines:
+      // 1: <sys>
+      // 2: <nsid>NSD_VMAS_VNF</nsid>
+      // 3: </sys>
+      class FakeModel {
+        lines: string[];
+        constructor(content: string) {
+          this.lines = content.split('\n');
+        }
+        getLineCount() {
+          return this.lines.length;
+        }
+        getLineMaxColumn(line: number) {
+          return (this.lines[line - 1] || '').length + 1;
+        }
+        getValueInRange(range: any) {
+          return this.lines.slice(range.startLineNumber - 1, range.endLineNumber).join('\n');
+        }
+        pushEditOperations(_beforeCursorState: any, edits: any[]) {
+          for (const edit of edits) {
+            const { range, text } = edit;
+            const linesBefore = this.lines.slice(0, range.startLineNumber - 1);
+            const currentLine = this.lines[range.startLineNumber - 1] || '';
+            const beforeCol = currentLine.substring(0, range.startColumn - 1);
+            const endCurrentLine = this.lines[range.endLineNumber - 1] || '';
+            const afterCol = endCurrentLine.substring(range.endColumn - 1);
+            const linesAfter = this.lines.slice(range.endLineNumber);
+
+            const newMiddle = beforeCol + text + afterCol;
+            const replaced = [...linesBefore, ...newMiddle.split('\n'), ...linesAfter];
+            this.lines = replaced;
+          }
+        }
+        getValue() {
+          return this.lines.join('\n');
+        }
+      }
+
+      const origModel = new FakeModel('<sys>\n<encryption>false</encryption>\n<nsid>NSD_VMAS_VNF</nsid>\n</sys>');
+      const modModel = new FakeModel('<sys>\n<nsid>NSD_VMAS_VNF</nsid>\n</sys>');
+
+      const chunks = [
+        {
+          id: 'chunk_0',
+          originalStart: 2,
+          originalEnd: 2,
+          modifiedStart: 1,
+          modifiedEnd: 0,
+        },
+      ];
+
+      // User selects Left lines 2 to 3 (<encryption> and <nsid>)
+      const selection = { startLine: 2, endLine: 3 };
+      const outRange = { startLine: 0, endLine: 0 };
+
+      const res = executeSelectedLinesCopyL2R(
+        origModel,
+        modModel,
+        selection,
+        chunks[0],
+        outRange,
+        null,
+        chunks
+      );
+
+      expect(res).toBe(true);
+      expect(outRange.startLine).toBe(2);
+      expect(outRange.endLine).toBe(3);
+
+      const rightLines = modModel.getValue().split('\n');
+      expect(rightLines).toEqual([
+        '<sys>',
+        '<encryption>false</encryption>',
+        '<nsid>NSD_VMAS_VNF</nsid>',
+        '</sys>',
+      ]);
+      expect(rightLines.length).toBe(4);
+
+      // CRITICAL ASSERTION: <nsid>NSD_VMAS_VNF</nsid> must NOT be duplicated!
+      const nsidCount = rightLines.filter((l) => l.includes('<nsid>NSD_VMAS_VNF</nsid>')).length;
+      expect(nsidCount).toBe(1);
+    });
+
+    it('resolves multi-line selection copy R2L projecting continuous range cleanly', () => {
+      class FakeModel {
+        lines: string[];
+        constructor(content: string) {
+          this.lines = content.split('\n');
+        }
+        getLineCount() {
+          return this.lines.length;
+        }
+        getLineMaxColumn(line: number) {
+          return (this.lines[line - 1] || '').length + 1;
+        }
+        getValueInRange(range: any) {
+          return this.lines.slice(range.startLineNumber - 1, range.endLineNumber).join('\n');
+        }
+        pushEditOperations(_beforeCursorState: any, edits: any[]) {
+          for (const edit of edits) {
+            const { range, text } = edit;
+            const linesBefore = this.lines.slice(0, range.startLineNumber - 1);
+            const currentLine = this.lines[range.startLineNumber - 1] || '';
+            const beforeCol = currentLine.substring(0, range.startColumn - 1);
+            const endCurrentLine = this.lines[range.endLineNumber - 1] || '';
+            const afterCol = endCurrentLine.substring(range.endColumn - 1);
+            const linesAfter = this.lines.slice(range.endLineNumber);
+
+            const newMiddle = beforeCol + text + afterCol;
+            const replaced = [...linesBefore, ...newMiddle.split('\n'), ...linesAfter];
+            this.lines = replaced;
+          }
+        }
+        getValue() {
+          return this.lines.join('\n');
+        }
+      }
+
+      const origModel = new FakeModel('<sys>\n<encryption>false</encryption>\n<nsid>NSD_VMAS_VNF</nsid>\n</sys>');
+      const modModel = new FakeModel('<sys>\n<nsid>NSD_VMAS_VNF</nsid>\n</sys>');
+
+      const chunks = [
+        {
+          id: 'chunk_0',
+          originalStart: 2,
+          originalEnd: 2,
+          modifiedStart: 1,
+          modifiedEnd: 0,
+        },
+      ];
+
+      // User selects Right lines 2 to 3 (<nsid> and </sys>) and copies to Left
+      const selection = { startLine: 2, endLine: 3 };
+      const outRange = { startLine: 0, endLine: 0 };
+
+      const res = executeSelectedLinesCopyR2L(
+        origModel,
+        modModel,
+        selection,
+        chunks[0],
+        outRange,
+        null,
+        chunks
+      );
+
+      expect(res).toBe(true);
+      const leftLines = origModel.getValue().split('\n');
+      expect(leftLines).toEqual([
+        '<sys>',
+        '<nsid>NSD_VMAS_VNF</nsid>',
+        '</sys>',
+      ]);
+      expect(leftLines.length).toBe(3);
     });
   });
 });

@@ -283,28 +283,15 @@ export function collapseEditorGapViewZones(editor: any, targetAfterLine?: number
       }
     }
 
-    // 4. Synchronous DOM level collapse to prevent any visual frame flicker
+    // 4. Synchronous cleanup of active gap element if present
     const domNode = typeof editor.getDomNode === 'function' ? editor.getDomNode() : null;
     if (domNode) {
-      domNode.classList.add('diffx-instant-gap-fill');
-      const zones = domNode.querySelectorAll(
-        '.view-zone, .margin-view-zones > div, .diff-hidden-lines, .diagonal-fill, .ced-diagonal-fill'
-      );
-      zones.forEach((z: HTMLElement) => {
-        z.style.setProperty('height', '0px', 'important');
-        z.style.setProperty('min-height', '0px', 'important');
-        z.style.setProperty('max-height', '0px', 'important');
-        z.style.setProperty('display', 'none', 'important');
-        z.style.setProperty('opacity', '0', 'important');
-        z.style.setProperty('pointer-events', 'none', 'important');
-      });
-      setTimeout(() => {
-        try {
-          domNode.classList.remove('diffx-instant-gap-fill');
-        } catch {
-          // ignore
-        }
-      }, 350);
+      const activeGap = domNode.querySelector('.diffx-active-gap-target') as HTMLElement | null;
+      if (activeGap) {
+        activeGap.style.setProperty('height', '0px', 'important');
+        activeGap.style.setProperty('display', 'none', 'important');
+        activeGap.style.setProperty('opacity', '0', 'important');
+      }
     }
   } catch {
     // Non-fatal safety guard
@@ -745,7 +732,7 @@ export function mapLineNumber(
   line: number,
   fromSide: 'left' | 'right'
 ): number {
-  if (line <= 0) return 1;
+  if (line <= 0) return 0;
   if (!chunks || !chunks.length) return line;
 
   const sorted = [...chunks].sort((a, b) => {
@@ -767,10 +754,10 @@ export function mapLineNumber(
 
     // Check if line falls strictly before this chunk
     if (sCount > 0 && line < sStart) {
-      return Math.max(1, line + delta);
+      return Math.max(0, line + delta);
     }
     if (sCount === 0 && line <= sStart) {
-      return Math.max(1, line + delta);
+      return Math.max(0, line + delta);
     }
 
     // Check if line falls inside this chunk
@@ -783,7 +770,126 @@ export function mapLineNumber(
           return tEnd;
         }
       } else {
-        return Math.max(1, tStart);
+        return Math.max(0, tStart);
+      }
+    }
+
+    // Line is after this chunk: accumulate delta
+    delta += (tCount - sCount);
+  }
+
+  return Math.max(0, line + delta);
+}
+
+/**
+ * Maps the line immediately before the source selection to the corresponding
+ * line on the target side.
+ */
+export function mapTargetAfterLine(
+  chunks: DiffChunk[],
+  line: number,
+  fromSide: 'left' | 'right'
+): number {
+  if (line <= 0) return 0;
+  if (!chunks || !chunks.length) return line;
+
+  const sorted = [...chunks].sort((a, b) => {
+    const aStart = fromSide === 'left' ? (a.originalStart || a.modifiedStart) : (a.modifiedStart || a.originalStart);
+    const bStart = fromSide === 'left' ? (b.originalStart || b.modifiedStart) : (b.modifiedStart || b.originalStart);
+    return aStart - bStart;
+  });
+
+  let delta = 0;
+
+  for (const c of sorted) {
+    const sStart = fromSide === 'left' ? c.originalStart : c.modifiedStart;
+    const sEnd = fromSide === 'left' ? c.originalEnd : c.modifiedEnd;
+    const tStart = fromSide === 'left' ? c.modifiedStart : c.originalStart;
+    const tEnd = fromSide === 'left' ? c.modifiedEnd : c.originalEnd;
+
+    const sCount = (sStart > 0 && sEnd >= sStart) ? (sEnd - sStart + 1) : 0;
+    const tCount = (tStart > 0 && tEnd >= tStart) ? (tEnd - tStart + 1) : 0;
+
+    // Line falls strictly before this chunk
+    if (sCount > 0 && line < sStart) {
+      return Math.max(0, line + delta);
+    }
+    if (sCount === 0 && line <= sStart) {
+      return Math.max(0, line + delta);
+    }
+
+    // Line falls inside this chunk
+    if (sCount > 0 && line >= sStart && line <= sEnd) {
+      const offset = line - sStart;
+      if (tCount > 0) {
+        if (offset < tCount) {
+          return tStart + offset;
+        } else {
+          return tEnd;
+        }
+      } else {
+        // Target is a gap (tCount === 0)
+        return Math.max(0, Math.max(tStart, tEnd));
+      }
+    }
+
+    // Line is after this chunk: accumulate delta
+    delta += (tCount - sCount);
+  }
+
+  return Math.max(0, line + delta);
+}
+
+/**
+ * Maps the line immediately after the source selection to the corresponding
+ * first line on the target side that comes strictly after the selection.
+ */
+export function mapTargetBeforeLine(
+  chunks: DiffChunk[],
+  line: number,
+  fromSide: 'left' | 'right',
+  _targetLineCount?: number
+): number {
+  if (!chunks || !chunks.length) return line;
+
+  const sorted = [...chunks].sort((a, b) => {
+    const aStart = fromSide === 'left' ? (a.originalStart || a.modifiedStart) : (a.modifiedStart || a.originalStart);
+    const bStart = fromSide === 'left' ? (b.originalStart || b.modifiedStart) : (b.modifiedStart || b.originalStart);
+    return aStart - bStart;
+  });
+
+  let delta = 0;
+
+  for (const c of sorted) {
+    const sStart = fromSide === 'left' ? c.originalStart : c.modifiedStart;
+    const sEnd = fromSide === 'left' ? c.originalEnd : c.modifiedEnd;
+    const tStart = fromSide === 'left' ? c.modifiedStart : c.originalStart;
+    const tEnd = fromSide === 'left' ? c.modifiedEnd : c.originalEnd;
+
+    const sCount = (sStart > 0 && sEnd >= sStart) ? (sEnd - sStart + 1) : 0;
+    const tCount = (tStart > 0 && tEnd >= tStart) ? (tEnd - tStart + 1) : 0;
+
+    // Line falls strictly before this chunk
+    if (sCount > 0 && line < sStart) {
+      return Math.max(1, line + delta);
+    }
+    if (sCount === 0 && line <= sStart) {
+      return Math.max(1, line + delta);
+    }
+
+    // Line falls inside this chunk
+    if (sCount > 0 && line >= sStart && line <= sEnd) {
+      const offset = line - sStart;
+      if (tCount > 0) {
+        if (offset < tCount) {
+          return tStart + offset;
+        } else {
+          // Beyond the target lines in this chunk: target is in the gap after tEnd
+          return tEnd + 1;
+        }
+      } else {
+        // Target is a gap (tCount === 0): first target line after gap is anchor + 1
+        return Math.max(tStart, tEnd) + 1;
       }
     }
 
@@ -796,10 +902,17 @@ export function mapLineNumber(
 
 /**
  * Copies specifically selected lines from Left (Original) to Right (Modified).
- * Matches Beyond Compare fine-grained selection copying:
- * Replaces corresponding target lines if target has lines, or inserts into gap cleanly.
- * When the selection does not intersect a diff chunk, accurately maps lines using mapLineNumber
- * and never hijacks unrelated diff gaps above.
+ * Matches Beyond Compare continuous range projection:
+ * Calculates the bounding projection of the selection onto the target document:
+ * targetAfterLine = sLine === 1 ? 0 : mapTargetAfterLine(chunks, sLine - 1, 'left')
+ * targetBeforeLine = eLine >= leftLineCount ? rightLineCount + 1 : mapTargetBeforeLine(chunks, eLine + 1, 'left', rightLineCount)
+ * 
+ * If targetStart (targetAfterLine + 1) <= targetEnd (targetBeforeLine - 1),
+ * replaces existing target lines [targetStart, targetEnd] with selectedText.
+ * (e.g. if selection spans across a gap and identical line, it replaces the identical line
+ * instead of duplicating it below!).
+ * 
+ * If targetStart > targetEnd (target side has a gap), inserts selectedText into the gap.
  */
 export function executeSelectedLinesCopyL2R(
   originalModel: any,
@@ -817,138 +930,51 @@ export function executeSelectedLinesCopyL2R(
 
   const sLine = Math.max(1, Math.min(selection.startLine, leftLineCount));
   const eLine = Math.max(sLine, Math.min(selection.endLine, leftLineCount));
+  const lineCount = eLine - sLine + 1;
   const selectedText = originalModel.getValueInRange({
     startLineNumber: sLine,
     startColumn: 1,
     endLineNumber: eLine,
     endColumn: originalModel.getLineMaxColumn(eLine),
   });
-  const lineCount = eLine - sLine + 1;
 
-  // Validate chunk: Only treat chunk as valid if it actually intersects this selection range!
-  const isChunkValid = Boolean(
-    chunk &&
-    (
-      (chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart && chunk.originalStart <= eLine && chunk.originalEnd >= sLine) ||
-      (chunk.originalEnd === 0 && chunk.originalStart >= sLine && chunk.originalStart <= eLine)
-    )
-  );
-  const validChunk = isChunkValid ? chunk : null;
+  const chunks = allChunks && allChunks.length ? allChunks : (chunk ? [chunk] : []);
+
+  // Compute boundary projection on Right editor
+  const targetAfterLine = sLine === 1 ? 0 : mapTargetAfterLine(chunks, sLine - 1, 'left');
+  const targetBeforeLine = eLine >= leftLineCount ? rightLineCount + 1 : mapTargetBeforeLine(chunks, eLine + 1, 'left', rightLineCount);
+
+  const targetStart = targetAfterLine + 1;
+  const targetEnd = targetBeforeLine - 1;
 
   if (targetEditor) {
-    collapseEditorGapViewZones(
-      targetEditor,
-      validChunk ? validChunk.modifiedStart : mapLineNumber(allChunks || [], sLine, 'left')
-    );
+    collapseEditorGapViewZones(targetEditor, targetAfterLine);
   }
 
-  if (validChunk) {
-    const sStart = validChunk.originalStart;
-    const tStart = validChunk.modifiedStart;
-    const tEnd = validChunk.modifiedEnd;
-    const tHasLines = tStart > 0 && tEnd >= tStart;
-
-    if (tHasLines && rightLineCount > 0) {
-      const offset = sStart > 0 ? Math.max(0, sLine - sStart) : 0;
-      const tChunkLineCount = tEnd - tStart + 1;
-
-      if (offset < tChunkLineCount) {
-        // Selection starts inside the target replacement zone: replace ONLY up to tEnd!
-        const targetReplaceStart = tStart + offset;
-        const targetReplaceEnd = Math.min(tEnd, targetReplaceStart + lineCount - 1);
-        const range = {
-          startLineNumber: targetReplaceStart,
-          startColumn: 1,
-          endLineNumber: targetReplaceEnd,
-          endColumn: modifiedModel.getLineMaxColumn(targetReplaceEnd),
-        };
-        modifiedModel.pushEditOperations([], [{ range, text: selectedText }], () => null);
-        if (outRange) {
-          outRange.startLine = targetReplaceStart;
-          outRange.endLine = targetReplaceStart + lineCount - 1;
-        }
-        return true;
-      } else {
-        // Selection is beyond the target chunk lines (inserting into gap after tEnd)
-        const insertLine = tEnd + 1;
-        if (insertLine <= rightLineCount) {
-          const range = {
-            startLineNumber: insertLine,
-            startColumn: 1,
-            endLineNumber: insertLine,
-            endColumn: 1,
-          };
-          modifiedModel.pushEditOperations([], [{ range, text: selectedText + '\n' }], () => null);
-          if (outRange) {
-            outRange.startLine = insertLine;
-            outRange.endLine = insertLine + lineCount - 1;
-          }
-        } else {
-          const lastCol = modifiedModel.getLineMaxColumn(rightLineCount);
-          const range = {
-            startLineNumber: rightLineCount,
-            startColumn: lastCol,
-            endLineNumber: rightLineCount,
-            endColumn: lastCol,
-          };
-          modifiedModel.pushEditOperations([], [{ range, text: '\n' + selectedText }], () => null);
-          if (outRange) {
-            outRange.startLine = rightLineCount + 1;
-            outRange.endLine = rightLineCount + lineCount;
-          }
-        }
-        return true;
-      }
-    } else {
-      // Target side has NO lines (gap on right)
-      if (tStart === 0 || rightLineCount === 0) {
-        const range = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
-        const content = rightLineCount > 0 ? selectedText + '\n' : selectedText;
-        modifiedModel.pushEditOperations([], [{ range, text: content }], () => null);
-        if (outRange) {
-          outRange.startLine = 1;
-          outRange.endLine = lineCount;
-        }
-      } else if (tStart >= rightLineCount) {
-        const lastCol = modifiedModel.getLineMaxColumn(rightLineCount);
-        const range = {
-          startLineNumber: rightLineCount,
-          startColumn: lastCol,
-          endLineNumber: rightLineCount,
-          endColumn: lastCol,
-        };
-        modifiedModel.pushEditOperations([], [{ range, text: '\n' + selectedText }], () => null);
-        if (outRange) {
-          outRange.startLine = rightLineCount + 1;
-          outRange.endLine = rightLineCount + lineCount;
-        }
-      } else {
-        const insertLine = tStart + 1;
-        const range = {
-          startLineNumber: insertLine,
-          startColumn: 1,
-          endLineNumber: insertLine,
-          endColumn: 1,
-        };
-        modifiedModel.pushEditOperations([], [{ range, text: selectedText + '\n' }], () => null);
-        if (outRange) {
-          outRange.startLine = insertLine;
-          outRange.endLine = insertLine + lineCount - 1;
-        }
-      }
-      return true;
-    }
-  }
-
-  // Fallback if selection does NOT intersect a diff chunk:
-  // Map selection line range accurately to target lines using mapLineNumber (respects diffs above!)
-  const chunksList = allChunks || [];
-  const targetStart = mapLineNumber(chunksList, sLine, 'left');
-  const targetEnd = mapLineNumber(chunksList, eLine, 'left');
-
-  if (rightLineCount === 0) {
-    const range = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
+  // Branch 1: Target has existing lines inside this projection window -> REPLACE
+  if (targetStart <= targetEnd && targetStart <= rightLineCount && rightLineCount > 0) {
+    const replaceStart = Math.max(1, targetStart);
+    const replaceEnd = Math.max(replaceStart, Math.min(rightLineCount, targetEnd));
+    const range = {
+      startLineNumber: replaceStart,
+      startColumn: 1,
+      endLineNumber: replaceEnd,
+      endColumn: modifiedModel.getLineMaxColumn(replaceEnd),
+    };
     modifiedModel.pushEditOperations([], [{ range, text: selectedText }], () => null);
+    if (outRange) {
+      outRange.startLine = replaceStart;
+      outRange.endLine = replaceStart + lineCount - 1;
+    }
+    return true;
+  }
+
+  // Branch 2: Target side has no lines between targetAfterLine and targetBeforeLine (GAP) -> INSERT
+  if (rightLineCount === 0 || targetAfterLine === 0) {
+    // Gap before line 1
+    const range = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
+    const content = rightLineCount > 0 ? selectedText + '\n' : selectedText;
+    modifiedModel.pushEditOperations([], [{ range, text: content }], () => null);
     if (outRange) {
       outRange.startLine = 1;
       outRange.endLine = lineCount;
@@ -956,44 +982,50 @@ export function executeSelectedLinesCopyL2R(
     return true;
   }
 
-  if (targetStart > rightLineCount) {
-    const lastCol = modifiedModel.getLineMaxColumn(rightLineCount);
+  if (targetAfterLine >= rightLineCount) {
+    // Gap after the last line of the file
+    const lastLine = rightLineCount;
+    const lastCol = modifiedModel.getLineMaxColumn(lastLine);
     const range = {
-      startLineNumber: rightLineCount,
+      startLineNumber: lastLine,
       startColumn: lastCol,
-      endLineNumber: rightLineCount,
+      endLineNumber: lastLine,
       endColumn: lastCol,
     };
     modifiedModel.pushEditOperations([], [{ range, text: '\n' + selectedText }], () => null);
     if (outRange) {
-      outRange.startLine = rightLineCount + 1;
-      outRange.endLine = rightLineCount + lineCount;
+      outRange.startLine = lastLine + 1;
+      outRange.endLine = lastLine + lineCount;
     }
     return true;
   }
 
-  const clampedTargetStart = Math.max(1, Math.min(targetStart, rightLineCount));
-  const clampedTargetEnd = Math.max(clampedTargetStart, Math.min(targetEnd, rightLineCount));
+  // Gap between targetAfterLine and targetAfterLine + 1
+  const insertLine = targetAfterLine + 1;
   const range = {
-    startLineNumber: clampedTargetStart,
+    startLineNumber: insertLine,
     startColumn: 1,
-    endLineNumber: clampedTargetEnd,
-    endColumn: modifiedModel.getLineMaxColumn(clampedTargetEnd),
+    endLineNumber: insertLine,
+    endColumn: 1,
   };
-  modifiedModel.pushEditOperations([], [{ range, text: selectedText }], () => null);
+  modifiedModel.pushEditOperations([], [{ range, text: selectedText + '\n' }], () => null);
   if (outRange) {
-    outRange.startLine = clampedTargetStart;
-    outRange.endLine = clampedTargetStart + lineCount - 1;
+    outRange.startLine = insertLine;
+    outRange.endLine = insertLine + lineCount - 1;
   }
   return true;
 }
 
 /**
  * Copies specifically selected lines from Right (Modified) to Left (Original).
- * Respects difference chunk boundaries, replacing only the corresponding lines on the
- * left without destroying unchanged code below the chunk.
- * When the selection does not intersect a diff chunk, accurately maps lines using mapLineNumber
- * and never hijacks unrelated diff gaps above.
+ * Matches Beyond Compare continuous range projection:
+ * Calculates the bounding projection of the selection onto the original document:
+ * targetAfterLine = sLine === 1 ? 0 : mapLineNumber(chunks, sLine - 1, 'right')
+ * targetBeforeLine = eLine >= rightLineCount ? leftLineCount + 1 : mapLineNumber(chunks, eLine + 1, 'right')
+ * 
+ * If targetStart (targetAfterLine + 1) <= targetEnd (targetBeforeLine - 1),
+ * replaces existing lines [targetStart, targetEnd] on left with selectedText.
+ * If targetStart > targetEnd (gap on left), inserts selectedText into the gap.
  */
 export function executeSelectedLinesCopyR2L(
   originalModel: any,
@@ -1011,138 +1043,51 @@ export function executeSelectedLinesCopyR2L(
 
   const sLine = Math.max(1, Math.min(selection.startLine, rightLineCount));
   const eLine = Math.max(sLine, Math.min(selection.endLine, rightLineCount));
+  const lineCount = eLine - sLine + 1;
   const selectedText = modifiedModel.getValueInRange({
     startLineNumber: sLine,
     startColumn: 1,
     endLineNumber: eLine,
     endColumn: modifiedModel.getLineMaxColumn(eLine),
   });
-  const lineCount = eLine - sLine + 1;
 
-  // Validate chunk: Only treat chunk as valid if it actually intersects this selection range!
-  const isChunkValid = Boolean(
-    chunk &&
-    (
-      (chunk.modifiedStart > 0 && chunk.modifiedEnd >= chunk.modifiedStart && chunk.modifiedStart <= eLine && chunk.modifiedEnd >= sLine) ||
-      (chunk.modifiedEnd === 0 && chunk.modifiedStart >= sLine && chunk.modifiedStart <= eLine)
-    )
-  );
-  const validChunk = isChunkValid ? chunk : null;
+  const chunks = allChunks && allChunks.length ? allChunks : (chunk ? [chunk] : []);
+
+  // Compute boundary projection on Left editor
+  const targetAfterLine = sLine === 1 ? 0 : mapTargetAfterLine(chunks, sLine - 1, 'right');
+  const targetBeforeLine = eLine >= rightLineCount ? leftLineCount + 1 : mapTargetBeforeLine(chunks, eLine + 1, 'right', leftLineCount);
+
+  const targetStart = targetAfterLine + 1;
+  const targetEnd = targetBeforeLine - 1;
 
   if (targetEditor) {
-    collapseEditorGapViewZones(
-      targetEditor,
-      validChunk ? validChunk.originalStart : mapLineNumber(allChunks || [], sLine, 'right')
-    );
+    collapseEditorGapViewZones(targetEditor, targetAfterLine);
   }
 
-  if (validChunk) {
-    const sStart = validChunk.modifiedStart;
-    const tStart = validChunk.originalStart;
-    const tEnd = validChunk.originalEnd;
-    const tHasLines = tStart > 0 && tEnd >= tStart;
-
-    if (tHasLines && leftLineCount > 0) {
-      const offset = sStart > 0 ? Math.max(0, sLine - sStart) : 0;
-      const tChunkLineCount = tEnd - tStart + 1;
-
-      if (offset < tChunkLineCount) {
-        // Selection starts inside the target replacement zone: replace ONLY up to tEnd!
-        const targetReplaceStart = tStart + offset;
-        const targetReplaceEnd = Math.min(tEnd, targetReplaceStart + lineCount - 1);
-        const range = {
-          startLineNumber: targetReplaceStart,
-          startColumn: 1,
-          endLineNumber: targetReplaceEnd,
-          endColumn: originalModel.getLineMaxColumn(targetReplaceEnd),
-        };
-        originalModel.pushEditOperations([], [{ range, text: selectedText }], () => null);
-        if (outRange) {
-          outRange.startLine = targetReplaceStart;
-          outRange.endLine = targetReplaceStart + lineCount - 1;
-        }
-        return true;
-      } else {
-        // Selection is beyond the target chunk lines (inserting into gap after tEnd)
-        const insertLine = tEnd + 1;
-        if (insertLine <= leftLineCount) {
-          const range = {
-            startLineNumber: insertLine,
-            startColumn: 1,
-            endLineNumber: insertLine,
-            endColumn: 1,
-          };
-          originalModel.pushEditOperations([], [{ range, text: selectedText + '\n' }], () => null);
-          if (outRange) {
-            outRange.startLine = insertLine;
-            outRange.endLine = insertLine + lineCount - 1;
-          }
-        } else {
-          const lastCol = originalModel.getLineMaxColumn(leftLineCount);
-          const range = {
-            startLineNumber: leftLineCount,
-            startColumn: lastCol,
-            endLineNumber: leftLineCount,
-            endColumn: lastCol,
-          };
-          originalModel.pushEditOperations([], [{ range, text: '\n' + selectedText }], () => null);
-          if (outRange) {
-            outRange.startLine = leftLineCount + 1;
-            outRange.endLine = leftLineCount + lineCount;
-          }
-        }
-        return true;
-      }
-    } else {
-      // Target side has NO lines (gap on left)
-      if (tStart === 0 || leftLineCount === 0) {
-        const range = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
-        const content = leftLineCount > 0 ? selectedText + '\n' : selectedText;
-        originalModel.pushEditOperations([], [{ range, text: content }], () => null);
-        if (outRange) {
-          outRange.startLine = 1;
-          outRange.endLine = lineCount;
-        }
-      } else if (tStart >= leftLineCount) {
-        const lastCol = originalModel.getLineMaxColumn(leftLineCount);
-        const range = {
-          startLineNumber: leftLineCount,
-          startColumn: lastCol,
-          endLineNumber: leftLineCount,
-          endColumn: lastCol,
-        };
-        originalModel.pushEditOperations([], [{ range, text: '\n' + selectedText }], () => null);
-        if (outRange) {
-          outRange.startLine = leftLineCount + 1;
-          outRange.endLine = leftLineCount + lineCount;
-        }
-      } else {
-        const insertLine = tStart + 1;
-        const range = {
-          startLineNumber: insertLine,
-          startColumn: 1,
-          endLineNumber: insertLine,
-          endColumn: 1,
-        };
-        originalModel.pushEditOperations([], [{ range, text: selectedText + '\n' }], () => null);
-        if (outRange) {
-          outRange.startLine = insertLine;
-          outRange.endLine = insertLine + lineCount - 1;
-        }
-      }
-      return true;
-    }
-  }
-
-  // Fallback if selection does NOT intersect a diff chunk:
-  // Map selection line range accurately to target lines using mapLineNumber (respects diffs above!)
-  const chunksList = allChunks || [];
-  const targetStart = mapLineNumber(chunksList, sLine, 'right');
-  const targetEnd = mapLineNumber(chunksList, eLine, 'right');
-
-  if (leftLineCount === 0) {
-    const range = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
+  // Branch 1: Target has existing lines inside this projection window -> REPLACE
+  if (targetStart <= targetEnd && targetStart <= leftLineCount && leftLineCount > 0) {
+    const replaceStart = Math.max(1, targetStart);
+    const replaceEnd = Math.max(replaceStart, Math.min(leftLineCount, targetEnd));
+    const range = {
+      startLineNumber: replaceStart,
+      startColumn: 1,
+      endLineNumber: replaceEnd,
+      endColumn: originalModel.getLineMaxColumn(replaceEnd),
+    };
     originalModel.pushEditOperations([], [{ range, text: selectedText }], () => null);
+    if (outRange) {
+      outRange.startLine = replaceStart;
+      outRange.endLine = replaceStart + lineCount - 1;
+    }
+    return true;
+  }
+
+  // Branch 2: Target side has no lines between targetAfterLine and targetBeforeLine (GAP) -> INSERT
+  if (leftLineCount === 0 || targetAfterLine === 0) {
+    // Gap before line 1
+    const range = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
+    const content = leftLineCount > 0 ? selectedText + '\n' : selectedText;
+    originalModel.pushEditOperations([], [{ range, text: content }], () => null);
     if (outRange) {
       outRange.startLine = 1;
       outRange.endLine = lineCount;
@@ -1150,34 +1095,37 @@ export function executeSelectedLinesCopyR2L(
     return true;
   }
 
-  if (targetStart > leftLineCount) {
-    const lastCol = originalModel.getLineMaxColumn(leftLineCount);
+  if (targetAfterLine >= leftLineCount) {
+    // Gap after the last line of the file
+    const lastLine = leftLineCount;
+    const lastCol = originalModel.getLineMaxColumn(lastLine);
     const range = {
-      startLineNumber: leftLineCount,
+      startLineNumber: lastLine,
       startColumn: lastCol,
-      endLineNumber: leftLineCount,
+      endLineNumber: lastLine,
       endColumn: lastCol,
     };
     originalModel.pushEditOperations([], [{ range, text: '\n' + selectedText }], () => null);
     if (outRange) {
-      outRange.startLine = leftLineCount + 1;
-      outRange.endLine = leftLineCount + lineCount;
+      outRange.startLine = lastLine + 1;
+      outRange.endLine = lastLine + lineCount;
     }
     return true;
   }
 
-  const clampedTargetStart = Math.max(1, Math.min(targetStart, leftLineCount));
-  const clampedTargetEnd = Math.max(clampedTargetStart, Math.min(targetEnd, leftLineCount));
+  // Gap between targetAfterLine and targetAfterLine + 1
+  const insertLine = targetAfterLine + 1;
   const range = {
-    startLineNumber: clampedTargetStart,
+    startLineNumber: insertLine,
     startColumn: 1,
-    endLineNumber: clampedTargetEnd,
-    endColumn: originalModel.getLineMaxColumn(clampedTargetEnd),
+    endLineNumber: insertLine,
+    endColumn: 1,
   };
-  originalModel.pushEditOperations([], [{ range, text: selectedText }], () => null);
+  originalModel.pushEditOperations([], [{ range, text: selectedText + '\n' }], () => null);
   if (outRange) {
-    outRange.startLine = clampedTargetStart;
-    outRange.endLine = clampedTargetStart + lineCount - 1;
+    outRange.startLine = insertLine;
+    outRange.endLine = insertLine + lineCount - 1;
   }
   return true;
 }
+
