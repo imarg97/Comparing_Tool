@@ -425,15 +425,127 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       document.querySelectorAll('.diffx-gap-cursor-indicator').forEach((node: any) => {
         node.remove();
       });
-      document.querySelectorAll('.diffx-gap-gutter-arrow').forEach((node: any) => {
-        node.remove();
-      });
       document.querySelectorAll('.diffx-gap-active').forEach((node: any) => {
         node.classList.remove('diffx-gap-active');
       });
     } catch {
       // ignore
     }
+  };
+
+  // Synchronize permanent Beyond Compare yellow gutter arrows for all diff alignment gaps (view zones)
+  const syncGapGutterArrows = () => {
+    if (!diffEditorRef.current) return;
+    const origEditor = diffEditorRef.current.getOriginalEditor();
+    const modEditor = diffEditorRef.current.getModifiedEditor();
+    const origDom = origEditor?.getDomNode?.();
+    const modDom = modEditor?.getDomNode?.();
+    if (!origDom || !modDom) return;
+
+    const chunks = canonicalChunksRef.current.length ? canonicalChunksRef.current : chunksRef.current;
+    if (!chunks || chunks.length === 0) {
+      origDom.querySelectorAll('.diffx-gap-gutter-arrow').forEach((el: any) => el.remove());
+      modDom.querySelectorAll('.diffx-gap-gutter-arrow').forEach((el: any) => el.remove());
+      return;
+    }
+
+    let rowHeight = 22;
+    try {
+      const optHeight = modEditor.getOption(66);
+      if (optHeight && typeof optHeight === 'number') rowHeight = optHeight;
+    } catch {
+      rowHeight = 22;
+    }
+
+    const origMargin = origDom.querySelector('.margin-view-zones') as HTMLElement | null;
+    const modMargin = modDom.querySelector('.margin-view-zones') as HTMLElement | null;
+
+    const activeKeys = new Set<string>();
+
+    chunks.forEach((chunk) => {
+      // Case A: Right has gap (modifiedEnd === 0), Left has content (originalStart..originalEnd)
+      // Permanent yellow ⇦ arrow in Right margin. Clicking it copies empty space Right ⇦ Left (deletes left lines).
+      if (chunk.modifiedEnd === 0 && chunk.originalStart > 0 && modMargin) {
+        const topPx = origEditor.getTopForLineNumber(chunk.originalStart);
+        const numRows = Math.max(1, chunk.originalEnd - chunk.originalStart + 1);
+
+        let targetContainer: HTMLElement | null = null;
+        modMargin.querySelectorAll(':scope > div').forEach((mDiv: any) => {
+          const topVal = parseFloat(mDiv.style.top || '-1');
+          if (Math.abs(topVal - topPx) <= 3) {
+            targetContainer = mDiv;
+          }
+        });
+
+        if (targetContainer) {
+          for (let r = 0; r < numRows; r++) {
+            const arrowKey = `mod-gap-${chunk.id || chunk.originalStart}-${r}`;
+            activeKeys.add(arrowKey);
+            let arrow = (targetContainer as HTMLElement).querySelector(`[data-arrow-key="${arrowKey}"]`) as HTMLElement | null;
+            if (!arrow) {
+              arrow = document.createElement('div');
+              arrow.className = 'diffx-gap-gutter-arrow diffx-gap-gutter-arrow-right';
+              arrow.setAttribute('data-arrow-key', arrowKey);
+              arrow.style.top = `${r * rowHeight}px`;
+              arrow.style.height = `${rowHeight}px`;
+              arrow.title = 'Copy empty space Right ⇦ Left (delete left lines)';
+              arrow.onclick = (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                handleCopyR2L(chunk);
+              };
+              (targetContainer as HTMLElement).appendChild(arrow);
+            }
+          }
+        }
+      }
+
+      // Case B: Left has gap (originalEnd === 0), Right has content (modifiedStart..modifiedEnd)
+      // Permanent yellow ⇨ arrow in Left margin. Clicking it copies empty space Left ⇨ Right (deletes right lines).
+      if (chunk.originalEnd === 0 && chunk.modifiedStart > 0 && origMargin) {
+        const topPx = modEditor.getTopForLineNumber(chunk.modifiedStart);
+        const numRows = Math.max(1, chunk.modifiedEnd - chunk.modifiedStart + 1);
+
+        let targetContainer: HTMLElement | null = null;
+        origMargin.querySelectorAll(':scope > div').forEach((mDiv: any) => {
+          const topVal = parseFloat(mDiv.style.top || '-1');
+          if (Math.abs(topVal - topPx) <= 3) {
+            targetContainer = mDiv;
+          }
+        });
+
+        if (targetContainer) {
+          for (let r = 0; r < numRows; r++) {
+            const arrowKey = `orig-gap-${chunk.id || chunk.modifiedStart}-${r}`;
+            activeKeys.add(arrowKey);
+            let arrow = (targetContainer as HTMLElement).querySelector(`[data-arrow-key="${arrowKey}"]`) as HTMLElement | null;
+            if (!arrow) {
+              arrow = document.createElement('div');
+              arrow.className = 'diffx-gap-gutter-arrow diffx-gap-gutter-arrow-left';
+              arrow.setAttribute('data-arrow-key', arrowKey);
+              arrow.style.top = `${r * rowHeight}px`;
+              arrow.style.height = `${rowHeight}px`;
+              arrow.title = 'Copy empty space Left ⇨ Right (delete right lines)';
+              arrow.onclick = (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                handleCopyL2R(chunk);
+              };
+              (targetContainer as HTMLElement).appendChild(arrow);
+            }
+          }
+        }
+      }
+    });
+
+    origDom.querySelectorAll('.diffx-gap-gutter-arrow').forEach((el: any) => {
+      const key = el.getAttribute('data-arrow-key');
+      if (key && !activeKeys.has(key)) el.remove();
+    });
+    modDom.querySelectorAll('.diffx-gap-gutter-arrow').forEach((el: any) => {
+      const key = el.getAttribute('data-arrow-key');
+      if (key && !activeKeys.has(key)) el.remove();
+    });
   };
 
   // Handle click on diff alignment empty space (view zone / gap) to place cursor cleanly without document mutation
@@ -574,7 +686,6 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
 
         const cursorTop = rowOffset * rowHeight + 2;
         const cursorHeight = Math.max(14, rowHeight - 4);
-        const arrowTop = rowOffset * rowHeight;
 
         // Render blinking cursor caret inside the alignment gap
         let cursorIndicator = vzTarget.querySelector('.diffx-gap-cursor-indicator') as HTMLElement | null;
@@ -586,38 +697,6 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         cursorIndicator.style.top = `${cursorTop}px`;
         cursorIndicator.style.height = `${cursorHeight}px`;
         cursorIndicator.style.display = 'block';
-
-        // Beyond Compare: Render the yellow gutter arrow in the margin for this gap row
-        const marginZones = editorDom.querySelector('.margin-view-zones');
-        if (marginZones) {
-          const vzTop = vzTarget.style.top;
-          let matchingMarginZone: HTMLElement | null = null;
-          marginZones.querySelectorAll(':scope > div').forEach((mDiv: any) => {
-            if (mDiv.style.top === vzTop) {
-              matchingMarginZone = mDiv;
-            }
-          });
-          if (matchingMarginZone) {
-            (matchingMarginZone as HTMLElement).querySelectorAll('.diffx-gap-gutter-arrow').forEach((a) => a.remove());
-
-            const marginArrow = document.createElement('div');
-            marginArrow.className = `diffx-gap-gutter-arrow diffx-gap-gutter-arrow-${side}`;
-            marginArrow.style.top = `${arrowTop}px`;
-            marginArrow.style.height = `${rowHeight}px`;
-            marginArrow.title = side === 'left' ? 'Copy from Right (⇦)' : 'Copy from Left (⇨)';
-            marginArrow.textContent = side === 'left' ? '⇨' : '⇦';
-            marginArrow.onclick = (arrowEv) => {
-              arrowEv.stopPropagation();
-              arrowEv.preventDefault();
-              if (side === 'left') {
-                handleCopyR2L();
-              } else {
-                handleCopyL2R();
-              }
-            };
-            (matchingMarginZone as HTMLElement).appendChild(marginArrow);
-          }
-        }
       }
 
       activeGapRef.current = {
@@ -631,9 +710,12 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         setActiveDiffChunk(matchedChunk);
       }
 
-      targetEditor.focus();
+      // Beyond Compare zero-jump focus: focus the DOM container with preventScroll
+      // NEVER call targetEditor.focus() here as Monaco would jump native cursor to line 2
+      editorDom.focus({ preventScroll: true });
       setActiveFocusSide(side);
       updateLineDetails(targetLine);
+      syncGapGutterArrows();
       return true;
     } catch {
       // non-fatal
@@ -1044,6 +1126,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
 
       leftDecorationsRef.current = origEditor.deltaDecorations(leftDecorationsRef.current, newLeftDecs);
       rightDecorationsRef.current = modEditor.deltaDecorations(rightDecorationsRef.current, newRightDecs);
+      syncGapGutterArrows();
     } catch {
       // non-fatal
     }
@@ -1064,6 +1147,11 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       // Track active focus side
       origEditor.onDidFocusEditorText(() => setActiveFocusSide('left'));
       modEditor.onDidFocusEditorText(() => setActiveFocusSide('right'));
+
+      origEditor.onDidChangeViewZones(syncGapGutterArrows);
+      modEditor.onDidChangeViewZones(syncGapGutterArrows);
+      origEditor.onDidScrollChange(syncGapGutterArrows);
+      modEditor.onDidScrollChange(syncGapGutterArrows);
 
       editor.onDidUpdateDiff(() => {
         const lineChanges = editor.getLineChanges();
@@ -1615,7 +1703,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
   };
 
   // Copy Left to Right (⇨)
-  const handleCopyL2R = () => {
+  const handleCopyL2R = (targetChunk?: DiffChunk) => {
     if (!diffEditorRef.current) return;
     const origEditor = diffEditorRef.current.getOriginalEditor();
     const modEditor = diffEditorRef.current.getModifiedEditor();
@@ -1626,7 +1714,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
     const sel = activeSelectionRef.current || activeSelection;
 
-    if (sel && sel.side === 'left') {
+    if (!targetChunk && sel && sel.side === 'left') {
       clearGapTargetDecorations();
       const srcText = origModel.getLineContent(sel.startLine);
       triggerShiftAnimation('left-to-right', sel.startLine, srcText);
@@ -1657,20 +1745,19 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       return;
     }
 
-    const activeLine = cursorLineNumber || origEditor.getPosition()?.lineNumber || 1;
-    let chunk = activeDiffChunk || findChunkAtLine(chunksRef.current, activeLine, 'left') || findClosestChunk(chunksRef.current, activeLine, 'left', 2);
-
-    if (activeGapRef.current && activeGapRef.current.side === 'right') {
-      const gapChunk = activeGapRef.current.chunk || findChunkAtGap(chunksRef.current, activeGapRef.current.afterLineNumber, 'right');
-      if (gapChunk) {
-        chunk = gapChunk;
-      }
+    let chunk = targetChunk || activeDiffChunk;
+    if (!chunk && activeGapRef.current) {
+      chunk = activeGapRef.current.chunk || findChunkAtGap(chunksRef.current, activeGapRef.current.afterLineNumber, activeGapRef.current.side);
+    }
+    if (!chunk) {
+      const activeLine = cursorLineNumber || origEditor.getPosition()?.lineNumber || 1;
+      chunk = findChunkAtLine(chunksRef.current, activeLine, 'left') || findClosestChunk(chunksRef.current, activeLine, 'left', 2);
     }
 
     if (chunk) {
-      clearGapTargetDecorations();
-      const srcText = origModel.getLineContent(chunk.originalStart);
-      triggerShiftAnimation('left-to-right', chunk.originalStart, srcText);
+      const srcLine = chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart ? chunk.originalStart : 1;
+      const srcText = chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart ? origModel.getLineContent(srcLine) : '';
+      triggerShiftAnimation('left-to-right', srcLine, srcText);
 
       collapseEditorGapViewZones(modEditor, chunk.modifiedStart);
       clearGapTargetDecorations();
@@ -1680,16 +1767,18 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       setRightDirty(true);
       setLastModifiedSide('right');
       setActiveFocusSide('right');
-      flashCopiedHighlight('left', chunk.originalStart, chunk.originalEnd || chunk.originalStart, false);
+      if (chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart) {
+        flashCopiedHighlight('left', chunk.originalStart, chunk.originalEnd, false);
+      }
       if (outRange.startLine > 0) {
         flashCopiedHighlight('right', outRange.startLine, outRange.endLine, false);
       }
-      onUpdateStatus(`Copied diff lines ${chunk.originalStart}–${chunk.originalEnd || chunk.originalStart} Left ⇨ Right`);
+      onUpdateStatus(`Copied diff chunk Left ⇨ Right`);
     }
   };
 
   // Copy Right to Left (⇦)
-  const handleCopyR2L = () => {
+  const handleCopyR2L = (targetChunk?: DiffChunk) => {
     if (!diffEditorRef.current) return;
     const origEditor = diffEditorRef.current.getOriginalEditor();
     const modEditor = diffEditorRef.current.getModifiedEditor();
@@ -1700,7 +1789,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
     const sel = activeSelectionRef.current || activeSelection;
 
-    if (sel && sel.side === 'right') {
+    if (!targetChunk && sel && sel.side === 'right') {
       clearGapTargetDecorations();
       const srcText = modModel.getLineContent(sel.startLine);
       triggerShiftAnimation('right-to-left', sel.startLine, srcText);
@@ -1731,20 +1820,19 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       return;
     }
 
-    const activeLine = cursorLineNumber || modEditor.getPosition()?.lineNumber || 1;
-    let chunk = activeDiffChunk || findChunkAtLine(chunksRef.current, activeLine, 'right') || findClosestChunk(chunksRef.current, activeLine, 'right', 2);
-
-    if (activeGapRef.current && activeGapRef.current.side === 'left') {
-      const gapChunk = activeGapRef.current.chunk || findChunkAtGap(chunksRef.current, activeGapRef.current.afterLineNumber, 'left');
-      if (gapChunk) {
-        chunk = gapChunk;
-      }
+    let chunk = targetChunk || activeDiffChunk;
+    if (!chunk && activeGapRef.current) {
+      chunk = activeGapRef.current.chunk || findChunkAtGap(chunksRef.current, activeGapRef.current.afterLineNumber, activeGapRef.current.side);
+    }
+    if (!chunk) {
+      const activeLine = cursorLineNumber || modEditor.getPosition()?.lineNumber || 1;
+      chunk = findChunkAtLine(chunksRef.current, activeLine, 'right') || findClosestChunk(chunksRef.current, activeLine, 'right', 2);
     }
 
     if (chunk) {
-      clearGapTargetDecorations();
-      const srcText = modModel.getLineContent(chunk.modifiedStart);
-      triggerShiftAnimation('right-to-left', chunk.modifiedStart, srcText);
+      const srcLine = chunk.modifiedStart > 0 && chunk.modifiedEnd >= chunk.modifiedStart ? chunk.modifiedStart : 1;
+      const srcText = chunk.modifiedStart > 0 && chunk.modifiedEnd >= chunk.modifiedStart ? modModel.getLineContent(srcLine) : '';
+      triggerShiftAnimation('right-to-left', srcLine, srcText);
 
       collapseEditorGapViewZones(origEditor, chunk.originalStart);
       clearGapTargetDecorations();
@@ -1754,22 +1842,31 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       setLeftDirty(true);
       setLastModifiedSide('left');
       setActiveFocusSide('left');
-      flashCopiedHighlight('right', chunk.modifiedStart, chunk.modifiedEnd || chunk.modifiedStart, false);
+      if (chunk.modifiedStart > 0 && chunk.modifiedEnd >= chunk.modifiedStart) {
+        flashCopiedHighlight('right', chunk.modifiedStart, chunk.modifiedEnd, false);
+      }
       if (outRange.startLine > 0) {
         flashCopiedHighlight('left', outRange.startLine, outRange.endLine, false);
       }
-      onUpdateStatus(`Copied diff lines ${chunk.modifiedStart}–${chunk.modifiedEnd || chunk.modifiedStart} Right ⇦ Left`);
+      onUpdateStatus(`Copied diff chunk Right ⇦ Left`);
     }
   };
 
   // Single active line copy L -> R (respects alignment gaps)
   const handleCopyActiveLineL2R = () => {
-    if (!diffEditorRef.current || cursorLineNumber === null) return;
+    if (!diffEditorRef.current) return;
     const modEditor = diffEditorRef.current.getModifiedEditor();
     const origEditor = diffEditorRef.current.getOriginalEditor();
     const modModel = modEditor.getModel();
     const origModel = origEditor.getModel();
     if (!modModel || !origModel) return;
+
+    if (activeGapRef.current) {
+      handleCopyL2R();
+      return;
+    }
+
+    if (cursorLineNumber === null) return;
 
     const chunk = findChunkAtLine(chunksRef.current, cursorLineNumber, 'left');
     if (chunk) {
@@ -1811,12 +1908,19 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
 
   // Single active line copy R -> L (respects alignment gaps)
   const handleCopyActiveLineR2L = () => {
-    if (!diffEditorRef.current || cursorLineNumber === null) return;
+    if (!diffEditorRef.current) return;
     const modEditor = diffEditorRef.current.getModifiedEditor();
     const origEditor = diffEditorRef.current.getOriginalEditor();
     const modModel = modEditor.getModel();
     const origModel = origEditor.getModel();
     if (!modModel || !origModel) return;
+
+    if (activeGapRef.current) {
+      handleCopyR2L();
+      return;
+    }
+
+    if (cursorLineNumber === null) return;
 
     const chunk = findChunkAtLine(chunksRef.current, cursorLineNumber, 'right');
     if (chunk) {

@@ -3,6 +3,7 @@ import { detectLanguage } from '../../src/renderer/views/TextCompare/TextCompare
 import { detectFormatFromPath } from '../../src/renderer/views/StructuredCompare/StructuredCompareView.js';
 import {
   executeChunkCopyL2R,
+  executeChunkCopyR2L,
   executeSelectedLinesCopyL2R,
   executeSelectedLinesCopyR2L,
   findChunkAtGap,
@@ -449,6 +450,122 @@ describe('Beyond Compare UI Utilities', () => {
         '</sys>',
       ]);
       expect(leftLines.length).toBe(3);
+    });
+
+    it('copying empty gap from Right to Left cleanly deletes Left line without extra blank line (Beyond Compare Image 1 -> 3)', () => {
+      class FakeModel {
+        lines: string[];
+        constructor(content: string) {
+          this.lines = content.split('\n');
+        }
+        getLineCount() {
+          return this.lines.length;
+        }
+        getLineMaxColumn(line: number) {
+          return (this.lines[line - 1] || '').length + 1;
+        }
+        getValueInRange(range: any) {
+          return this.lines.slice(range.startLineNumber - 1, range.endLineNumber).join('\n');
+        }
+        pushEditOperations(_beforeCursorState: any, edits: any[]) {
+          for (const edit of edits) {
+            const { range, text } = edit;
+            const linesBefore = this.lines.slice(0, range.startLineNumber - 1);
+            const currentLine = this.lines[range.startLineNumber - 1] || '';
+            const beforeCol = currentLine.substring(0, range.startColumn - 1);
+            const endCurrentLine = this.lines[range.endLineNumber - 1] || '';
+            const afterCol = endCurrentLine.substring(range.endColumn - 1);
+            const linesAfter = this.lines.slice(range.endLineNumber);
+
+            const newMiddle = beforeCol + text + afterCol;
+            const replaced = [...linesBefore, ...newMiddle.split('\n'), ...linesAfter];
+            this.lines = replaced;
+          }
+        }
+        getValue() {
+          return this.lines.join('\n');
+        }
+      }
+
+      // Exact user scenario:
+      // Left has 4 lines including <encryption>false</encryption> at line 2
+      // Right has 3 lines (gap on line 2)
+      const origModel = new FakeModel('<sys>\n<encryption>false</encryption>\n<nsid>NSD_VMAS_VNF</nsid>\n</sys>');
+      const modModel = new FakeModel('<sys>\n<nsid>NSD_VMAS_VNF</nsid>\n</sys>');
+
+      // Chunk where Left has line 2, Right is empty gap (modifiedStart: 1, modifiedEnd: 0)
+      const gapChunk = {
+        id: 'chunk_gap_delete',
+        originalStart: 2,
+        originalEnd: 2,
+        modifiedStart: 1,
+        modifiedEnd: 0,
+      };
+
+      const outRange = { startLine: 0, endLine: 0 };
+      const res = executeChunkCopyR2L(origModel, modModel, gapChunk, outRange);
+      expect(res).toBe(true);
+
+      // Left model must now have exactly 3 lines with <encryption> removed cleanly
+      expect(origModel.getValue()).toBe('<sys>\n<nsid>NSD_VMAS_VNF</nsid>\n</sys>');
+      expect(origModel.getLineCount()).toBe(3);
+    });
+
+    it('copying empty gap from Left to Right cleanly deletes Right line without extra blank line', () => {
+      class FakeModel {
+        lines: string[];
+        constructor(content: string) {
+          this.lines = content.split('\n');
+        }
+        getLineCount() {
+          return this.lines.length;
+        }
+        getLineMaxColumn(line: number) {
+          return (this.lines[line - 1] || '').length + 1;
+        }
+        getValueInRange(range: any) {
+          return this.lines.slice(range.startLineNumber - 1, range.endLineNumber).join('\n');
+        }
+        pushEditOperations(_beforeCursorState: any, edits: any[]) {
+          for (const edit of edits) {
+            const { range, text } = edit;
+            const linesBefore = this.lines.slice(0, range.startLineNumber - 1);
+            const currentLine = this.lines[range.startLineNumber - 1] || '';
+            const beforeCol = currentLine.substring(0, range.startColumn - 1);
+            const endCurrentLine = this.lines[range.endLineNumber - 1] || '';
+            const afterCol = endCurrentLine.substring(range.endColumn - 1);
+            const linesAfter = this.lines.slice(range.endLineNumber);
+
+            const newMiddle = beforeCol + text + afterCol;
+            const replaced = [...linesBefore, ...newMiddle.split('\n'), ...linesAfter];
+            this.lines = replaced;
+          }
+        }
+        getValue() {
+          return this.lines.join('\n');
+        }
+      }
+
+      // Reverse scenario:
+      // Left has 3 lines, Right has 4 lines (gap on Left at line 2)
+      const origModel = new FakeModel('<sys>\n<nsid>NSD_VMAS_VNF</nsid>\n</sys>');
+      const modModel = new FakeModel('<sys>\n<encryption>false</encryption>\n<nsid>NSD_VMAS_VNF</nsid>\n</sys>');
+
+      const gapChunk = {
+        id: 'chunk_gap_l2r_delete',
+        originalStart: 1,
+        originalEnd: 0,
+        modifiedStart: 2,
+        modifiedEnd: 2,
+      };
+
+      const outRange = { startLine: 0, endLine: 0 };
+      const res = executeChunkCopyL2R(origModel, modModel, gapChunk, outRange);
+      expect(res).toBe(true);
+
+      // Right model must now have exactly 3 lines with <encryption> removed cleanly
+      expect(modModel.getValue()).toBe('<sys>\n<nsid>NSD_VMAS_VNF</nsid>\n</sys>');
+      expect(modModel.getLineCount()).toBe(3);
     });
   });
 });
