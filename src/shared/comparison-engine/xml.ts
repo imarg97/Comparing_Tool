@@ -48,12 +48,15 @@ function encodeXmlEntities(str: string): string {
  * Parses XML attribute string: foo="bar" baz='123'
  */
 function parseAttributes(attrString: string): Record<string, string> {
-  const attrs: Record<string, string> = {};
+  const attrs: Record<string, string> = Object.create(null);
   const attrRegex = /([a-zA-Z0-9_:\-.]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
   let match: RegExpExecArray | null;
 
   while ((match = attrRegex.exec(attrString)) !== null) {
     const key = match[1];
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+      continue;
+    }
     const val = match[2] !== undefined ? match[2] : match[3];
     attrs[key] = decodeXmlEntities(val);
   }
@@ -99,7 +102,7 @@ export function parseXml(xml: string): XmlNode {
     }
 
     // Opening or self-closing tag
-    const attributes = attrString ? parseAttributes(attrString) : {};
+    const attributes = attrString ? parseAttributes(attrString) : Object.create(null);
     const node: XmlNode = {
       tag: tagName,
       attributes,
@@ -146,6 +149,9 @@ export function xmlNodeToObject(node: XmlNode): Record<string, unknown> {
   // Sort and add attributes with @ prefix
   const sortedAttrKeys = Object.keys(node.attributes).sort();
   for (const key of sortedAttrKeys) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+      continue;
+    }
     result[`@${key}`] = node.attributes[key];
   }
 
@@ -157,6 +163,9 @@ export function xmlNodeToObject(node: XmlNode): Record<string, unknown> {
     if (typeof child === 'string') {
       textPieces.push(child);
     } else {
+      if (child.tag === '__proto__' || child.tag === 'constructor' || child.tag === 'prototype') {
+        continue;
+      }
       const childObj = xmlNodeToObject(child);
       if (!childMap.has(child.tag)) {
         childMap.set(child.tag, []);
@@ -176,6 +185,9 @@ export function xmlNodeToObject(node: XmlNode): Record<string, unknown> {
 
   // Add child elements (single element as object, multiple as array)
   for (const [tag, elements] of childMap.entries()) {
+    if (tag === '__proto__' || tag === 'constructor' || tag === 'prototype') {
+      continue;
+    }
     if (elements.length === 1) {
       result[tag] = elements[0];
     } else {

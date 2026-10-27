@@ -2,7 +2,7 @@
  * DiffX — Electron Main Process Entry Point
  */
 
-import { app, BrowserWindow, Menu, MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, Menu, MenuItemConstructorOptions, shell } from 'electron';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { registerIpcHandlers } from './ipc.js';
@@ -28,8 +28,42 @@ function createMainWindow(): BrowserWindow {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
+  });
+
+  // Security: Handle external links securely via OS default browser; deny internal window creation
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+        shell.openExternal(url);
+      }
+    } catch {
+      // Ignore invalid URLs
+    }
+    return { action: 'deny' };
+  });
+
+  // Security: Guard main window navigation against unexpected redirects or dropped URLs
+  win.webContents.on('will-navigate', (event, navigationUrl) => {
+    try {
+      const currentUrl = win.webContents.getURL();
+      if (
+        navigationUrl !== currentUrl &&
+        !navigationUrl.startsWith('file://') &&
+        !(isDev && navigationUrl.startsWith('http://localhost:5173'))
+      ) {
+        event.preventDefault();
+      }
+    } catch {
+      event.preventDefault();
+    }
+  });
+
+  // Security: Deny webview tag execution
+  win.webContents.on('will-attach-webview', (event) => {
+    event.preventDefault();
   });
 
   registerIpcHandlers(win);
@@ -39,9 +73,12 @@ function createMainWindow(): BrowserWindow {
   } else {
     // In production or built renderer, load from dist
     const indexPath = path.join(__dirname, '../../dist/index.html');
-    win.loadFile(indexPath).catch(() => {
-      // Fallback for dev mode when dev server URL not passed as env
-      win.loadURL('http://localhost:5173');
+    win.loadFile(indexPath).catch((err) => {
+      console.error('Failed to load application index:', err);
+      if (isDev) {
+        // Fallback only during active development
+        win.loadURL('http://localhost:5173');
+      }
     });
   }
 

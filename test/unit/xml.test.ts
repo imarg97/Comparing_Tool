@@ -99,4 +99,16 @@ describe('XML Comparison Engine', () => {
     expect(result.identical).toBe(true);
     expect(result.items.length).toBe(0);
   });
+
+  it('safely discards prototype-polluting XML tags and attributes', () => {
+    const maliciousXml = `<root __proto__="polluted"><__proto__ test="123">Content</__proto__><safe>OK</safe></root>`;
+    const ast = parseXml(maliciousXml);
+    const { parsed } = normalizeXml(maliciousXml);
+
+    expect(ast.attributes.__proto__).toBeUndefined();
+    expect(Object.prototype.hasOwnProperty.call(ast.attributes, '__proto__')).toBe(false);
+    expect((({} as any).polluted)).toBeUndefined();
+    expect(parsed.root).toBeDefined();
+    expect((({} as any).test)).toBeUndefined();
+  });
 });

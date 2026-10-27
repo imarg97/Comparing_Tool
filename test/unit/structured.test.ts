@@ -79,4 +79,17 @@ spec:
     expect(cleanRes.identical).toBe(true);
     expect(cleanRes.items.length).toBe(0);
   });
+
+  it('safely ignores __proto__ and prototype properties to prevent pollution', () => {
+    const maliciousJson = JSON.parse('{"__proto__": {"polluted": true}, "app": "diffx"}');
+    const cleaned = cleanObject(maliciousJson, [], false) as any;
+
+    expect(cleaned.__proto__.polluted).toBeUndefined();
+    expect((({} as any).polluted)).toBeUndefined();
+    expect(cleaned.app).toBe('diffx');
+
+    const diffs = diffObjects(maliciousJson, { app: 'diffx' });
+    expect((({} as any).polluted)).toBeUndefined();
+    expect(diffs.length).toBe(0);
+  });
 });

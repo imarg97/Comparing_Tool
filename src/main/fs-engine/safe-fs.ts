@@ -12,7 +12,10 @@ import {
   SaveRequest,
   SaveResult,
 } from '../../shared/types.js';
-import { containsPathTraversal } from '../../shared/comparison-engine/path-security.js';
+import {
+  containsPathTraversal,
+  isWindowsReservedDeviceName,
+} from '../../shared/comparison-engine/path-security.js';
 import { computeFileHash } from './hasher.js';
 
 export const MAX_SAFE_FILE_SIZE = 5 * 1024 * 1024; // 5 MB threshold for warning / preview
@@ -21,6 +24,32 @@ export async function readSafeFile(
   filePath: string,
   maxBytes: number = MAX_SAFE_FILE_SIZE
 ): Promise<FileContentResult> {
+  if (!filePath || typeof filePath !== 'string' || filePath.includes('\0')) {
+    return {
+      path: filePath || '',
+      content: '',
+      encoding: 'utf-8',
+      size: 0,
+      mtime: 0,
+      isTruncated: false,
+      hash: '',
+      error: 'Invalid file path or null byte detected.',
+    };
+  }
+
+  if (isWindowsReservedDeviceName(filePath)) {
+    return {
+      path: filePath,
+      content: '',
+      encoding: 'utf-8',
+      size: 0,
+      mtime: 0,
+      isTruncated: false,
+      hash: '',
+      error: 'Access to Windows reserved device name is prohibited.',
+    };
+  }
+
   const resolved = path.resolve(filePath);
 
   if (!fs.existsSync(resolved)) {
@@ -127,16 +156,43 @@ export async function readSafeFile(
 }
 
 export async function saveSafeFile(request: SaveRequest): Promise<SaveResult> {
-  const targetPath = path.resolve(request.filePath);
+  if (!request || typeof request.filePath !== 'string' || !request.filePath) {
+    return {
+      success: false,
+      filePath: '',
+      bytesWritten: 0,
+      error: 'Invalid save request: filePath is required.',
+    };
+  }
+
+  if (request.filePath.includes('\0')) {
+    return {
+      success: false,
+      filePath: request.filePath,
+      bytesWritten: 0,
+      error: 'Security exception: Null bytes detected in path.',
+    };
+  }
+
+  if (isWindowsReservedDeviceName(request.filePath)) {
+    return {
+      success: false,
+      filePath: request.filePath,
+      bytesWritten: 0,
+      error: 'Security exception: Cannot save to Windows reserved device name.',
+    };
+  }
 
   if (containsPathTraversal(request.filePath)) {
     return {
       success: false,
-      filePath: targetPath,
+      filePath: request.filePath,
       bytesWritten: 0,
       error: 'Security exception: Path traversal sequence detected.',
     };
   }
+
+  const targetPath = path.resolve(request.filePath);
 
   let backupPath: string | undefined;
 
@@ -202,17 +258,62 @@ export async function saveSafeFile(request: SaveRequest): Promise<SaveResult> {
 }
 
 export async function copySafeFile(request: CopyRequest): Promise<CopyResult> {
-  const src = path.resolve(request.sourcePath);
-  const dest = path.resolve(request.destinationPath);
+  if (
+    !request ||
+    typeof request.sourcePath !== 'string' ||
+    typeof request.destinationPath !== 'string' ||
+    !request.sourcePath ||
+    !request.destinationPath
+  ) {
+    return {
+      success: false,
+      sourcePath: String(request?.sourcePath || ''),
+      destinationPath: String(request?.destinationPath || ''),
+      error: 'Invalid copy request: sourcePath and destinationPath are required.',
+    };
+  }
+
+  if (request.sourcePath.includes('\0') || request.destinationPath.includes('\0')) {
+    return {
+      success: false,
+      sourcePath: request.sourcePath,
+      destinationPath: request.destinationPath,
+      error: 'Security exception: Null bytes detected in path.',
+    };
+  }
+
+  if (
+    isWindowsReservedDeviceName(request.sourcePath) ||
+    isWindowsReservedDeviceName(request.destinationPath)
+  ) {
+    return {
+      success: false,
+      sourcePath: request.sourcePath,
+      destinationPath: request.destinationPath,
+      error: 'Security exception: Reserved device names cannot be accessed.',
+    };
+  }
 
   if (containsPathTraversal(request.destinationPath)) {
     return {
       success: false,
-      sourcePath: src,
-      destinationPath: dest,
+      sourcePath: request.sourcePath,
+      destinationPath: request.destinationPath,
       error: 'Security exception: Destination contains path traversal sequences.',
     };
   }
+
+  if (containsPathTraversal(request.sourcePath)) {
+    return {
+      success: false,
+      sourcePath: request.sourcePath,
+      destinationPath: request.destinationPath,
+      error: 'Security exception: Source contains path traversal sequences.',
+    };
+  }
+
+  const src = path.resolve(request.sourcePath);
+  const dest = path.resolve(request.destinationPath);
 
   if (!fs.existsSync(src)) {
     return {

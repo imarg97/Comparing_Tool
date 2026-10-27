@@ -4,6 +4,7 @@
 
 import { app, dialog, ipcMain, shell, BrowserWindow } from 'electron';
 import * as path from 'path';
+import * as fs from 'fs';
 import {
   CopyRequest,
   FolderComparisonOptions,
@@ -132,28 +133,82 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   });
 
   // Safe File Read
-  ipcMain.handle('file:read', async (_event, filePath: string, maxBytes?: number) => {
-    return await readSafeFile(filePath, maxBytes);
+  ipcMain.handle('file:read', async (_event, filePath: unknown, maxBytes?: unknown) => {
+    if (typeof filePath !== 'string' || !filePath) {
+      return {
+        path: '',
+        content: '',
+        encoding: 'utf-8',
+        size: 0,
+        mtime: 0,
+        isTruncated: false,
+        hash: '',
+        error: 'Invalid file path argument provided to IPC.',
+      };
+    }
+    const safeMaxBytes =
+      typeof maxBytes === 'number' && Number.isFinite(maxBytes) && maxBytes > 0
+        ? Math.min(maxBytes, 100 * 1024 * 1024)
+        : undefined;
+
+    return await readSafeFile(filePath, safeMaxBytes);
   });
 
   // Safe File Save
-  ipcMain.handle('file:save', async (_event, request: SaveRequest) => {
-    return await saveSafeFile(request);
+  ipcMain.handle('file:save', async (_event, request: unknown) => {
+    if (!request || typeof request !== 'object' || typeof (request as SaveRequest).filePath !== 'string') {
+      return {
+        success: false,
+        filePath: '',
+        bytesWritten: 0,
+        error: 'Invalid SaveRequest payload provided to IPC.',
+      };
+    }
+    return await saveSafeFile(request as SaveRequest);
   });
 
   // Safe File Copy
-  ipcMain.handle('file:copy', async (_event, request: CopyRequest) => {
-    return await copySafeFile(request);
+  ipcMain.handle('file:copy', async (_event, request: unknown) => {
+    if (
+      !request ||
+      typeof request !== 'object' ||
+      typeof (request as CopyRequest).sourcePath !== 'string' ||
+      typeof (request as CopyRequest).destinationPath !== 'string'
+    ) {
+      return {
+        success: false,
+        sourcePath: '',
+        destinationPath: '',
+        error: 'Invalid CopyRequest payload provided to IPC.',
+      };
+    }
+    return await copySafeFile(request as CopyRequest);
   });
 
   // Structured Compare
-  ipcMain.handle('structured:compare', async (_event, request: StructuredDiffRequest) => {
-    return compareStructuredData(request);
+  ipcMain.handle('structured:compare', async (_event, request: unknown) => {
+    if (!request || typeof request !== 'object') {
+      return {
+        identical: false,
+        items: [],
+        cleanLeft: '',
+        cleanRight: '',
+        parseError: 'Invalid StructuredDiffRequest payload.',
+      };
+    }
+    return compareStructuredData(request as StructuredDiffRequest);
   });
 
   // Shell explorer
-  ipcMain.handle('system:open-explorer', async (_event, targetPath: string) => {
-    shell.showItemInFolder(path.resolve(targetPath));
+  ipcMain.handle('system:open-explorer', async (_event, targetPath: unknown) => {
+    if (typeof targetPath !== 'string' || !targetPath || targetPath.includes('\0')) {
+      return false;
+    }
+    const resolved = path.resolve(targetPath);
+    if (!fs.existsSync(resolved)) {
+      return false;
+    }
+    shell.showItemInFolder(resolved);
     return true;
   });
 

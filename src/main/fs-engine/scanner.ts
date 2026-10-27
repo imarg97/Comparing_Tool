@@ -6,6 +6,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { FolderComparisonOptions, ScanProgress } from '../../shared/types.js';
 import { shouldIgnorePath } from '../../shared/comparison-engine/wildcard.js';
+import { isPathInsideRoot } from '../../shared/comparison-engine/path-security.js';
 import { ScannedItem } from '../../shared/comparison-engine/matcher.js';
 import { computeFileHash } from './hasher.js';
 
@@ -24,24 +25,15 @@ export async function scanDirectory(
   const visitedRealpaths = new Set<string>();
 
   let resolvedRoot: string = '';
-  const candidatePaths = [
-    rootDir,
-    path.resolve(rootDir),
-    path.join(process.cwd(), rootDir),
-    path.join(process.env.USERPROFILE || process.env.HOME || '', 'Downloads', rootDir),
-    path.join(process.env.USERPROFILE || process.env.HOME || '', 'Desktop', rootDir),
-    path.join(process.env.USERPROFILE || process.env.HOME || '', 'Documents', rootDir),
-  ];
+  // Resolve root strictly relative to current working directory or absolute path
+  const normalizedCandidate = path.resolve(rootDir);
 
-  for (const cand of candidatePaths) {
-    try {
-      if (cand && fs.existsSync(cand)) {
-        resolvedRoot = fs.realpathSync(cand);
-        break;
-      }
-    } catch {
-      // try next
+  try {
+    if (fs.existsSync(normalizedCandidate)) {
+      resolvedRoot = fs.realpathSync(normalizedCandidate);
     }
+  } catch {
+    // fallback to direct realpath attempt
   }
 
   if (!resolvedRoot) {
@@ -127,24 +119,28 @@ export async function scanDirectory(
           symlinkTarget = '<unknown>';
         }
 
-        // Avoid following directory symlinks by default
-        if (!options.followSymlinks) {
+        // If followSymlinks is enabled, verify target does not escape resolvedRoot
+        if (options.followSymlinks) {
           try {
-            const lstat = await fs.promises.lstat(fullPath);
-            items.set(normalizedRelPath, {
-              relativePath: normalizedRelPath,
-              name: entry.name,
-              isDirectory: false,
-              metadata: {
-                exists: true,
-                size: lstat.size,
-                mtime: lstat.mtimeMs,
+            const realTarget = fs.realpathSync(fullPath);
+            if (!isPathInsideRoot(realTarget, resolvedRoot)) {
+              items.set(normalizedRelPath, {
+                relativePath: normalizedRelPath,
+                name: entry.name,
                 isDirectory: false,
-                isSymlink: true,
-                symlinkTarget,
-                readable: true,
-              },
-            });
+                metadata: {
+                  exists: true,
+                  size: 0,
+                  mtime: 0,
+                  isDirectory: false,
+                  isSymlink: true,
+                  symlinkTarget: symlinkTarget || realTarget,
+                  readable: false,
+                  error: 'Symlink points outside root directory; traversal blocked for security.',
+                },
+              });
+              continue;
+            }
           } catch (err: unknown) {
             const errorMsg = err instanceof Error ? err.message : String(err);
             items.set(normalizedRelPath, {
@@ -159,11 +155,11 @@ export async function scanDirectory(
                 isSymlink: true,
                 symlinkTarget,
                 readable: false,
-                error: errorMsg,
+                error: `Broken or inaccessible symlink: ${errorMsg}`,
               },
             });
+            continue;
           }
-          continue;
         }
       }
 
@@ -273,7 +269,7 @@ export async function scanDirectory(
     }
   }
 
-  await walk(rootDir, '');
+  await walk(resolvedRoot, '');
 
   if (context.onProgress) {
     context.onProgress({

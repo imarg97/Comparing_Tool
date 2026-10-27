@@ -36,6 +36,11 @@ export function cleanObject(
   const cleaned: Record<string, unknown> = {};
 
   for (const [key, val] of Object.entries(record)) {
+    // Security: Protect against prototype pollution
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+      continue;
+    }
+
     const fullPath = currentPath ? `${currentPath}.${key}` : key;
 
     // Check ignore list
@@ -136,6 +141,9 @@ export function diffObjects(
   const allKeys = Array.from(new Set([...Object.keys(leftObj), ...Object.keys(rightObj)])).sort();
 
   for (const key of allKeys) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+      continue;
+    }
     const nextPath = currentPath ? `${currentPath}.${key}` : key;
     if (!(key in leftObj)) {
       diffs.push({

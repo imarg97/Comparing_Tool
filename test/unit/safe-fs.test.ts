@@ -101,4 +101,37 @@ describe('Safe Filesystem Operations', () => {
     expect(copyRes3.success).toBe(true);
     expect(copyRes3.backupPath).toBeDefined();
   });
+
+  it('rejects copy requests with path traversal in source path', async () => {
+    const copyRes = await copySafeFile({
+      sourcePath: 'sub/../../etc/passwd',
+      destinationPath: path.join(tempTestDir, 'dest.txt'),
+      overwrite: true,
+      createBackup: false,
+    });
+
+    expect(copyRes.success).toBe(false);
+    expect(copyRes.error).toContain('Source contains path traversal');
+  });
+
+  it('rejects file operations with null bytes or reserved names', async () => {
+    const readRes = await readSafeFile('safe\0file.txt');
+    expect(readRes.error).toContain('Invalid file path or null byte');
+
+    const saveRes = await saveSafeFile({
+      filePath: 'safe\0file.txt',
+      content: 'evil',
+    });
+    expect(saveRes.success).toBe(false);
+    expect(saveRes.error).toContain('Null bytes detected');
+
+    const copyRes = await copySafeFile({
+      sourcePath: path.join(fixturesDir, 'left/left_only.txt'),
+      destinationPath: 'safe\0dest.txt',
+      overwrite: false,
+      createBackup: false,
+    });
+    expect(copyRes.success).toBe(false);
+    expect(copyRes.error).toContain('Null bytes detected');
+  });
 });

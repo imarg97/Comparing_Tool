@@ -367,21 +367,14 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
     },
 
     saveFile: async (request: SaveRequest) => {
-      // In browser, save directly in memory and application storage, and trigger browser file download
-      const cleanName = request.filePath.split(/[/\\]/).pop() || 'file.txt';
+      // In browser, save in ephemeral memory cache and trigger native browser file download
+      const rawName = request.filePath.split(/[/\\]/).pop() || 'file.txt';
+      const cleanName = rawName.replace(/[\0\r\n\t]/g, '').replace(/[^a-zA-Z0-9._\-]/g, '_');
 
       // Update in-memory file cache
       const updatedFile = new File([request.content], cleanName);
       browserFolderStore.singleFiles.set(request.filePath, updatedFile);
       browserFolderStore.singleFiles.set(cleanName, updatedFile);
-
-      // Persist in localStorage so it stays saved in the web application across reloads
-      try {
-        localStorage.setItem(`diffx_saved_${cleanName}`, request.content);
-        localStorage.setItem(`diffx_saved_${request.filePath}`, request.content);
-      } catch {
-        // storage quota non-fatal
-      }
 
       // Direct disk download trigger for browser users
       try {
