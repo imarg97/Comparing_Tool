@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   normalizeLineChanges,
   findChunkAtLine,
+  findChunkAtGap,
   findClosestChunk,
   executeChunkCopyL2R,
   executeChunkCopyR2L,
@@ -58,9 +59,10 @@ describe('Diff Copy Engine', () => {
     expect(findChunkAtLine(chunks, 73, 'left')).toBeNull();
     expect(findChunkAtLine(chunks, 88, 'left')).toBeNull();
 
-    // Right side gap lookup at line 74 and 75
-    expect(findChunkAtLine(chunks, 74, 'right')?.id).toBe('1');
-    expect(findChunkAtLine(chunks, 75, 'right')?.id).toBe('1');
+    // Physical buffer line 74 on right has no diff content (chunk 1 has 0 lines on right)
+    expect(findChunkAtLine(chunks, 74, 'right')).toBeNull();
+    // Alignment gap lookup finds chunk 1 at afterLine 74 on right
+    expect(findChunkAtGap(chunks, 74, 'right')?.id).toBe('1');
 
     expect(findChunkAtLine(chunks, 96, 'right')?.id).toBe('2');
   });

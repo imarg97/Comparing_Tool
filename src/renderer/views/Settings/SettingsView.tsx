@@ -208,7 +208,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <span className="text-neutral-500 block text-[11px] mt-0.5">Developed by im_arg</span>
             </div>
             <span className="px-2 py-0.5 rounded font-mono text-[11px] font-semibold bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-              v3.0.0
+              v3.1.0
             </span>
           </div>
         </div>

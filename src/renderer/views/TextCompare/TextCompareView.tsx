@@ -12,7 +12,6 @@ import {
   Home,
   FolderOpen,
   Database,
-  X,
 } from 'lucide-react';
 import { FileContentResult, TextCompareOptions } from '@shared/types.js';
 import { compareTextContent } from '@shared/comparison-engine/whitespace.js';
@@ -154,7 +153,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
 
   // Active Selected Diff Chunk (e.g. lines 74–87) & User Range Selection
   const [diffChunks, setDiffChunks] = useState<DiffChunk[]>([]);
-  const [activeDiffChunk, setActiveDiffChunk] = useState<DiffChunk | null>(null);
+  const [_activeDiffChunk, setActiveDiffChunk] = useState<DiffChunk | null>(null);
   const [activeSelection, setActiveSelection] = useState<{
     side: 'left' | 'right';
     startLine: number;
@@ -413,6 +412,10 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     chunk: DiffChunk | null;
   } | null>(null);
 
+  // Global Unified Undo/Redo stack across entire application (Beyond Compare architecture)
+  const globalHistoryRef = useRef<{ side: 'left' | 'right' }[]>([]);
+  const globalRedoRef = useRef<{ side: 'left' | 'right' }[]>([]);
+
   const clearGapTargetDecorations = () => {
     activeGapRef.current = null;
     setActiveGapState(null);
@@ -613,10 +616,35 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
 
       if (isGlyphArrow) return false;
 
+      const editorDom = targetEditor.getDomNode?.();
+      if (!editorDom) return false;
+
+      const clientY = e.clientY ?? e.event?.browserEvent?.clientY ?? 0;
+      const clientX = e.clientX ?? e.event?.browserEvent?.clientX ?? 0;
+
+      let vzTarget = rawTarget.classList?.contains('view-zone')
+        ? rawTarget
+        : ((rawTarget.closest?.('.view-zone') ||
+            rawTarget.closest?.('.diff-hidden-lines') ||
+            rawTarget.closest?.('.diagonal-fill') ||
+            rawTarget.closest?.('.ced-diagonal-fill')) as HTMLElement | null);
+
+      // Fallback coordinate search across all view zones in editorDom
+      if (!vzTarget && clientY > 0) {
+        const vzElements = Array.from(editorDom.querySelectorAll('.view-zone, .diagonal-fill, [monaco-view-zone]')) as HTMLElement[];
+        for (const el of vzElements) {
+          const rect = el.getBoundingClientRect();
+          if (rect.height > 0 && clientY >= rect.top && clientY <= rect.bottom) {
+            vzTarget = (el.closest('.view-zone') as HTMLElement) || el;
+            break;
+          }
+        }
+      }
+
       const targetType = e.target?.type;
       // Monaco MouseTargetType: 5 is GUTTER_VIEW_ZONE, 8 is CONTENT_VIEW_ZONE
       const isViewZoneType = targetType === 5 || targetType === 8;
-      const hasViewZoneClass = isGapEventTarget(rawTarget);
+      const hasViewZoneClass = isGapEventTarget(rawTarget) || Boolean(vzTarget);
 
       if (!isViewZoneType && !hasViewZoneClass) return false;
 
@@ -629,16 +657,6 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         e.event.browserEvent.stopPropagation?.();
         e.event.browserEvent.stopImmediatePropagation?.();
       }
-
-      const vzTarget = rawTarget.classList?.contains('view-zone')
-        ? rawTarget
-        : ((rawTarget.closest?.('.view-zone') ||
-            rawTarget.closest?.('.diff-hidden-lines') ||
-            rawTarget.closest?.('.diagonal-fill') ||
-            rawTarget.closest?.('.ced-diagonal-fill')) as HTMLElement | null);
-
-      const editorDom = targetEditor.getDomNode?.();
-      if (!editorDom) return false;
 
       clearGapTargetDecorations();
       editorDom.classList.add('diffx-gap-active');
@@ -705,7 +723,6 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         ) || null;
       }
 
-      const clientY = e.clientY ?? e.event?.browserEvent?.clientY ?? 0;
       let rowOffset = 0;
 
       if (vzTarget) {
@@ -714,6 +731,11 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         const clickY = clientY > 0 ? Math.max(0, clientY - rect.top) : 0;
         const numRows = Math.max(1, Math.round(vzHeightPx / rowHeight));
         rowOffset = Math.max(0, Math.min(Math.floor(clickY / rowHeight), numRows - 1));
+
+        const layoutInfo = targetEditor.getLayoutInfo ? targetEditor.getLayoutInfo() : null;
+        const contentLeft = layoutInfo?.contentLeft || 50;
+        const clickXInEditor = clientX > 0 ? (clientX - rect.left) : contentLeft;
+        const cursorLeft = Math.max(contentLeft + 2, clickXInEditor);
 
         const cursorTop = rowOffset * rowHeight + 2;
         const cursorHeight = Math.max(14, rowHeight - 4);
@@ -725,6 +747,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
           cursorIndicator.className = 'diffx-gap-cursor-indicator';
           vzTarget.appendChild(cursorIndicator);
         }
+        cursorIndicator.style.left = `${cursorLeft}px`;
         cursorIndicator.style.top = `${cursorTop}px`;
         cursorIndicator.style.height = `${cursorHeight}px`;
         cursorIndicator.style.display = 'block';
@@ -1179,7 +1202,11 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       });
 
       // Right Editor Listeners
-      modEditor.onDidChangeModelContent(() => {
+      modEditor.onDidChangeModelContent((e: any) => {
+        if (!e?.isUndoing && !e?.isRedoing) {
+          globalHistoryRef.current.push({ side: 'right' });
+          globalRedoRef.current = [];
+        }
         const val = modEditor.getValue();
         rightContentRef.current = val;
         setRightDirty(val !== (rightData?.content ?? ''));
@@ -1332,7 +1359,20 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       // Completely eliminates Monaco's cursor snap and prevents any jerk/jump to line 1 or 2
       const onOrigDomPointer = (e: any) => {
         const target = (e.target instanceof HTMLElement ? e.target : e.target?.element) as HTMLElement | null;
-        if (isGapEventTarget(target)) {
+        const clientY = e.clientY ?? 0;
+        let isGap = isGapEventTarget(target);
+        if (!isGap && clientY > 0 && origDom) {
+          const vzElements = Array.from(origDom.querySelectorAll('.view-zone, .diagonal-fill, [monaco-view-zone]')) as HTMLElement[];
+          for (const el of vzElements) {
+            const rect = el.getBoundingClientRect();
+            if (rect.height > 0 && clientY >= rect.top && clientY <= rect.bottom) {
+              isGap = true;
+              break;
+            }
+          }
+        }
+
+        if (isGap) {
           e.preventDefault?.();
           e.stopPropagation?.();
           e.stopImmediatePropagation?.();
@@ -1468,7 +1508,20 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       // Completely eliminates Monaco's cursor snap and prevents any jerk/jump to line 1 or 2
       const onModDomPointer = (e: any) => {
         const target = (e.target instanceof HTMLElement ? e.target : e.target?.element) as HTMLElement | null;
-        if (isGapEventTarget(target)) {
+        const clientY = e.clientY ?? 0;
+        let isGap = isGapEventTarget(target);
+        if (!isGap && clientY > 0 && modDom) {
+          const vzElements = Array.from(modDom.querySelectorAll('.view-zone, .diagonal-fill, [monaco-view-zone]')) as HTMLElement[];
+          for (const el of vzElements) {
+            const rect = el.getBoundingClientRect();
+            if (rect.height > 0 && clientY >= rect.top && clientY <= rect.bottom) {
+              isGap = true;
+              break;
+            }
+          }
+        }
+
+        if (isGap) {
           e.preventDefault?.();
           e.stopPropagation?.();
           e.stopImmediatePropagation?.();
@@ -1506,7 +1559,11 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       origEditor.onDidChangeViewZones(() => unsuppressViewZones(origEditor));
       modEditor.onDidChangeViewZones(() => unsuppressViewZones(modEditor));
 
-      origEditor.onDidChangeModelContent(() => {
+      origEditor.onDidChangeModelContent((e: any) => {
+        if (!e?.isUndoing && !e?.isRedoing) {
+          globalHistoryRef.current.push({ side: 'left' });
+          globalRedoRef.current = [];
+        }
         const val = origEditor.getValue();
         leftContentRef.current = val;
         setLeftDirty(val !== (leftData?.content ?? ''));
@@ -1583,9 +1640,11 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
             if (isSelectionClick && sel) {
               const selChunk = findChunkAtLine(chunksRef.current, sel.startLine, 'left');
-              const isOverlapping = selChunk && (
-                (selChunk.originalStart <= sel.endLine && selChunk.originalEnd >= sel.startLine) ||
-                (selChunk.originalEnd === 0 && selChunk.originalStart >= sel.startLine && selChunk.originalStart <= sel.endLine)
+              const isOverlapping = Boolean(
+                selChunk &&
+                selChunk.originalEnd > 0 &&
+                selChunk.originalStart <= sel.endLine &&
+                selChunk.originalEnd >= sel.startLine
               );
               const validChunk = isOverlapping ? selChunk : null;
               collapseEditorGapViewZones(
@@ -1665,9 +1724,11 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
             if (isSelectionClick && sel) {
               const selChunk = findChunkAtLine(chunksRef.current, sel.startLine, 'right');
-              const isOverlapping = selChunk && (
-                (selChunk.modifiedStart <= sel.endLine && selChunk.modifiedEnd >= sel.startLine) ||
-                (selChunk.modifiedEnd === 0 && selChunk.modifiedStart >= sel.startLine && selChunk.modifiedStart <= sel.endLine)
+              const isOverlapping = Boolean(
+                selChunk &&
+                selChunk.modifiedEnd > 0 &&
+                selChunk.modifiedStart <= sel.endLine &&
+                selChunk.modifiedEnd >= sel.startLine
               );
               const validChunk = isOverlapping ? selChunk : null;
               collapseEditorGapViewZones(
@@ -1765,9 +1826,11 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       const srcText = origModel.getLineContent(sel.startLine);
       triggerShiftAnimation('left-to-right', sel.startLine, srcText);
       const selChunk = findChunkAtLine(chunksRef.current, sel.startLine, 'left');
-      const isOverlapping = selChunk && (
-        (selChunk.originalStart <= sel.endLine && selChunk.originalEnd >= sel.startLine) ||
-        (selChunk.originalEnd === 0 && selChunk.originalStart >= sel.startLine && selChunk.originalStart <= sel.endLine)
+      const isOverlapping = Boolean(
+        selChunk &&
+        selChunk.originalEnd > 0 &&
+        selChunk.originalStart <= sel.endLine &&
+        selChunk.originalEnd >= sel.startLine
       );
       const validChunk = isOverlapping ? selChunk : null;
       collapseEditorGapViewZones(
@@ -1791,13 +1854,13 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       return;
     }
 
-    let chunk = targetChunk || activeGapRef.current?.chunk || activeDiffChunk;
-    if (!chunk && activeGapRef.current) {
-      chunk = activeGapRef.current.chunk || findChunkAtGap(chunksRef.current, activeGapRef.current.afterLineNumber, activeGapRef.current.side);
+    let chunk: DiffChunk | null | undefined = targetChunk;
+    if (!chunk && activeGapRef.current?.side === 'left') {
+      chunk = activeGapRef.current.chunk || findChunkAtGap(chunksRef.current, activeGapRef.current.afterLineNumber, 'left');
     }
     if (!chunk) {
       const activeLine = cursorLineNumber || origEditor.getPosition()?.lineNumber || 1;
-      chunk = findChunkAtLine(chunksRef.current, activeLine, 'left') || findClosestChunk(chunksRef.current, activeLine, 'left', 2);
+      chunk = findChunkAtLine(chunksRef.current, activeLine, 'left');
     }
 
     if (chunk) {
@@ -1821,6 +1884,8 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       }
       const isGapDelete = chunk.originalEnd === 0 && chunk.modifiedStart > 0;
       onUpdateStatus(isGapDelete ? `Copied empty space Left ⇨ Right (deleted line(s) on Right)` : `Copied diff chunk Left ⇨ Right`);
+    } else {
+      handleCopyActiveLineL2R();
     }
   };
 
@@ -1841,9 +1906,11 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       const srcText = modModel.getLineContent(sel.startLine);
       triggerShiftAnimation('right-to-left', sel.startLine, srcText);
       const selChunk = findChunkAtLine(chunksRef.current, sel.startLine, 'right');
-      const isOverlapping = selChunk && (
-        (selChunk.modifiedStart <= sel.endLine && selChunk.modifiedEnd >= sel.startLine) ||
-        (selChunk.modifiedEnd === 0 && selChunk.modifiedStart >= sel.startLine && selChunk.modifiedStart <= sel.endLine)
+      const isOverlapping = Boolean(
+        selChunk &&
+        selChunk.modifiedEnd > 0 &&
+        selChunk.modifiedStart <= sel.endLine &&
+        selChunk.modifiedEnd >= sel.startLine
       );
       const validChunk = isOverlapping ? selChunk : null;
       collapseEditorGapViewZones(
@@ -1867,13 +1934,13 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       return;
     }
 
-    let chunk = targetChunk || activeGapRef.current?.chunk || activeDiffChunk;
-    if (!chunk && activeGapRef.current) {
-      chunk = activeGapRef.current.chunk || findChunkAtGap(chunksRef.current, activeGapRef.current.afterLineNumber, activeGapRef.current.side);
+    let chunk: DiffChunk | null | undefined = targetChunk;
+    if (!chunk && activeGapRef.current?.side === 'right') {
+      chunk = activeGapRef.current.chunk || findChunkAtGap(chunksRef.current, activeGapRef.current.afterLineNumber, 'right');
     }
     if (!chunk) {
       const activeLine = cursorLineNumber || modEditor.getPosition()?.lineNumber || 1;
-      chunk = findChunkAtLine(chunksRef.current, activeLine, 'right') || findClosestChunk(chunksRef.current, activeLine, 'right', 2);
+      chunk = findChunkAtLine(chunksRef.current, activeLine, 'right');
     }
 
     if (chunk) {
@@ -1897,6 +1964,8 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       }
       const isGapDelete = chunk.modifiedEnd === 0 && chunk.originalStart > 0;
       onUpdateStatus(isGapDelete ? `Copied empty space Right ⇦ Left (deleted line(s) on Left)` : `Copied diff chunk Right ⇦ Left`);
+    } else {
+      handleCopyActiveLineR2L();
     }
   };
 
@@ -2144,33 +2213,81 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         return;
       }
 
-      // When editor has focus, DO NOT intercept Ctrl+Z / Ctrl+Y - let Monaco handle undo/redo natively!
-      if (hasEditorFocus) return;
+      // When cursor is placed in an alignment gap (empty space): handle typing, Enter, paste, escape
+      if (activeGapRef.current) {
+        const gap = activeGapRef.current;
+        const gapEditor = gap.side === 'left' ? origEditor : modEditor;
+        if (isCtrlOrCmd && e.key.toLowerCase() === 'v') {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          navigator.clipboard.readText().then((clipText) => {
+            if (clipText && gapEditor) insertIntoActiveGap(gapEditor, gap.side, clipText);
+          }).catch(() => {});
+          return;
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          if (gapEditor) insertIntoActiveGap(gapEditor, gap.side, '\n');
+          return;
+        }
+        if (!isCtrlOrCmd && !e.altKey && e.key.length === 1) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          if (gapEditor) insertIntoActiveGap(gapEditor, gap.side, e.key);
+          return;
+        }
+        if (e.key === 'Escape') {
+          clearGapTargetDecorations();
+          return;
+        }
+      }
 
-      // Fallback global Undo: Ctrl+Z / Cmd+Z when editor doesn't have focus
+      // Global Unified Undo: Ctrl+Z / Cmd+Z across both editors and entire web app
       if (isCtrlOrCmd && !e.shiftKey && e.key.toLowerCase() === 'z') {
         e.preventDefault();
-        const targetEditor = lastModifiedSide === 'left' ? origEditor : modEditor;
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+
+        const lastAction = globalHistoryRef.current.pop();
+        const targetSide = lastAction ? lastAction.side : (activeFocusSide || lastModifiedSide || 'left');
+        if (lastAction) {
+          globalRedoRef.current.push(lastAction);
+        }
+        const targetEditor = targetSide === 'left' ? origEditor : modEditor;
         targetEditor?.focus();
-        targetEditor?.trigger('keyboard', 'undo', null);
+        targetEditor?.trigger('diffx-global-undo', 'undo', null);
+        onUpdateStatus(`Undid last change on ${targetSide === 'left' ? 'Left' : 'Right'}`);
         return;
       }
 
-      // Fallback global Redo: Ctrl+Y / Cmd+Shift+Z when editor doesn't have focus
+      // Global Unified Redo: Ctrl+Y / Cmd+Shift+Z across both editors and entire web app
       if (
         (isCtrlOrCmd && e.key.toLowerCase() === 'y') ||
         (isCtrlOrCmd && e.shiftKey && e.key.toLowerCase() === 'z')
       ) {
         e.preventDefault();
-        const targetEditor = lastModifiedSide === 'left' ? origEditor : modEditor;
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+
+        const nextAction = globalRedoRef.current.pop();
+        const targetSide = nextAction ? nextAction.side : (activeFocusSide || lastModifiedSide || 'left');
+        if (nextAction) {
+          globalHistoryRef.current.push(nextAction);
+        }
+        const targetEditor = targetSide === 'left' ? origEditor : modEditor;
         targetEditor?.focus();
-        targetEditor?.trigger('keyboard', 'redo', null);
+        targetEditor?.trigger('diffx-global-redo', 'redo', null);
+        onUpdateStatus(`Redid change on ${targetSide === 'left' ? 'Left' : 'Right'}`);
         return;
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [activeFocusSide, lastModifiedSide, handleSaveLeft, handleSaveRight, handleCopyL2R, handleCopyR2L]);
 
   const language = detectLanguage(leftPath || rightPath);
@@ -2511,45 +2628,6 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
           onDrop={handleContainerDrop}
           className="flex-1 relative h-full min-w-0 overflow-hidden"
         >
-          {/* UI/UX Pro Max: Floating Selection Action Box (Single unified pill) */}
-          {activeSelection && (
-            <div
-              className="diffx-selection-action-box absolute z-30 top-3 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3.5 py-1.5 rounded-full shadow-2xl border border-blue-500/40 bg-neutral-900/95 text-white backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-150"
-            >
-              <span className="text-[11px] font-medium text-neutral-300">
-                Selected <span className="text-white font-semibold">{activeSelection.endLine - activeSelection.startLine + 1}</span> {activeSelection.endLine - activeSelection.startLine + 1 === 1 ? 'line' : 'lines'} on {activeSelection.side === 'left' ? 'Left' : 'Right'}
-              </span>
-              <div className="h-3 w-px bg-neutral-700" />
-              <button
-                onClick={() => {
-                  if (activeSelection.side === 'left') {
-                    handleCopyL2R();
-                  } else {
-                    handleCopyR2L();
-                  }
-                }}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-600 hover:bg-blue-500 active:scale-95 text-white transition shadow-sm cursor-pointer"
-                title={activeSelection.side === 'left' ? "Copy selected lines to Right (⇨)" : "Copy selected lines to Left (⇦)"}
-              >
-                <span>{activeSelection.side === 'left' ? 'Copy to Right' : 'Copy to Left'}</span>
-                <span className="text-sm font-bold">{activeSelection.side === 'left' ? '⇨' : '⇦'}</span>
-              </button>
-              <button
-                onClick={() => {
-                  setActiveSelection(null);
-                  activeSelectionRef.current = null;
-                  if (diffEditorRef.current) {
-                    updateGutterDecorations(canonicalChunksRef.current, null);
-                  }
-                }}
-                className="p-1 rounded-full hover:bg-neutral-800 text-neutral-400 hover:text-white transition cursor-pointer"
-                title="Clear selection"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-
           {/* Side-by-side empty state drop targets when no files are loaded */}
           {!leftPath && !rightPath ? (
             <div className="absolute inset-0 flex items-stretch select-none bg-white dark:bg-black">

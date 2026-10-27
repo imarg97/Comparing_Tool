@@ -22,7 +22,9 @@ export function normalizeLineChanges(changes: any[] | null | undefined): DiffChu
 }
 
 /**
- * Finds the diff chunk containing or closest to the given line number
+ * Finds the diff chunk containing the given buffer line number.
+ * Physical buffer lines only belong to a chunk if the chunk actually contains text on that side.
+ * For alignment gaps (empty spaces where a chunk has 0 lines), use findChunkAtGap().
  */
 export function findChunkAtLine(
   chunks: DiffChunk[],
@@ -37,15 +39,9 @@ export function findChunkAtLine(
       if (hasContent && line >= c.originalStart && line <= c.originalEnd) {
         return c;
       }
-      if (!hasContent && (line === c.originalStart || line === c.originalStart + 1)) {
-        return c;
-      }
     } else {
       const hasContent = c.modifiedStart > 0 && c.modifiedEnd >= c.modifiedStart;
       if (hasContent && line >= c.modifiedStart && line <= c.modifiedEnd) {
-        return c;
-      }
-      if (!hasContent && (line === c.modifiedStart || line === c.modifiedStart + 1)) {
         return c;
       }
     }
@@ -211,14 +207,30 @@ export function synchronouslyResolveDiffChunkInMonaco(
       if (!orig || !mod) return true;
 
       if (chunk) {
-        const matchOrig =
-          (chunk.originalStart === 0 && orig.length === 0) ||
-          orig.startLineNumber === chunk.originalStart ||
-          (chunk.originalEnd > 0 && orig.endLineNumberExclusive === chunk.originalEnd + 1);
-        const matchMod =
-          (chunk.modifiedStart === 0 && mod.length === 0) ||
-          mod.startLineNumber === chunk.modifiedStart ||
-          (chunk.modifiedEnd > 0 && mod.endLineNumberExclusive === chunk.modifiedEnd + 1);
+        const isOrigGap = chunk.originalEnd === 0;
+        const matchOrig = isOrigGap
+          ? (orig.length === 0 && (
+              orig.startLineNumber === chunk.originalStart ||
+              orig.startLineNumber === chunk.originalStart + 1 ||
+              (chunk.originalStart <= 1 && orig.startLineNumber <= 1)
+            ))
+          : (
+              orig.startLineNumber === chunk.originalStart ||
+              (chunk.originalEnd > 0 && orig.endLineNumberExclusive === chunk.originalEnd + 1)
+            );
+
+        const isModGap = chunk.modifiedEnd === 0;
+        const matchMod = isModGap
+          ? (mod.length === 0 && (
+              mod.startLineNumber === chunk.modifiedStart ||
+              mod.startLineNumber === chunk.modifiedStart + 1 ||
+              (chunk.modifiedStart <= 1 && mod.startLineNumber <= 1)
+            ))
+          : (
+              mod.startLineNumber === chunk.modifiedStart ||
+              (chunk.modifiedEnd > 0 && mod.endLineNumberExclusive === chunk.modifiedEnd + 1)
+            );
+
         if (matchOrig && matchMod) {
           return false;
         }
@@ -413,12 +425,22 @@ export function collapseEditorGapViewZones(editor: any, targetAfterLine?: number
       }
     }
 
-    // 4. Synchronous cleanup of view-zone and active gap elements in DOM
+    // 4. Synchronous cleanup of targeted view-zone and active gap elements in DOM
     const domNode = typeof editor.getDomNode === 'function' ? editor.getDomNode() : null;
     if (domNode) {
       const vzElements = domNode.querySelectorAll('.view-zone, .margin-view-zones > div, [monaco-view-zone], .diffx-active-gap-target');
       vzElements.forEach((el: any) => {
-        if (el?.style) {
+        if (!el?.style) return;
+        let shouldCollapse = targetAfterLine === undefined || targetAfterLine < 0 || el.classList?.contains('diffx-active-gap-target');
+        if (!shouldCollapse && targetAfterLine !== undefined) {
+          const topPx = parseFloat(el.style.top || '0');
+          const approxLine = Math.round(topPx / 22);
+          if (Math.abs(approxLine - targetAfterLine) <= 1) {
+            shouldCollapse = true;
+          }
+        }
+
+        if (shouldCollapse) {
           el.style.height = '0px';
           el.style.display = 'none';
           el.style.opacity = '0';
@@ -1576,7 +1598,7 @@ export function executeSelectedLinesCopyL2R(
   }
 
   // If selection represents an empty gap on the left
-  if (selection.isGapOnly || (chunk && chunk.originalEnd === 0 && selection.startLine === chunk.originalStart)) {
+  if (selection.isGapOnly) {
     const gapRow = visualRows.find(
       (r) =>
         r.leftLineNumber === null &&
@@ -1763,7 +1785,7 @@ export function executeSelectedLinesCopyR2L(
   }
 
   // If selection represents an empty gap on the right
-  if (selection.isGapOnly || (chunk && chunk.modifiedEnd === 0 && selection.startLine === chunk.modifiedStart)) {
+  if (selection.isGapOnly) {
     const gapRow = visualRows.find(
       (r) =>
         r.rightLineNumber === null &&

@@ -573,17 +573,17 @@
 /* Beyond Compare style cursor caret inside alignment gap */
 .diffx-gap-cursor-indicator {
   position: absolute;
-  left: 4px;
   width: 2px;
-  background-color: #ef4444;
-  animation: diffx-cursor-blink 1s step-start infinite;
+  background-color: #2563eb;
+  animation: diffx-cursor-blink 0.9s step-start infinite;
   pointer-events: none;
-  z-index: 100;
+  z-index: 1000 !important;
+  box-shadow: 0 0 2px rgba(37, 99, 235, 0.8);
 }
 
 .dark .diffx-gap-cursor-indicator {
   background-color: #ffffff;
-  box-shadow: 0 0 3px rgba(255, 255, 255, 0.9), 0 0 6px rgba(248, 113, 113, 0.8);
+  box-shadow: 0 0 2px rgba(255, 255, 255, 0.9), 0 0 5px rgba(59, 130, 246, 0.9);
 }
 
 /* Seamless in-place preview inside viewzone before model diff catches up */
