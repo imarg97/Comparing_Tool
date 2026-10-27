@@ -417,7 +417,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="my-1 border-t border-neutral-200 dark:border-neutral-800" />
                 <div className="px-3 py-1.5 text-[11px] text-neutral-500">
                   DiffX Comparison Suite v3.0.0<br />
-                  Developed by IM_ARG
+                  Developed by im_arg
                 </div>
               </div>
             )}

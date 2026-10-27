@@ -172,6 +172,87 @@ export interface ChunkCopyRange {
 }
 
 /**
+ * Synchronously removes a resolved diff chunk mapping from Monaco's internal _diffModel reactive observable.
+ * 
+ * Monaco 0.52 DiffEditor Architecture Fix:
+ * When text is inserted or deleted, Microsoft's diff debouncer waits 200ms before recalculating diffs in a WebWorker.
+ * During this 200ms window, Monaco's internal DiffEditorViewZones derived observable continues reading the OLD mappings,
+ * which keeps phantom alignment gap ViewZones rendered.
+ * This caused:
+ *   (a) when transferring L -> R, newly inserted lines were rendered below the 22px ViewZone (dropping down a line),
+ *       and then snapping up when the worker finished.
+ *   (b) when copying empty space R -> L (deleting lines on Left), the Right editor retained its 22px ViewZone
+ *       for 200ms while Left collapsed, causing an asymmetrical vertical jump.
+ * 
+ * By synchronously updating Monaco's _diffModel reactive observable on the exact frame of the edit,
+ * Monaco recomputes view zones synchronously with ZERO jerk and ZERO jump.
+ */
+export function synchronouslyResolveDiffChunkInMonaco(
+  diffEditor: any,
+  chunk?: DiffChunk | null,
+  targetLine?: number,
+  isOriginalTarget?: boolean
+): void {
+  if (!diffEditor) return;
+  try {
+    const diffModel = typeof diffEditor._diffModel?.get === 'function' ? diffEditor._diffModel.get() : diffEditor._diffModel;
+    if (!diffModel || !diffModel._diff || typeof diffModel._diff.get !== 'function' || typeof diffModel._diff.set !== 'function') {
+      return;
+    }
+
+    const currentDiff = diffModel._diff.get();
+    if (!currentDiff || !Array.isArray(currentDiff.mappings) || currentDiff.mappings.length === 0) {
+      return;
+    }
+
+    const remainingMappings = currentDiff.mappings.filter((m: any) => {
+      const orig = m.lineRangeMapping?.original;
+      const mod = m.lineRangeMapping?.modified;
+      if (!orig || !mod) return true;
+
+      if (chunk) {
+        const matchOrig =
+          (chunk.originalStart === 0 && orig.length === 0) ||
+          orig.startLineNumber === chunk.originalStart ||
+          (chunk.originalEnd > 0 && orig.endLineNumberExclusive === chunk.originalEnd + 1);
+        const matchMod =
+          (chunk.modifiedStart === 0 && mod.length === 0) ||
+          mod.startLineNumber === chunk.modifiedStart ||
+          (chunk.modifiedEnd > 0 && mod.endLineNumberExclusive === chunk.modifiedEnd + 1);
+        if (matchOrig && matchMod) {
+          return false;
+        }
+      }
+
+      if (targetLine !== undefined && targetLine !== null) {
+        if (isOriginalTarget) {
+          if (orig.startLineNumber === targetLine || (orig.startLineNumber <= targetLine && orig.endLineNumberExclusive > targetLine)) {
+            return false;
+          }
+        } else {
+          if (mod.startLineNumber === targetLine || (mod.startLineNumber <= targetLine && mod.endLineNumberExclusive > targetLine)) {
+            return false;
+          }
+        }
+      }
+
+      return true;
+    });
+
+    if (remainingMappings.length !== currentDiff.mappings.length) {
+      const newDiffState = {
+        ...currentDiff,
+        mappings: remainingMappings,
+        identical: remainingMappings.length === 0,
+      };
+      diffModel._diff.set(newDiffState, undefined);
+    }
+  } catch {
+    // Non-fatal safety guard
+  }
+}
+
+/**
  * Synchronously collapses and removes any Monaco diff alignment view zones (whitespaces) at or adjacent to
  * the target line in the given editor before and during an edit operation.
  * 
@@ -187,6 +268,12 @@ export interface ChunkCopyRange {
 export function collapseEditorGapViewZones(editor: any, targetAfterLine?: number): void {
   if (!editor) return;
   try {
+    // If a DiffEditor instance was passed, collapse on both original and modified editors
+    if (typeof editor.getOriginalEditor === 'function' && typeof editor.getModifiedEditor === 'function') {
+      collapseEditorGapViewZones(editor.getOriginalEditor(), targetAfterLine);
+      collapseEditorGapViewZones(editor.getModifiedEditor(), targetAfterLine);
+      return;
+    }
     // 1. Monaco CodeEditor internal ViewZones: set delegate height to 0 and layoutZone to collapse linesLayout immediately
     const viewZonesPart = editor._view?._viewZones || editor._view?.viewZones || editor._viewZones;
     if (viewZonesPart && viewZonesPart._zones && typeof editor.changeViewZones === 'function') {
@@ -361,7 +448,9 @@ export function executeChunkCopyL2R(
   modifiedModel: any,
   chunk: DiffChunk,
   outRange?: ChunkCopyRange,
-  targetEditor?: any
+  targetEditor?: any,
+  sourceEditor?: any,
+  diffEditor?: any
 ): boolean {
   if (!originalModel || !modifiedModel) return false;
 
@@ -386,9 +475,17 @@ export function executeChunkCopyL2R(
 
   const hasRightLines = chunk.modifiedStart > 0 && chunk.modifiedEnd >= chunk.modifiedStart;
 
-  // Collapse view zones in target editor BEFORE applying edits to prevent any vertical bounce
+  // Synchronously resolve in diffEditor's reactive model
+  if (diffEditor) {
+    synchronouslyResolveDiffChunkInMonaco(diffEditor, chunk, chunk.modifiedStart, false);
+  }
+
+  // Collapse view zones in target and source editors BEFORE applying edits to prevent any vertical bounce
   if (targetEditor) {
     collapseEditorGapViewZones(targetEditor, chunk.modifiedStart);
+  }
+  if (sourceEditor) {
+    collapseEditorGapViewZones(sourceEditor, chunk.originalStart);
   }
 
   // Case 1: Both sides have content -> Direct replacement of target lines
@@ -517,7 +614,9 @@ export function executeChunkCopyR2L(
   modifiedModel: any,
   chunk: DiffChunk,
   outRange?: ChunkCopyRange,
-  targetEditor?: any
+  targetEditor?: any,
+  sourceEditor?: any,
+  diffEditor?: any
 ): boolean {
   if (!originalModel || !modifiedModel) return false;
 
@@ -542,9 +641,17 @@ export function executeChunkCopyR2L(
 
   const hasLeftLines = chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart;
 
-  // Collapse view zones in target editor BEFORE applying edits to prevent any vertical bounce
+  // Synchronously resolve in diffEditor's reactive model
+  if (diffEditor) {
+    synchronouslyResolveDiffChunkInMonaco(diffEditor, chunk, chunk.originalStart, true);
+  }
+
+  // Collapse view zones in target and source editors BEFORE applying edits to prevent any vertical bounce
   if (targetEditor) {
     collapseEditorGapViewZones(targetEditor, chunk.originalStart);
+  }
+  if (sourceEditor) {
+    collapseEditorGapViewZones(sourceEditor, chunk.modifiedStart);
   }
 
   // Case 1: Both sides have content -> Direct replacement of target lines
@@ -1131,7 +1238,9 @@ export function executeVisualRangeCopy(
   fromSide: 'left' | 'right',
   outRange?: ChunkCopyRange,
   targetEditor?: any,
-  providedText?: string
+  providedText?: string,
+  sourceEditor?: any,
+  diffEditor?: any
 ): boolean {
   if (!originalModel || !modifiedModel || !visualRows.length) return false;
 
@@ -1143,13 +1252,6 @@ export function executeVisualRangeCopy(
   const targetModel = fromSide === 'left' ? modifiedModel : originalModel;
   const sourceModel = fromSide === 'left' ? originalModel : modifiedModel;
   const targetLineCount = targetModel.getLineCount();
-
-  // Collapse target viewzones synchronously before applying edits
-  if (targetEditor) {
-    const firstRow = selectedRows[0];
-    const targetAnchor = fromSide === 'left' ? firstRow.rightLineNumber : firstRow.leftLineNumber;
-    collapseEditorGapViewZones(targetEditor, targetAnchor ?? undefined);
-  }
 
   // 1. Gather lines to put into the target
   const sourceLinesCovered: number[] = [];
@@ -1168,6 +1270,51 @@ export function executeVisualRangeCopy(
     if (tgtLine !== null && tgtLine > 0 && tgtLine <= targetLineCount) {
       targetLinesCovered.push(tgtLine);
     }
+  }
+
+  // Preceding target line if target is an alignment gap (Branch B)
+  let insertAfter = 0;
+  for (let v = startVisualRow - 1; v >= 1; v--) {
+    const prevRow = visualRows.find((r) => r.visualRowIndex === v);
+    const tgtLine = fromSide === 'left' ? prevRow?.rightLineNumber : prevRow?.leftLineNumber;
+    if (tgtLine !== undefined && tgtLine !== null && tgtLine > 0) {
+      insertAfter = tgtLine;
+      break;
+    }
+  }
+
+  // Source anchor line (for collapsing viewzones on source side)
+  let sourceAnchor: number | undefined = sourceLinesCovered.length > 0 ? Math.min(...sourceLinesCovered) : undefined;
+  if (sourceAnchor === undefined) {
+    for (let v = startVisualRow - 1; v >= 1; v--) {
+      const prevRow = visualRows.find((r) => r.visualRowIndex === v);
+      const srcLine = fromSide === 'left' ? prevRow?.leftLineNumber : prevRow?.rightLineNumber;
+      if (srcLine !== undefined && srcLine !== null && srcLine > 0) {
+        sourceAnchor = srcLine;
+        break;
+      }
+    }
+  }
+
+  const targetAnchor = targetLinesCovered.length > 0 ? Math.min(...targetLinesCovered) : insertAfter;
+
+  // Synchronously resolve diff chunks in Monaco's reactive observable model
+  const matchedChunk = selectedRows.find((r) => r.chunk)?.chunk;
+  if (diffEditor) {
+    synchronouslyResolveDiffChunkInMonaco(
+      diffEditor,
+      matchedChunk,
+      targetAnchor,
+      fromSide === 'right'
+    );
+  }
+
+  // Collapse target and source viewzones synchronously before applying edits to guarantee zero visual jump
+  if (targetEditor) {
+    collapseEditorGapViewZones(targetEditor, targetAnchor);
+  }
+  if (sourceEditor) {
+    collapseEditorGapViewZones(sourceEditor, sourceAnchor);
   }
 
   // Branch A: Target has existing lines covered by this visual row selection
@@ -1399,7 +1546,9 @@ export function executeSelectedLinesCopyL2R(
   chunk?: DiffChunk | null,
   outRange?: ChunkCopyRange,
   targetEditor?: any,
-  allChunks?: DiffChunk[]
+  allChunks?: DiffChunk[],
+  sourceEditor?: any,
+  diffEditor?: any
 ): boolean {
   if (!originalModel || !modifiedModel) return false;
 
@@ -1420,7 +1569,9 @@ export function executeSelectedLinesCopyL2R(
       'left',
       outRange,
       targetEditor,
-      selection.text
+      selection.text,
+      sourceEditor,
+      diffEditor
     );
   }
 
@@ -1441,10 +1592,12 @@ export function executeSelectedLinesCopyL2R(
         'left',
         outRange,
         targetEditor,
-        selection.text
+        selection.text,
+        sourceEditor,
+        diffEditor
       );
     }
-    return executeChunkCopyL2R(originalModel, modifiedModel, chunk!, outRange, targetEditor);
+    return executeChunkCopyL2R(originalModel, modifiedModel, chunk!, outRange, targetEditor, sourceEditor, diffEditor);
   }
 
   // Map physical left selection lines to visual rows
@@ -1467,7 +1620,9 @@ export function executeSelectedLinesCopyL2R(
       'left',
       outRange,
       targetEditor,
-      selection.text
+      selection.text,
+      sourceEditor,
+      diffEditor
     );
   }
 
@@ -1481,11 +1636,23 @@ export function executeSelectedLinesCopyL2R(
 
   const targetInfo = computeTargetRangeForSelection(chunks, sLine, eLine, 'left', rightLineCount);
 
+  if (diffEditor) {
+    synchronouslyResolveDiffChunkInMonaco(
+      diffEditor,
+      chunk,
+      targetInfo.isGapInsert ? targetInfo.insertAfterLine : targetInfo.replaceStart,
+      false
+    );
+  }
+
   if (targetEditor) {
     collapseEditorGapViewZones(
       targetEditor,
       targetInfo.isGapInsert ? targetInfo.insertAfterLine : targetInfo.replaceStart - 1
     );
+  }
+  if (sourceEditor) {
+    collapseEditorGapViewZones(sourceEditor, sLine);
   }
 
   // Branch 1: Target has existing lines inside this mapped range -> REPLACE
@@ -1566,7 +1733,9 @@ export function executeSelectedLinesCopyR2L(
   chunk?: DiffChunk | null,
   outRange?: ChunkCopyRange,
   targetEditor?: any,
-  allChunks?: DiffChunk[]
+  allChunks?: DiffChunk[],
+  sourceEditor?: any,
+  diffEditor?: any
 ): boolean {
   if (!originalModel || !modifiedModel) return false;
 
@@ -1587,7 +1756,9 @@ export function executeSelectedLinesCopyR2L(
       'right',
       outRange,
       targetEditor,
-      selection.text
+      selection.text,
+      sourceEditor,
+      diffEditor
     );
   }
 
@@ -1608,10 +1779,12 @@ export function executeSelectedLinesCopyR2L(
         'right',
         outRange,
         targetEditor,
-        selection.text
+        selection.text,
+        sourceEditor,
+        diffEditor
       );
     }
-    return executeChunkCopyR2L(originalModel, modifiedModel, chunk!, outRange, targetEditor);
+    return executeChunkCopyR2L(originalModel, modifiedModel, chunk!, outRange, targetEditor, sourceEditor, diffEditor);
   }
 
   // Map physical right selection lines to visual rows
@@ -1634,7 +1807,9 @@ export function executeSelectedLinesCopyR2L(
       'right',
       outRange,
       targetEditor,
-      selection.text
+      selection.text,
+      sourceEditor,
+      diffEditor
     );
   }
 
@@ -1648,11 +1823,23 @@ export function executeSelectedLinesCopyR2L(
 
   const targetInfo = computeTargetRangeForSelection(chunks, sLine, eLine, 'right', leftLineCount);
 
+  if (diffEditor) {
+    synchronouslyResolveDiffChunkInMonaco(
+      diffEditor,
+      chunk,
+      targetInfo.isGapInsert ? targetInfo.insertAfterLine : targetInfo.replaceStart,
+      true
+    );
+  }
+
   if (targetEditor) {
     collapseEditorGapViewZones(
       targetEditor,
       targetInfo.isGapInsert ? targetInfo.insertAfterLine : targetInfo.replaceStart - 1
     );
+  }
+  if (sourceEditor) {
+    collapseEditorGapViewZones(sourceEditor, sLine);
   }
 
   // Branch 1: Target has existing lines inside this mapped range -> REPLACE

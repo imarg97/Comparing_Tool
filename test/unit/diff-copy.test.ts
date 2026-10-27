@@ -8,6 +8,7 @@ import {
   executeSelectedLinesCopyL2R,
   executeSelectedLinesCopyR2L,
   collapseEditorGapViewZones,
+  synchronouslyResolveDiffChunkInMonaco,
   spliceLines,
   DiffChunk,
   computeUnchangedRanges,
@@ -403,6 +404,58 @@ describe('Diff Copy Engine', () => {
         endLineNumber: 2,
         endColumn: 1,
       });
+    });
+
+    it('synchronously resolves diff chunk in Monaco reactive _diffModel observable', () => {
+      let updatedDiff: any = null;
+      const initialDiff = {
+        mappings: [
+          {
+            lineRangeMapping: {
+              original: { startLineNumber: 2, endLineNumberExclusive: 3, length: 1 },
+              modified: { startLineNumber: 1, endLineNumberExclusive: 1, length: 0 },
+            },
+          },
+          {
+            lineRangeMapping: {
+              original: { startLineNumber: 10, endLineNumberExclusive: 15, length: 5 },
+              modified: { startLineNumber: 10, endLineNumberExclusive: 15, length: 5 },
+            },
+          },
+        ],
+        movedTexts: [],
+        identical: false,
+        quitEarly: false,
+      };
+
+      const mockDiffModel = {
+        _diff: {
+          get: () => initialDiff,
+          set: (val: any) => {
+            updatedDiff = val;
+          },
+        },
+      };
+
+      const mockDiffEditor = {
+        _diffModel: {
+          get: () => mockDiffModel,
+        },
+      };
+
+      const chunkToResolve: DiffChunk = {
+        id: 'c1',
+        originalStart: 2,
+        originalEnd: 2,
+        modifiedStart: 1,
+        modifiedEnd: 0,
+      };
+
+      synchronouslyResolveDiffChunkInMonaco(mockDiffEditor, chunkToResolve);
+
+      expect(updatedDiff).not.toBeNull();
+      expect(updatedDiff.mappings.length).toBe(1);
+      expect(updatedDiff.mappings[0].lineRangeMapping.original.startLineNumber).toBe(10);
     });
 
     it('ensures inserting into an alignment gap never concatenates with following line', () => {

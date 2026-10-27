@@ -14,11 +14,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({
 }) => {
   return (
     <footer className="h-6 bg-neutral-100 dark:bg-black border-t border-neutral-300 dark:border-neutral-800 text-[11px] text-neutral-600 dark:text-neutral-400 flex items-center justify-between px-3 select-none flex-shrink-0">
-      <div className="flex items-center space-x-2.5">
-        <span className="text-[10px] text-neutral-500 dark:text-neutral-500 font-mono select-none" title="DiffX v3.0.0 • Developed by IM_ARG">
-          v3.0.0 • Developed by AMRG
-        </span>
-        <span className="text-neutral-300 dark:text-neutral-700">|</span>
+      <div className="flex items-center space-x-3">
         <span className="flex items-center space-x-1 text-neutral-800 dark:text-neutral-200">
           <HardDrive className="w-3 h-3 text-neutral-500 dark:text-neutral-400" />
           <span>{statusText}</span>

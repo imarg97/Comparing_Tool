@@ -2,7 +2,7 @@
   "name": "diffx",
   "version": "3.0.0",
   "description": "Professional Desktop Comparison Suite",
-  "author": "IM_ARG",
+  "author": "im_arg",
   "type": "module",
   "private": true,
   "main": "dist-electron/main/index.js",

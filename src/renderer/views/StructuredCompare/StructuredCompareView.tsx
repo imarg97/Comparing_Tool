@@ -370,46 +370,10 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     }
   };
 
-  const [activeShiftFlyer, setActiveShiftFlyer] = useState<{
-    id: number;
-    direction: 'left-to-right' | 'right-to-left';
-    top: number;
-    text: string;
-  } | null>(null);
+  // Beyond Compare clean instant transfer (zero visual blockers, zero lag)
+  const triggerShiftAnimation = (_direction?: string, _lineNum?: number, _previewText?: string) => {};
 
-  // UI/UX Pro Max: Ultra-smooth tactile horizontal transfer animation across editors
-  const triggerShiftAnimation = (
-    direction: 'left-to-right' | 'right-to-left',
-    lineNum: number,
-    previewText?: string
-  ) => {
-    try {
-      if (!diffEditorRef.current) return;
-      const editor =
-        direction === 'left-to-right'
-          ? diffEditorRef.current.getOriginalEditor()
-          : diffEditorRef.current.getModifiedEditor();
-      const pos = editor?.getScrolledVisiblePosition?.({ lineNumber: Math.max(1, lineNum), column: 1 });
-      const top = pos ? Math.max(12, pos.top) : 60;
-      const rawText = previewText?.trim() || `Line ${lineNum}`;
-      const label = rawText.length > 36 ? rawText.substring(0, 33) + '...' : rawText;
-
-      setActiveShiftFlyer({
-        id: Date.now(),
-        direction,
-        top,
-        text: label,
-      });
-
-      setTimeout(() => {
-        setActiveShiftFlyer((curr) => (curr && Date.now() - curr.id >= 240 ? null : curr));
-      }, 270);
-    } catch {
-      // Non-fatal
-    }
-  };
-
-  const [activeGapState, setActiveGapState] = useState<{
+  const [_activeGapState, setActiveGapState] = useState<{
     side: 'left' | 'right';
     afterLineNumber: number;
     rowOffset?: number;
@@ -1639,7 +1603,8 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
                 modEditor,
                 validChunk ? validChunk.modifiedStart : mapLineNumber(chunksRef.current, sel.startLine, 'left')
               );
-              executeSelectedLinesCopyL2R(origEditor.getModel(), modEditor.getModel(), sel, validChunk, outRange, modEditor, chunksRef.current);
+              collapseEditorGapViewZones(origEditor, sel.startLine);
+              executeSelectedLinesCopyL2R(origEditor.getModel(), modEditor.getModel(), sel, validChunk, outRange, modEditor, chunksRef.current, origEditor, diffEditorRef.current);
               rightContentRef.current = modEditor.getValue();
               setRightDirty(true);
               setLastModifiedSide('right');
@@ -1654,7 +1619,8 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
               updateGutterDecorations(canonicalChunksRef.current.length ? canonicalChunksRef.current : diffChunks, null);
             } else if (directChunk) {
               collapseEditorGapViewZones(modEditor, directChunk.modifiedStart);
-              executeChunkCopyL2R(origEditor.getModel(), modEditor.getModel(), directChunk, outRange, modEditor);
+              collapseEditorGapViewZones(origEditor, directChunk.originalStart);
+              executeChunkCopyL2R(origEditor.getModel(), modEditor.getModel(), directChunk, outRange, modEditor, origEditor, diffEditorRef.current);
               rightContentRef.current = modEditor.getValue();
               setRightDirty(true);
               setLastModifiedSide('right');
@@ -1719,7 +1685,8 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
                 origEditor,
                 validChunk ? validChunk.originalStart : mapLineNumber(chunksRef.current, sel.startLine, 'right')
               );
-              executeSelectedLinesCopyR2L(origEditor.getModel(), modEditor.getModel(), sel, validChunk, outRange, origEditor, chunksRef.current);
+              collapseEditorGapViewZones(modEditor, sel.startLine);
+              executeSelectedLinesCopyR2L(origEditor.getModel(), modEditor.getModel(), sel, validChunk, outRange, origEditor, chunksRef.current, modEditor, diffEditorRef.current);
               leftContentRef.current = origEditor.getValue();
               setLeftDirty(true);
               setLastModifiedSide('left');
@@ -1734,7 +1701,8 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
               updateGutterDecorations(canonicalChunksRef.current.length ? canonicalChunksRef.current : diffChunks, null);
             } else if (directChunk) {
               collapseEditorGapViewZones(origEditor, directChunk.originalStart);
-              executeChunkCopyR2L(origEditor.getModel(), modEditor.getModel(), directChunk, outRange, origEditor);
+              collapseEditorGapViewZones(modEditor, directChunk.modifiedStart);
+              executeChunkCopyR2L(origEditor.getModel(), modEditor.getModel(), directChunk, outRange, origEditor, modEditor, diffEditorRef.current);
               leftContentRef.current = origEditor.getValue();
               setLeftDirty(true);
               setLastModifiedSide('left');
@@ -1816,7 +1784,8 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         modEditor,
         validChunk ? validChunk.modifiedStart : mapLineNumber(chunksRef.current, sel.startLine, 'left')
       );
-      executeSelectedLinesCopyL2R(origModel, modModel, sel, validChunk, outRange, modEditor, chunksRef.current);
+      collapseEditorGapViewZones(origEditor, sel.startLine);
+      executeSelectedLinesCopyL2R(origModel, modModel, sel, validChunk, outRange, modEditor, chunksRef.current, origEditor, diffEditorRef.current);
       const updated = modModel.getValue();
       rightContentRef.current = updated;
       setRightDirty(true);
@@ -1848,8 +1817,9 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       triggerShiftAnimation('left-to-right', srcLine, srcText);
 
       collapseEditorGapViewZones(modEditor, chunk.modifiedStart);
+      collapseEditorGapViewZones(origEditor, chunk.originalStart);
       clearGapTargetDecorations();
-      executeChunkCopyL2R(origModel, modModel, chunk, outRange, modEditor);
+      executeChunkCopyL2R(origModel, modModel, chunk, outRange, modEditor, origEditor, diffEditorRef.current);
       const updated = modModel.getValue();
       rightContentRef.current = updated;
       setRightDirty(true);
@@ -1892,7 +1862,8 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         origEditor,
         validChunk ? validChunk.originalStart : mapLineNumber(chunksRef.current, sel.startLine, 'right')
       );
-      executeSelectedLinesCopyR2L(origModel, modModel, sel, validChunk, outRange, origEditor, chunksRef.current);
+      collapseEditorGapViewZones(modEditor, sel.startLine);
+      executeSelectedLinesCopyR2L(origModel, modModel, sel, validChunk, outRange, origEditor, chunksRef.current, modEditor, diffEditorRef.current);
       const updated = origModel.getValue();
       leftContentRef.current = updated;
       setLeftDirty(true);
@@ -1924,8 +1895,9 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       triggerShiftAnimation('right-to-left', srcLine, srcText);
 
       collapseEditorGapViewZones(origEditor, chunk.originalStart);
+      collapseEditorGapViewZones(modEditor, chunk.modifiedStart);
       clearGapTargetDecorations();
-      executeChunkCopyR2L(origModel, modModel, chunk, outRange, origEditor);
+      executeChunkCopyR2L(origModel, modModel, chunk, outRange, origEditor, modEditor, diffEditorRef.current);
       const updated = origModel.getValue();
       leftContentRef.current = updated;
       setLeftDirty(true);
@@ -1965,7 +1937,8 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       const srcText = origModel.getLineContent(chunk.originalStart || cursorLineNumber);
       triggerShiftAnimation('left-to-right', chunk.originalStart || cursorLineNumber, srcText);
       collapseEditorGapViewZones(modEditor, chunk.modifiedStart);
-      executeChunkCopyL2R(origModel, modModel, chunk, outRange, modEditor);
+      collapseEditorGapViewZones(origEditor, chunk.originalStart);
+      executeChunkCopyL2R(origModel, modModel, chunk, outRange, modEditor, origEditor, diffEditorRef.current);
       rightContentRef.current = modModel.getValue();
       setRightDirty(true);
       setLastModifiedSide('right');
@@ -1981,7 +1954,9 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     const leftLine = cursorLineNumber <= origModel.getLineCount() ? origModel.getLineContent(cursorLineNumber) : '';
     triggerShiftAnimation('left-to-right', cursorLineNumber, leftLine);
     const rightLineNum = mapLineNumber(chunksRef.current, cursorLineNumber, 'left');
-    const clampedRightLineNum = Math.min(rightLineNum, modModel.getLineCount());
+    const clampedRightLineNum = Math.max(1, Math.min(rightLineNum, modModel.getLineCount()));
+    collapseEditorGapViewZones(modEditor, clampedRightLineNum);
+    collapseEditorGapViewZones(origEditor, cursorLineNumber);
     const range = {
       startLineNumber: clampedRightLineNum,
       startColumn: 1,
@@ -2019,7 +1994,8 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       const srcText = modModel.getLineContent(chunk.modifiedStart || cursorLineNumber);
       triggerShiftAnimation('right-to-left', chunk.modifiedStart || cursorLineNumber, srcText);
       collapseEditorGapViewZones(origEditor, chunk.originalStart);
-      executeChunkCopyR2L(origModel, modModel, chunk, outRange, origEditor);
+      collapseEditorGapViewZones(modEditor, chunk.modifiedStart);
+      executeChunkCopyR2L(origModel, modModel, chunk, outRange, origEditor, modEditor, diffEditorRef.current);
       leftContentRef.current = origModel.getValue();
       setLeftDirty(true);
       setLastModifiedSide('left');
@@ -2035,7 +2011,9 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     const rightLine = cursorLineNumber <= modModel.getLineCount() ? modModel.getLineContent(cursorLineNumber) : '';
     triggerShiftAnimation('right-to-left', cursorLineNumber, rightLine);
     const leftLineNum = mapLineNumber(chunksRef.current, cursorLineNumber, 'right');
-    const clampedLeftLineNum = Math.min(leftLineNum, origModel.getLineCount());
+    const clampedLeftLineNum = Math.max(1, Math.min(leftLineNum, origModel.getLineCount()));
+    collapseEditorGapViewZones(origEditor, clampedLeftLineNum);
+    collapseEditorGapViewZones(modEditor, cursorLineNumber);
     const range = {
       startLineNumber: clampedLeftLineNum,
       startColumn: 1,
@@ -2577,57 +2555,6 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
               >
                 <X className="w-3.5 h-3.5" />
               </button>
-            </div>
-          )}
-
-          {/* Beyond Compare Floating Gap Action Box when cursor is on an Empty Space */}
-          {!activeSelection && activeGapState && (
-            <div
-              className="diffx-gap-action-box absolute z-30 top-3 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3.5 py-1.5 rounded-full shadow-2xl border border-yellow-500/50 bg-neutral-900/95 text-white backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-150"
-            >
-              <span className="text-[11px] font-medium text-yellow-300">
-                Empty Space on <span className="text-white font-semibold">{activeGapState.side === 'left' ? 'Left' : 'Right'}</span> (Line {activeGapState.effectiveLineNumber || activeGapState.afterLineNumber + 1})
-              </span>
-              <div className="h-3 w-px bg-neutral-700" />
-              <button
-                onClick={() => {
-                  if (activeGapState.side === 'left') {
-                    handleCopyL2R();
-                  } else {
-                    handleCopyR2L();
-                  }
-                }}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-yellow-600 hover:bg-yellow-500 active:scale-95 text-white transition shadow-sm cursor-pointer"
-                title={activeGapState.side === 'left' ? "Copy empty space Left ⇨ Right (delete right line)" : "Copy empty space Right ⇦ Left (delete left line)"}
-              >
-                <span>{activeGapState.side === 'left' ? 'Copy Empty Space to Right' : 'Copy Empty Space to Left'}</span>
-                <span className="text-sm font-bold">{activeGapState.side === 'left' ? '⇨' : '⇦'}</span>
-              </button>
-              <button
-                onClick={() => {
-                  clearGapTargetDecorations();
-                }}
-                className="p-1 rounded-full hover:bg-neutral-800 text-neutral-400 hover:text-white transition cursor-pointer"
-                title="Dismiss"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-
-          {/* UI/UX Pro Max: Flying Shift Transfer Ghost Pill */}
-          {activeShiftFlyer && (
-            <div
-              key={activeShiftFlyer.id}
-              style={{ top: `${activeShiftFlyer.top}px` }}
-              className={`diffx-shift-flyer ${
-                activeShiftFlyer.direction === 'left-to-right'
-                  ? 'diffx-shift-flyer-l2r'
-                  : 'diffx-shift-flyer-r2l'
-              }`}
-            >
-              <span>{activeShiftFlyer.direction === 'left-to-right' ? '⇨' : '⇦'}</span>
-              <span className="truncate max-w-[280px]">{activeShiftFlyer.text}</span>
             </div>
           )}
 
