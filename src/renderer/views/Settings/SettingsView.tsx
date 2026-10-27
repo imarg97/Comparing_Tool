@@ -196,6 +196,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             ))}
           </div>
         </div>
+
+        {/* 4. About & System Information */}
+        <div className="bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-lg p-4 space-y-2">
+          <h3 className="font-semibold text-xs uppercase tracking-wider text-neutral-500">
+            About DiffX
+          </h3>
+          <div className="flex items-center justify-between text-xs">
+            <div>
+              <span className="font-medium text-neutral-900 dark:text-white">DiffX Comparison Suite</span>
+              <span className="text-neutral-500 block text-[11px] mt-0.5">Developed by IM_ARG</span>
+            </div>
+            <span className="px-2 py-0.5 rounded font-mono text-[11px] font-semibold bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+              v3.0.0
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );

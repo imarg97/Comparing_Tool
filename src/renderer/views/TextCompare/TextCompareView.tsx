@@ -690,7 +690,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
 
       // Check Monaco internal viewZones._zones map
       if (afterLineNumber === null) {
-        const vzPart = targetEditor._view?.viewZones || targetEditor._viewZones;
+        const vzPart = targetEditor._view?._viewZones || targetEditor._view?.viewZones || targetEditor._viewZones;
         if (vzPart && vzPart._zones) {
           for (const k of Object.keys(vzPart._zones)) {
             const z = vzPart._zones[k];
@@ -1054,6 +1054,12 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       // 1. Render single clean gutter arrow for each difference chunk (never doubled)
       const activeList = canonicalChunksRef.current.length ? canonicalChunksRef.current : chunks;
       for (const chunk of activeList) {
+        // If selection is active on Left, suppress default chunk arrows that fall inside selection
+        if (currentSelection && currentSelection.side === 'left') {
+          if (chunk.originalStart >= currentSelection.startLine && chunk.originalStart <= currentSelection.endLine) {
+            continue;
+          }
+        }
         if (chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart) {
           newLeftDecs.push({
             range: {
@@ -1072,6 +1078,12 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
           });
         }
 
+        // If selection is active on Right, suppress default chunk arrows that fall inside selection
+        if (currentSelection && currentSelection.side === 'right') {
+          if (chunk.modifiedStart >= currentSelection.startLine && chunk.modifiedStart <= currentSelection.endLine) {
+            continue;
+          }
+        }
         if (chunk.modifiedStart > 0 && chunk.modifiedEnd >= chunk.modifiedStart) {
           newRightDecs.push({
             range: {
@@ -1091,10 +1103,11 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         }
       }
 
-      // 2. If user has actively selected specific line(s), highlight the selected lines & place a single arrow at the start
+      // 2. If user has actively selected specific line(s), highlight the selected lines & place a single unified action box
       if (currentSelection && currentSelection.side === 'left') {
         const origModel = origEditor.getModel();
         const maxCol = origModel ? origModel.getLineMaxColumn(currentSelection.endLine) : 1;
+        const isMultiLine = currentSelection.endLine > currentSelection.startLine;
         // Selection highlight across the entire range
         newLeftDecs.push({
           range: {
@@ -1108,7 +1121,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             className: 'diffx-active-selection-range',
           },
         });
-        // Single gutter arrow on the first line ONLY (never repeated across every line!)
+        // Single unified gutter box on the first line (single action box for the entire selection)
         newLeftDecs.push({
           range: {
             startLineNumber: currentSelection.startLine,
@@ -1118,7 +1131,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
           },
           options: {
             isWholeLine: false,
-            linesDecorationsClassName: 'diffx-line-copy-l2r',
+            linesDecorationsClassName: isMultiLine ? 'diffx-selection-gutter-box-l2r' : 'diffx-line-copy-l2r',
             linesDecorationsHoverMessage: {
               value: `**⇨ Copy Selected Lines (${currentSelection.startLine}–${currentSelection.endLine}) to Right**`,
             },
@@ -1127,6 +1140,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       } else if (currentSelection && currentSelection.side === 'right') {
         const modModel = modEditor.getModel();
         const maxCol = modModel ? modModel.getLineMaxColumn(currentSelection.endLine) : 1;
+        const isMultiLine = currentSelection.endLine > currentSelection.startLine;
         // Selection highlight across the entire range
         newRightDecs.push({
           range: {
@@ -1140,7 +1154,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             className: 'diffx-active-selection-range',
           },
         });
-        // Single gutter arrow on the first line ONLY (never repeated across every line!)
+        // Single unified gutter box on the first line (single action box for the entire selection)
         newRightDecs.push({
           range: {
             startLineNumber: currentSelection.startLine,
@@ -1150,7 +1164,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
           },
           options: {
             isWholeLine: false,
-            linesDecorationsClassName: 'diffx-line-copy-r2l',
+            linesDecorationsClassName: isMultiLine ? 'diffx-selection-gutter-box-r2l' : 'diffx-line-copy-r2l',
             linesDecorationsHoverMessage: {
               value: `**⇦ Copy Selected Lines (${currentSelection.startLine}–${currentSelection.endLine}) to Left**`,
             },
@@ -1808,7 +1822,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       return;
     }
 
-    let chunk = targetChunk || (activeGapRef.current?.side === 'left' ? activeGapRef.current.chunk : null) || activeDiffChunk;
+    let chunk = targetChunk || activeGapRef.current?.chunk || activeDiffChunk;
     if (!chunk && activeGapRef.current) {
       chunk = activeGapRef.current.chunk || findChunkAtGap(chunksRef.current, activeGapRef.current.afterLineNumber, activeGapRef.current.side);
     }
@@ -1882,7 +1896,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       return;
     }
 
-    let chunk = targetChunk || (activeGapRef.current?.side === 'right' ? activeGapRef.current.chunk : null) || activeDiffChunk;
+    let chunk = targetChunk || activeGapRef.current?.chunk || activeDiffChunk;
     if (!chunk && activeGapRef.current) {
       chunk = activeGapRef.current.chunk || findChunkAtGap(chunksRef.current, activeGapRef.current.afterLineNumber, activeGapRef.current.side);
     }

@@ -188,7 +188,7 @@ export function collapseEditorGapViewZones(editor: any, targetAfterLine?: number
   if (!editor) return;
   try {
     // 1. Monaco CodeEditor internal ViewZones: set delegate height to 0 and layoutZone to collapse linesLayout immediately
-    const viewZonesPart = editor._view?.viewZones || editor._viewZones;
+    const viewZonesPart = editor._view?._viewZones || editor._view?.viewZones || editor._viewZones;
     if (viewZonesPart && viewZonesPart._zones && typeof editor.changeViewZones === 'function') {
       editor.changeViewZones((accessor: any) => {
         for (const key of Object.keys(viewZonesPart._zones)) {
@@ -204,18 +204,51 @@ export function collapseEditorGapViewZones(editor: any, targetAfterLine?: number
             if (delegate) {
               delegate.heightInPx = 0;
               delegate.heightInLines = 0;
-              if (delegate.domNode) {
+              if (delegate.domNode?.style) {
                 delegate.domNode.style.height = '0px';
                 delegate.domNode.style.display = 'none';
                 delegate.domNode.style.opacity = '0';
+                if (typeof delegate.domNode.style.setProperty === 'function') {
+                  try {
+                    delegate.domNode.style.setProperty('height', '0px', 'important');
+                    delegate.domNode.style.setProperty('display', 'none', 'important');
+                    delegate.domNode.style.setProperty('opacity', '0', 'important');
+                  } catch {
+                    // ignore
+                  }
+                }
               }
             }
-            if (typeof accessor.layoutZone === 'function') {
-              try {
-                accessor.layoutZone(key);
-              } catch {
-                // ignore
+            if (zone.domNode?.domNode?.style) {
+              zone.domNode.domNode.style.height = '0px';
+              zone.domNode.domNode.style.display = 'none';
+              zone.domNode.domNode.style.opacity = '0';
+              if (typeof zone.domNode.domNode.style.setProperty === 'function') {
+                try {
+                  zone.domNode.domNode.style.setProperty('height', '0px', 'important');
+                  zone.domNode.domNode.style.setProperty('display', 'none', 'important');
+                  zone.domNode.domNode.style.setProperty('opacity', '0', 'important');
+                } catch {
+                  // ignore
+                }
               }
+            }
+            if (zone.marginDomNode?.domNode?.style) {
+              zone.marginDomNode.domNode.style.height = '0px';
+              zone.marginDomNode.domNode.style.display = 'none';
+              if (typeof zone.marginDomNode.domNode.style.setProperty === 'function') {
+                try {
+                  zone.marginDomNode.domNode.style.setProperty('height', '0px', 'important');
+                  zone.marginDomNode.domNode.style.setProperty('display', 'none', 'important');
+                } catch {
+                  // ignore
+                }
+              }
+            }
+            try {
+              accessor.layoutZone(key);
+            } catch {
+              // ignore
             }
             try {
               accessor.removeZone(key);
@@ -228,40 +261,42 @@ export function collapseEditorGapViewZones(editor: any, targetAfterLine?: number
     }
 
     // 2. Monaco CodeEditor API: getWhitespaces() & changeViewZones()
-    if (typeof editor.getWhitespaces === 'function' && typeof editor.changeViewZones === 'function') {
-      const whitespaces = editor.getWhitespaces();
-      if (Array.isArray(whitespaces) && whitespaces.length > 0) {
-        const matchingIds: string[] = [];
-        for (const ws of whitespaces) {
-          if (!ws || ws.id === undefined) continue;
-          if (
-            targetAfterLine === undefined ||
-            targetAfterLine < 0 ||
-            Math.abs(ws.afterLineNumber - targetAfterLine) <= 1
-          ) {
-            matchingIds.push(ws.id);
-          }
+    const viewModel = typeof editor._getViewModel === 'function' ? editor._getViewModel() : editor._modelData?.viewModel;
+    const viewLayout = viewModel?.viewLayout || editor._view?.viewLayout;
+    const whitespaces =
+      typeof editor.getWhitespaces === 'function'
+        ? editor.getWhitespaces()
+        : viewLayout && typeof viewLayout.getWhitespaces === 'function'
+        ? viewLayout.getWhitespaces()
+        : [];
+
+    if (Array.isArray(whitespaces) && whitespaces.length > 0 && typeof editor.changeViewZones === 'function') {
+      const matchingIds: string[] = [];
+      for (const ws of whitespaces) {
+        if (!ws || ws.id === undefined) continue;
+        if (
+          targetAfterLine === undefined ||
+          targetAfterLine < 0 ||
+          Math.abs(ws.afterLineNumber - targetAfterLine) <= 1
+        ) {
+          matchingIds.push(ws.id);
         }
-        if (matchingIds.length > 0) {
-          editor.changeViewZones((accessor: any) => {
-            for (const id of matchingIds) {
-              try {
-                accessor.removeZone(id);
-              } catch {
-                // ignore
-              }
+      }
+      if (matchingIds.length > 0) {
+        editor.changeViewZones((accessor: any) => {
+          for (const id of matchingIds) {
+            try {
+              accessor.removeZone(id);
+            } catch {
+              // ignore
             }
-          });
-        }
+          }
+        });
       }
     }
 
     // 3. Monaco internal linesLayout whitespace collapse (synchronously sets height to 0)
-    const viewModel = typeof editor._getViewModel === 'function' ? editor._getViewModel() : null;
-    const viewLayout = viewModel?.viewLayout || editor._view?.viewLayout;
-
     if (viewLayout && typeof viewLayout.changeWhitespace === 'function') {
-      const whitespaces = typeof editor.getWhitespaces === 'function' ? editor.getWhitespaces() : [];
       if (Array.isArray(whitespaces) && whitespaces.length > 0) {
         viewLayout.changeWhitespace((accessor: any) => {
           for (const ws of whitespaces) {
@@ -272,10 +307,18 @@ export function collapseEditorGapViewZones(editor: any, targetAfterLine?: number
               Math.abs(ws.afterLineNumber - targetAfterLine) <= 1
             ) {
               if (typeof accessor.changeOneWhitespace === 'function') {
-                accessor.changeOneWhitespace(ws.id, ws.afterLineNumber, 0);
+                try {
+                  accessor.changeOneWhitespace(ws.id, ws.afterLineNumber, 0);
+                } catch {
+                  // ignore
+                }
               }
               if (typeof accessor.removeWhitespace === 'function') {
-                accessor.removeWhitespace(ws.id);
+                try {
+                  accessor.removeWhitespace(ws.id);
+                } catch {
+                  // ignore
+                }
               }
             }
           }
@@ -283,15 +326,26 @@ export function collapseEditorGapViewZones(editor: any, targetAfterLine?: number
       }
     }
 
-    // 4. Synchronous cleanup of active gap element if present
+    // 4. Synchronous cleanup of view-zone and active gap elements in DOM
     const domNode = typeof editor.getDomNode === 'function' ? editor.getDomNode() : null;
     if (domNode) {
-      const activeGap = domNode.querySelector('.diffx-active-gap-target') as HTMLElement | null;
-      if (activeGap) {
-        activeGap.style.setProperty('height', '0px', 'important');
-        activeGap.style.setProperty('display', 'none', 'important');
-        activeGap.style.setProperty('opacity', '0', 'important');
-      }
+      const vzElements = domNode.querySelectorAll('.view-zone, .margin-view-zones > div, [monaco-view-zone], .diffx-active-gap-target');
+      vzElements.forEach((el: any) => {
+        if (el?.style) {
+          el.style.height = '0px';
+          el.style.display = 'none';
+          el.style.opacity = '0';
+          if (typeof el.style.setProperty === 'function') {
+            try {
+              el.style.setProperty('height', '0px', 'important');
+              el.style.setProperty('display', 'none', 'important');
+              el.style.setProperty('opacity', '0', 'important');
+            } catch {
+              // ignore
+            }
+          }
+        }
+      });
     }
   } catch {
     // Non-fatal safety guard
@@ -921,6 +975,325 @@ export interface TargetRangeResult {
   replaceEnd: number;
 }
 
+export interface VisualRow {
+  visualRowIndex: number;
+  leftLineNumber: number | null;
+  rightLineNumber: number | null;
+  chunk: DiffChunk | null;
+}
+
+/**
+ * Builds a 1:1 Visual Alignment Row map pairing every screen line between Left and Right panes.
+ * Treats blank alignment spaces (gaps) as discrete virtual slots with null line numbers.
+ */
+export function buildVisualRowMap(
+  leftLineCount: number,
+  rightLineCount: number,
+  chunks: DiffChunk[]
+): VisualRow[] {
+  const rows: VisualRow[] = [];
+  const sortedChunks = [...chunks].sort((a, b) => {
+    const aLeft = a.originalStart > 0 ? a.originalStart : a.modifiedStart;
+    const bLeft = b.originalStart > 0 ? b.originalStart : b.modifiedStart;
+    return aLeft - bLeft;
+  });
+
+  let curLeft = 1;
+  let curRight = 1;
+  let vIdx = 1;
+
+  for (const c of sortedChunks) {
+    const leftAnchor =
+      c.originalStart > 0 && c.originalEnd >= c.originalStart
+        ? c.originalStart
+        : c.originalStart > 0
+        ? c.originalStart + 1
+        : 1;
+    const rightAnchor =
+      c.modifiedStart > 0 && c.modifiedEnd >= c.modifiedStart
+        ? c.modifiedStart
+        : c.modifiedStart > 0
+        ? c.modifiedStart + 1
+        : 1;
+
+    // Identical lines before this chunk
+    while (
+      curLeft < leftAnchor &&
+      curRight < rightAnchor &&
+      curLeft <= leftLineCount &&
+      curRight <= rightLineCount
+    ) {
+      rows.push({
+        visualRowIndex: vIdx++,
+        leftLineNumber: curLeft,
+        rightLineNumber: curRight,
+        chunk: null,
+      });
+      curLeft++;
+      curRight++;
+    }
+
+    // Process chunk rows
+    const leftCount =
+      c.originalStart > 0 && c.originalEnd >= c.originalStart
+        ? c.originalEnd - c.originalStart + 1
+        : 0;
+    const rightCount =
+      c.modifiedStart > 0 && c.modifiedEnd >= c.modifiedStart
+        ? c.modifiedEnd - c.modifiedStart + 1
+        : 0;
+    const maxRows = Math.max(leftCount, rightCount, 1);
+
+    for (let i = 0; i < maxRows; i++) {
+      const leftLine = i < leftCount ? c.originalStart + i : null;
+      const rightLine = i < rightCount ? c.modifiedStart + i : null;
+      rows.push({
+        visualRowIndex: vIdx++,
+        leftLineNumber: leftLine,
+        rightLineNumber: rightLine,
+        chunk: c,
+      });
+    }
+
+    if (leftCount > 0) curLeft = c.originalEnd + 1;
+    if (rightCount > 0) curRight = c.modifiedEnd + 1;
+  }
+
+  // Trailing identical lines
+  while (curLeft <= leftLineCount || curRight <= rightLineCount) {
+    rows.push({
+      visualRowIndex: vIdx++,
+      leftLineNumber: curLeft <= leftLineCount ? curLeft : null,
+      rightLineNumber: curRight <= rightLineCount ? curRight : null,
+      chunk: null,
+    });
+    if (curLeft <= leftLineCount) curLeft++;
+    if (curRight <= rightLineCount) curRight++;
+  }
+
+  return rows;
+}
+
+/**
+ * Safely extracts lines from a Monaco model, mock model, or provided text.
+ */
+function getSourceLines(
+  sourceModel: any,
+  sourceLinesCovered: number[],
+  providedText?: string
+): string[] {
+  if (sourceLinesCovered.length === 0) return [];
+  if (providedText !== undefined && providedText !== null) {
+    return providedText.split('\n');
+  }
+  if (!sourceModel) return [];
+
+  // 1. If getLineContent is available (standard Monaco ITextModel)
+  if (typeof sourceModel.getLineContent === 'function') {
+    return sourceLinesCovered.map((l) => sourceModel.getLineContent(l));
+  }
+
+  // 2. If lines array is available (e.g. FakeModel in test suites)
+  if (Array.isArray(sourceModel.lines)) {
+    return sourceLinesCovered.map((l) => sourceModel.lines[l - 1] ?? '');
+  }
+
+  // 3. If getValueInRange is available (e.g. mock models in diff-copy.test.ts)
+  if (typeof sourceModel.getValueInRange === 'function') {
+    const minSrc = Math.min(...sourceLinesCovered);
+    const maxSrc = Math.max(...sourceLinesCovered);
+    const maxCol = typeof sourceModel.getLineMaxColumn === 'function' ? sourceModel.getLineMaxColumn(maxSrc) : 10000;
+    const val = sourceModel.getValueInRange({
+      startLineNumber: minSrc,
+      startColumn: 1,
+      endLineNumber: maxSrc,
+      endColumn: maxCol,
+    });
+    if (typeof val === 'string' && val.length > 0) {
+      return val.split('\n');
+    }
+  }
+
+  return [];
+}
+
+/**
+ * Executes a copy operation based on visual row coordinates.
+ * Handles single lines, multi-line blocks, empty space gap deletions, and clean insertions
+ * with zero vertical shift and 100% Beyond Compare coordinate parity.
+ */
+export function executeVisualRangeCopy(
+  originalModel: any,
+  modifiedModel: any,
+  visualRows: VisualRow[],
+  startVisualRow: number,
+  endVisualRow: number,
+  fromSide: 'left' | 'right',
+  outRange?: ChunkCopyRange,
+  targetEditor?: any,
+  providedText?: string
+): boolean {
+  if (!originalModel || !modifiedModel || !visualRows.length) return false;
+
+  const selectedRows = visualRows.filter(
+    (r) => r.visualRowIndex >= startVisualRow && r.visualRowIndex <= endVisualRow
+  );
+  if (!selectedRows.length) return false;
+
+  const targetModel = fromSide === 'left' ? modifiedModel : originalModel;
+  const sourceModel = fromSide === 'left' ? originalModel : modifiedModel;
+  const targetLineCount = targetModel.getLineCount();
+
+  // Collapse target viewzones synchronously before applying edits
+  if (targetEditor) {
+    const firstRow = selectedRows[0];
+    const targetAnchor = fromSide === 'left' ? firstRow.rightLineNumber : firstRow.leftLineNumber;
+    collapseEditorGapViewZones(targetEditor, targetAnchor ?? undefined);
+  }
+
+  // 1. Gather lines to put into the target
+  const sourceLinesCovered: number[] = [];
+  for (const r of selectedRows) {
+    const srcLine = fromSide === 'left' ? r.leftLineNumber : r.rightLineNumber;
+    if (srcLine !== null && srcLine > 0 && srcLine <= sourceModel.getLineCount()) {
+      sourceLinesCovered.push(srcLine);
+    }
+  }
+  const replacementLines = getSourceLines(sourceModel, sourceLinesCovered, providedText);
+
+  // 2. Identify the target lines that are covered by this visual row range
+  const targetLinesCovered: number[] = [];
+  for (const r of selectedRows) {
+    const tgtLine = fromSide === 'left' ? r.rightLineNumber : r.leftLineNumber;
+    if (tgtLine !== null && tgtLine > 0 && tgtLine <= targetLineCount) {
+      targetLinesCovered.push(tgtLine);
+    }
+  }
+
+  // Branch A: Target has existing lines covered by this visual row selection
+  if (targetLinesCovered.length > 0) {
+    const targetStart = Math.min(...targetLinesCovered);
+    const targetEnd = Math.max(...targetLinesCovered);
+
+    // Sub-case A1: Replacement text is empty (user copied an empty space/gap over target lines -> DELETE)
+    if (replacementLines.length === 0) {
+      if (targetStart === 1 && targetEnd >= targetLineCount) {
+        const range = {
+          startLineNumber: 1,
+          startColumn: 1,
+          endLineNumber: targetLineCount,
+          endColumn: targetModel.getLineMaxColumn(targetLineCount),
+        };
+        targetModel.pushEditOperations([], [{ range, text: '' }], () => null);
+        if (outRange) {
+          outRange.startLine = 1;
+          outRange.endLine = 1;
+        }
+      } else if (targetStart === 1) {
+        const range = {
+          startLineNumber: 1,
+          startColumn: 1,
+          endLineNumber: targetEnd + 1,
+          endColumn: 1,
+        };
+        targetModel.pushEditOperations([], [{ range, text: '' }], () => null);
+        if (outRange) {
+          outRange.startLine = 1;
+          outRange.endLine = 1;
+        }
+      } else {
+        const prevLine = targetStart - 1;
+        const prevCol = targetModel.getLineMaxColumn(prevLine);
+        const range = {
+          startLineNumber: prevLine,
+          startColumn: prevCol,
+          endLineNumber: targetEnd,
+          endColumn: targetModel.getLineMaxColumn(targetEnd),
+        };
+        targetModel.pushEditOperations([], [{ range, text: '' }], () => null);
+        if (outRange) {
+          outRange.startLine = prevLine;
+          outRange.endLine = prevLine;
+        }
+      }
+      return true;
+    }
+
+    // Sub-case A2: Replace target lines [targetStart..targetEnd] with replacementLines
+    const range = {
+      startLineNumber: targetStart,
+      startColumn: 1,
+      endLineNumber: targetEnd,
+      endColumn: targetModel.getLineMaxColumn(targetEnd),
+    };
+    targetModel.pushEditOperations([], [{ range, text: replacementLines.join('\n') }], () => null);
+    if (outRange) {
+      outRange.startLine = targetStart;
+      outRange.endLine = targetStart + replacementLines.length - 1;
+    }
+    return true;
+  }
+
+  // Branch B: Target has NO lines in this visual range (Target is a GAP -> INSERT)
+  if (replacementLines.length > 0) {
+    // Find preceding target line
+    let insertAfter = 0;
+    for (let v = startVisualRow - 1; v >= 1; v--) {
+      const prevRow = visualRows.find((r) => r.visualRowIndex === v);
+      const tgtLine = fromSide === 'left' ? prevRow?.rightLineNumber : prevRow?.leftLineNumber;
+      if (tgtLine !== undefined && tgtLine !== null && tgtLine > 0) {
+        insertAfter = tgtLine;
+        break;
+      }
+    }
+
+    const content = replacementLines.join('\n');
+    if (targetLineCount === 0 || insertAfter === 0) {
+      const range = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
+      const textToPush = targetLineCount > 0 ? content + '\n' : content;
+      targetModel.pushEditOperations([], [{ range, text: textToPush }], () => null);
+      if (outRange) {
+        outRange.startLine = 1;
+        outRange.endLine = replacementLines.length;
+      }
+      return true;
+    }
+
+    if (insertAfter >= targetLineCount) {
+      const lastLine = targetLineCount;
+      const lastCol = targetModel.getLineMaxColumn(lastLine);
+      const range = {
+        startLineNumber: lastLine,
+        startColumn: lastCol,
+        endLineNumber: lastLine,
+        endColumn: lastCol,
+      };
+      targetModel.pushEditOperations([], [{ range, text: '\n' + content }], () => null);
+      if (outRange) {
+        outRange.startLine = lastLine + 1;
+        outRange.endLine = lastLine + replacementLines.length;
+      }
+      return true;
+    }
+
+    const insertLine = insertAfter + 1;
+    const range = {
+      startLineNumber: insertLine,
+      startColumn: 1,
+      endLineNumber: insertLine,
+      endColumn: 1,
+    };
+    targetModel.pushEditOperations([], [{ range, text: content + '\n' }], () => null);
+    if (outRange) {
+      outRange.startLine = insertLine;
+      outRange.endLine = insertLine + replacementLines.length - 1;
+    }
+    return true;
+  }
+
+  return false;
+}
+
 /**
  * Computes the exact target line range corresponding to a selection [sLine..eLine].
  * Follows Beyond Compare's exact coordinate mapping:
@@ -1014,7 +1387,15 @@ export function computeTargetRangeForSelection(
 export function executeSelectedLinesCopyL2R(
   originalModel: any,
   modifiedModel: any,
-  selection: { startLine: number; endLine: number; text?: string },
+  selection: {
+    startLine: number;
+    endLine: number;
+    text?: string;
+    isGapOnly?: boolean;
+    gapAfterLine?: number;
+    startVisualRow?: number;
+    endVisualRow?: number;
+  },
   chunk?: DiffChunk | null,
   outRange?: ChunkCopyRange,
   targetEditor?: any,
@@ -1024,9 +1405,72 @@ export function executeSelectedLinesCopyL2R(
 
   const leftLineCount = originalModel.getLineCount();
   const rightLineCount = modifiedModel.getLineCount();
+  const chunks = allChunks && allChunks.length ? allChunks : (chunk ? [chunk] : []);
 
+  const visualRows = buildVisualRowMap(leftLineCount, rightLineCount, chunks);
+
+  // If explicit visual row range is supplied
+  if (selection.startVisualRow && selection.endVisualRow) {
+    return executeVisualRangeCopy(
+      originalModel,
+      modifiedModel,
+      visualRows,
+      selection.startVisualRow,
+      selection.endVisualRow,
+      'left',
+      outRange,
+      targetEditor,
+      selection.text
+    );
+  }
+
+  // If selection represents an empty gap on the left
+  if (selection.isGapOnly || (chunk && chunk.originalEnd === 0 && selection.startLine === chunk.originalStart)) {
+    const gapRow = visualRows.find(
+      (r) =>
+        r.leftLineNumber === null &&
+        (r.chunk?.id === chunk?.id || (chunk && r.rightLineNumber === chunk.modifiedStart))
+    );
+    if (gapRow) {
+      return executeVisualRangeCopy(
+        originalModel,
+        modifiedModel,
+        visualRows,
+        gapRow.visualRowIndex,
+        gapRow.visualRowIndex,
+        'left',
+        outRange,
+        targetEditor,
+        selection.text
+      );
+    }
+    return executeChunkCopyL2R(originalModel, modifiedModel, chunk!, outRange, targetEditor);
+  }
+
+  // Map physical left selection lines to visual rows
   const sLine = Math.max(1, Math.min(selection.startLine, leftLineCount));
   const eLine = Math.max(sLine, Math.min(selection.endLine, leftLineCount));
+
+  const matchingRows = visualRows.filter(
+    (r) => r.leftLineNumber !== null && r.leftLineNumber >= sLine && r.leftLineNumber <= eLine
+  );
+
+  if (matchingRows.length > 0) {
+    const startVisualRow = matchingRows[0].visualRowIndex;
+    const endVisualRow = matchingRows[matchingRows.length - 1].visualRowIndex;
+    return executeVisualRangeCopy(
+      originalModel,
+      modifiedModel,
+      visualRows,
+      startVisualRow,
+      endVisualRow,
+      'left',
+      outRange,
+      targetEditor,
+      selection.text
+    );
+  }
+
   const lineCount = eLine - sLine + 1;
   const selectedText = originalModel.getValueInRange({
     startLineNumber: sLine,
@@ -1035,7 +1479,6 @@ export function executeSelectedLinesCopyL2R(
     endColumn: originalModel.getLineMaxColumn(eLine),
   });
 
-  const chunks = allChunks && allChunks.length ? allChunks : (chunk ? [chunk] : []);
   const targetInfo = computeTargetRangeForSelection(chunks, sLine, eLine, 'left', rightLineCount);
 
   if (targetEditor) {
@@ -1111,7 +1554,15 @@ export function executeSelectedLinesCopyL2R(
 export function executeSelectedLinesCopyR2L(
   originalModel: any,
   modifiedModel: any,
-  selection: { startLine: number; endLine: number; text?: string },
+  selection: {
+    startLine: number;
+    endLine: number;
+    text?: string;
+    isGapOnly?: boolean;
+    gapAfterLine?: number;
+    startVisualRow?: number;
+    endVisualRow?: number;
+  },
   chunk?: DiffChunk | null,
   outRange?: ChunkCopyRange,
   targetEditor?: any,
@@ -1121,9 +1572,72 @@ export function executeSelectedLinesCopyR2L(
 
   const leftLineCount = originalModel.getLineCount();
   const rightLineCount = modifiedModel.getLineCount();
+  const chunks = allChunks && allChunks.length ? allChunks : (chunk ? [chunk] : []);
 
+  const visualRows = buildVisualRowMap(leftLineCount, rightLineCount, chunks);
+
+  // If explicit visual row range is supplied
+  if (selection.startVisualRow && selection.endVisualRow) {
+    return executeVisualRangeCopy(
+      originalModel,
+      modifiedModel,
+      visualRows,
+      selection.startVisualRow,
+      selection.endVisualRow,
+      'right',
+      outRange,
+      targetEditor,
+      selection.text
+    );
+  }
+
+  // If selection represents an empty gap on the right
+  if (selection.isGapOnly || (chunk && chunk.modifiedEnd === 0 && selection.startLine === chunk.modifiedStart)) {
+    const gapRow = visualRows.find(
+      (r) =>
+        r.rightLineNumber === null &&
+        (r.chunk?.id === chunk?.id || (chunk && r.leftLineNumber === chunk.originalStart))
+    );
+    if (gapRow) {
+      return executeVisualRangeCopy(
+        originalModel,
+        modifiedModel,
+        visualRows,
+        gapRow.visualRowIndex,
+        gapRow.visualRowIndex,
+        'right',
+        outRange,
+        targetEditor,
+        selection.text
+      );
+    }
+    return executeChunkCopyR2L(originalModel, modifiedModel, chunk!, outRange, targetEditor);
+  }
+
+  // Map physical right selection lines to visual rows
   const sLine = Math.max(1, Math.min(selection.startLine, rightLineCount));
   const eLine = Math.max(sLine, Math.min(selection.endLine, rightLineCount));
+
+  const matchingRows = visualRows.filter(
+    (r) => r.rightLineNumber !== null && r.rightLineNumber >= sLine && r.rightLineNumber <= eLine
+  );
+
+  if (matchingRows.length > 0) {
+    const startVisualRow = matchingRows[0].visualRowIndex;
+    const endVisualRow = matchingRows[matchingRows.length - 1].visualRowIndex;
+    return executeVisualRangeCopy(
+      originalModel,
+      modifiedModel,
+      visualRows,
+      startVisualRow,
+      endVisualRow,
+      'right',
+      outRange,
+      targetEditor,
+      selection.text
+    );
+  }
+
   const lineCount = eLine - sLine + 1;
   const selectedText = modifiedModel.getValueInRange({
     startLineNumber: sLine,
@@ -1132,7 +1646,6 @@ export function executeSelectedLinesCopyR2L(
     endColumn: modifiedModel.getLineMaxColumn(eLine),
   });
 
-  const chunks = allChunks && allChunks.length ? allChunks : (chunk ? [chunk] : []);
   const targetInfo = computeTargetRangeForSelection(chunks, sLine, eLine, 'right', leftLineCount);
 
   if (targetEditor) {

@@ -8,6 +8,8 @@ import {
   executeSelectedLinesCopyR2L,
   findChunkAtGap,
   collapseEditorGapViewZones,
+  buildVisualRowMap,
+  executeVisualRangeCopy,
 } from '../../src/shared/comparison-engine/diff-copy.js';
 
 describe('Beyond Compare UI Utilities', () => {
@@ -710,6 +712,185 @@ describe('Beyond Compare UI Utilities', () => {
       expect(numRows).toBe(2);
       expect(rowOffset).toBe(1);
       expect(effectiveLineNumber).toBe(3); // Line 3 in the aligned grid
+    });
+
+    it('buildVisualRowMap builds exact 1:1 screen grid alignment across gaps', () => {
+      // Left has 4 lines: 1: <sys>, 2: <encryption>, 3: <nsid>, 4: </sys>
+      // Right has 3 lines: 1: <sys>, 2: <nsid>, 3: </sys>
+      const chunks = [
+        {
+          id: 'chunk_gap',
+          originalStart: 2,
+          originalEnd: 2,
+          modifiedStart: 1,
+          modifiedEnd: 0,
+        },
+      ];
+
+      const rows = buildVisualRowMap(4, 3, chunks);
+      expect(rows.length).toBe(4);
+      // Row 1: Left 1, Right 1
+      expect(rows[0].visualRowIndex).toBe(1);
+      expect(rows[0].leftLineNumber).toBe(1);
+      expect(rows[0].rightLineNumber).toBe(1);
+
+      // Row 2: Left 2, Right null (gap)
+      expect(rows[1].visualRowIndex).toBe(2);
+      expect(rows[1].leftLineNumber).toBe(2);
+      expect(rows[1].rightLineNumber).toBeNull();
+      expect(rows[1].chunk?.id).toBe('chunk_gap');
+
+      // Row 3: Left 3, Right 2
+      expect(rows[2].visualRowIndex).toBe(3);
+      expect(rows[2].leftLineNumber).toBe(3);
+      expect(rows[2].rightLineNumber).toBe(2);
+
+      // Row 4: Left 4, Right 3
+      expect(rows[3].visualRowIndex).toBe(4);
+      expect(rows[3].leftLineNumber).toBe(4);
+      expect(rows[3].rightLineNumber).toBe(3);
+    });
+
+    it('executeVisualRangeCopy copies empty space from Right to Left to cleanly delete Left diff line', () => {
+      class FakeModel {
+        lines: string[];
+        constructor(content: string) {
+          this.lines = content.split('\n');
+        }
+        getLineCount() {
+          return this.lines.length;
+        }
+        getLineMaxColumn(line: number) {
+          return (this.lines[line - 1] || '').length + 1;
+        }
+        getValueInRange(range: any) {
+          return this.lines.slice(range.startLineNumber - 1, range.endLineNumber).join('\n');
+        }
+        pushEditOperations(_beforeCursorState: any, edits: any[]) {
+          for (const edit of edits) {
+            const { range, text } = edit;
+            const linesBefore = this.lines.slice(0, range.startLineNumber - 1);
+            const currentLine = this.lines[range.startLineNumber - 1] || '';
+            const beforeCol = currentLine.substring(0, range.startColumn - 1);
+            const endCurrentLine = this.lines[range.endLineNumber - 1] || '';
+            const afterCol = endCurrentLine.substring(range.endColumn - 1);
+            const linesAfter = this.lines.slice(range.endLineNumber);
+
+            const newMiddle = beforeCol + text + afterCol;
+            const replaced = [...linesBefore, ...newMiddle.split('\n'), ...linesAfter];
+            this.lines = replaced;
+          }
+        }
+        getValue() {
+          return this.lines.join('\n');
+        }
+      }
+
+      const origModel = new FakeModel('<sys>\n<encryption>false</encryption>\n<nsid>NSD_VMAS_VNF</nsid>\n</sys>');
+      const modModel = new FakeModel('<sys>\n<nsid>NSD_VMAS_VNF</nsid>\n</sys>');
+
+      const chunks = [
+        {
+          id: 'chunk_gap',
+          originalStart: 2,
+          originalEnd: 2,
+          modifiedStart: 1,
+          modifiedEnd: 0,
+        },
+      ];
+
+      const rows = buildVisualRowMap(4, 3, chunks);
+      const outRange = { startLine: 0, endLine: 0 };
+
+      // User copies empty space at Row 2 from Right to Left (⇦)
+      const res = executeVisualRangeCopy(
+        origModel,
+        modModel,
+        rows,
+        2, // startVisualRow = 2 (empty gap on Right)
+        2, // endVisualRow = 2
+        'right',
+        outRange
+      );
+
+      expect(res).toBe(true);
+      // Left line 2 was deleted cleanly!
+      const leftLines = origModel.getValue().split('\n');
+      expect(leftLines).toEqual(['<sys>', '<nsid>NSD_VMAS_VNF</nsid>', '</sys>']);
+      expect(leftLines.length).toBe(3);
+    });
+
+    it('executeVisualRangeCopy copies Left line into Right empty space without vertical shift', () => {
+      class FakeModel {
+        lines: string[];
+        constructor(content: string) {
+          this.lines = content.split('\n');
+        }
+        getLineCount() {
+          return this.lines.length;
+        }
+        getLineMaxColumn(line: number) {
+          return (this.lines[line - 1] || '').length + 1;
+        }
+        getValueInRange(range: any) {
+          return this.lines.slice(range.startLineNumber - 1, range.endLineNumber).join('\n');
+        }
+        pushEditOperations(_beforeCursorState: any, edits: any[]) {
+          for (const edit of edits) {
+            const { range, text } = edit;
+            const linesBefore = this.lines.slice(0, range.startLineNumber - 1);
+            const currentLine = this.lines[range.startLineNumber - 1] || '';
+            const beforeCol = currentLine.substring(0, range.startColumn - 1);
+            const endCurrentLine = this.lines[range.endLineNumber - 1] || '';
+            const afterCol = endCurrentLine.substring(range.endColumn - 1);
+            const linesAfter = this.lines.slice(range.endLineNumber);
+
+            const newMiddle = beforeCol + text + afterCol;
+            const replaced = [...linesBefore, ...newMiddle.split('\n'), ...linesAfter];
+            this.lines = replaced;
+          }
+        }
+        getValue() {
+          return this.lines.join('\n');
+        }
+      }
+
+      const origModel = new FakeModel('<sys>\n<encryption>false</encryption>\n<nsid>NSD_VMAS_VNF</nsid>\n</sys>');
+      const modModel = new FakeModel('<sys>\n<nsid>NSD_VMAS_VNF</nsid>\n</sys>');
+
+      const chunks = [
+        {
+          id: 'chunk_gap',
+          originalStart: 2,
+          originalEnd: 2,
+          modifiedStart: 1,
+          modifiedEnd: 0,
+        },
+      ];
+
+      const rows = buildVisualRowMap(4, 3, chunks);
+      const outRange = { startLine: 0, endLine: 0 };
+
+      // User copies Left line 2 into Right empty slot (⇨)
+      const res = executeVisualRangeCopy(
+        origModel,
+        modModel,
+        rows,
+        2, // Visual Row 2 (Left has <encryption>, Right has gap)
+        2,
+        'left',
+        outRange
+      );
+
+      expect(res).toBe(true);
+      const rightLines = modModel.getValue().split('\n');
+      expect(rightLines).toEqual([
+        '<sys>',
+        '<encryption>false</encryption>',
+        '<nsid>NSD_VMAS_VNF</nsid>',
+        '</sys>',
+      ]);
+      expect(rightLines.length).toBe(4);
     });
   });
 });

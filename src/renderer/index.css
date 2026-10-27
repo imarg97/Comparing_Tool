@@ -397,6 +397,57 @@
   filter: drop-shadow(0 0 4px rgba(234, 179, 8, 1)) !important;
 }
 
+/* Unified Multi-Line Selection Action Box (Single box for copying whole selection) */
+.diffx-selection-gutter-box-l2r {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='%23fde047' stroke='%23854d0e' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12h16'/%3E%3Cpath d='m13 5 7 7-7 7'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: 14px 14px !important;
+  background-color: rgba(234, 179, 8, 0.25) !important;
+  border: 1px solid #eab308 !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  display: block !important;
+  width: 18px !important;
+  height: 100% !important;
+  min-height: 18px !important;
+  z-index: 100 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  box-shadow: 0 0 6px rgba(234, 179, 8, 0.5) !important;
+  transition: transform 0.15s ease, background-color 0.15s ease !important;
+}
+.diffx-selection-gutter-box-l2r:hover {
+  transform: scale(1.15) !important;
+  background-color: rgba(234, 179, 8, 0.45) !important;
+  box-shadow: 0 0 10px rgba(234, 179, 8, 0.8) !important;
+}
+
+.diffx-selection-gutter-box-r2l {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='%23fde047' stroke='%23854d0e' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m11 19-7-7 7-7'/%3E%3Cpath d='M20 12H4'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: 14px 14px !important;
+  background-color: rgba(234, 179, 8, 0.25) !important;
+  border: 1px solid #eab308 !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  display: block !important;
+  width: 18px !important;
+  height: 100% !important;
+  min-height: 18px !important;
+  z-index: 100 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  box-shadow: 0 0 6px rgba(234, 179, 8, 0.5) !important;
+  transition: transform 0.15s ease, background-color 0.15s ease !important;
+}
+.diffx-selection-gutter-box-r2l:hover {
+  transform: scale(1.15) !important;
+  background-color: rgba(234, 179, 8, 0.45) !important;
+  box-shadow: 0 0 10px rgba(234, 179, 8, 0.8) !important;
+}
+
 /* UI/UX Pro Max: Ultra-smooth tactile horizontal transfer animation */
 .diffx-shift-flyer {
   position: absolute;
