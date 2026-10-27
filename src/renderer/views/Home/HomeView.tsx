@@ -279,7 +279,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
             <div>
               <div className="font-semibold uppercase tracking-wider text-[11px] mb-1 text-sky-400 dark:text-sky-300">
-                DIFFX SUITE v3.2.0
+                DIFFX SUITE v3.5.0
               </div>
               <div className="text-[11px] text-slate-300 dark:text-neutral-400 leading-tight">
                 Designed for high-performance file, folder, and configuration comparison.
