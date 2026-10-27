@@ -16,10 +16,29 @@ let mainWindow: BrowserWindow | null = null;
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
 function createMainWindow(): BrowserWindow {
-  const iconPath = path.join(__dirname, '../../public/icon.png');
+  const isWin = process.platform === 'win32';
+  const appPath = app.getAppPath();
+  const candidateIconPaths = [
+    isWin ? path.join(appPath, 'public/icon.ico') : path.join(appPath, 'public/icon.png'),
+    isWin ? path.join(appPath, 'dist/icon.ico') : path.join(appPath, 'dist/icon.png'),
+    path.join(appPath, 'public/icon.png'),
+    path.join(appPath, 'dist/icon.png'),
+    path.join(__dirname, '../../public/icon.ico'),
+    path.join(__dirname, '../../public/icon.png'),
+    path.join(process.cwd(), 'public/icon.ico'),
+    path.join(process.cwd(), 'public/icon.png'),
+  ];
+  let iconPath: string | undefined;
+  for (const cand of candidateIconPaths) {
+    if (fs.existsSync(cand)) {
+      iconPath = cand;
+      break;
+    }
+  }
+
   const win = new BrowserWindow({
     title: 'DiffX',
-    icon: fs.existsSync(iconPath) ? iconPath : undefined,
+    icon: iconPath,
     width: 1360,
     height: 880,
     minWidth: 960,

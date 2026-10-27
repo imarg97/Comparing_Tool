@@ -25,6 +25,7 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
+      "public/**/*",
       "package.json"
     ],
     "mac": {
@@ -35,7 +36,7 @@
       "category": "public.app-category.developer-tools"
     },
     "win": {
-      "icon": "public/icon.png",
+      "icon": "public/icon.ico",
       "target": [
         "nsis",
         "portable"
