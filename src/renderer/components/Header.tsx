@@ -14,7 +14,43 @@ import {
   ArrowUp,
   RefreshCw,
   FolderOpen,
+  BookOpen,
+  ShieldCheck,
+  Info,
 } from 'lucide-react';
+
+export const DiffXLogo: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
+  <svg viewBox="0 0 512 512" className={className} xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="diffx-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#09090b" />
+        <stop offset="100%" stopColor="#000000" />
+      </linearGradient>
+      <linearGradient id="diffx-left" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#2563eb" />
+        <stop offset="100%" stopColor="#1d4ed8" />
+      </linearGradient>
+      <linearGradient id="diffx-right" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#1e293b" />
+        <stop offset="100%" stopColor="#0f172a" />
+      </linearGradient>
+      <linearGradient id="diffx-top" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#38bdf8" />
+        <stop offset="100%" stopColor="#0284c7" />
+      </linearGradient>
+    </defs>
+    <rect width="512" height="512" rx="112" fill="url(#diffx-bg)" />
+    <rect width="508" height="508" x="2" y="2" rx="110" fill="none" stroke="#27272a" strokeWidth="6" />
+    <polygon points="256,100 376,170 256,240 136,170" fill="url(#diffx-top)" />
+    <polygon points="136,170 256,240 256,380 136,310" fill="url(#diffx-left)" stroke="#38bdf8" strokeWidth="4" />
+    <polygon points="256,240 376,170 376,310 256,380" fill="url(#diffx-right)" stroke="#475569" strokeWidth="4" />
+    <line x1="256" y1="100" x2="256" y2="410" stroke="#ffffff" strokeWidth="10" strokeLinecap="round" />
+    <circle cx="256" cy="240" r="28" fill="#ffffff" />
+    <circle cx="256" cy="240" r="14" fill="#0284c7" />
+    <path d="M 180 250 L 210 268 L 180 286" fill="none" stroke="#ffffff" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M 332 250 L 302 268 L 332 286" fill="none" stroke="#94a3b8" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
 
 export type NavigationTab = 'folder' | 'text' | 'structured' | 'home' | 'settings';
 
@@ -79,7 +115,7 @@ export const Header: React.FC<HeaderProps> = ({
             title="Open Sessions Launcher (Ctrl+4)"
             className="flex items-center space-x-1.5 mr-2 pl-1 hover:opacity-80 transition cursor-pointer"
           >
-            <img src="/favicon.svg" alt="DiffX" className="w-3.5 h-3.5 rounded-xs object-contain" />
+            <DiffXLogo className="w-3.5 h-3.5 rounded-xs flex-shrink-0" />
             <span className="font-bold text-[11px] tracking-tight text-neutral-900 dark:text-neutral-100">
               DiffX
             </span>
@@ -403,7 +439,7 @@ export const Header: React.FC<HeaderProps> = ({
               Help
             </button>
             {activeMenu === 'help' && (
-              <div className="absolute left-0 top-full mt-0.5 w-56 bg-white dark:bg-[#141414] border border-[#b8b8b8] dark:border-neutral-800 rounded shadow-lg py-1 text-xs z-50">
+              <div className="absolute left-0 top-full mt-0.5 w-64 bg-white dark:bg-[#141414] border border-[#b8b8b8] dark:border-neutral-800 rounded shadow-lg py-1 text-xs z-50">
                 <button
                   onClick={() => handleAction(onOpenShortcuts)}
                   className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between"
@@ -414,6 +450,39 @@ export const Header: React.FC<HeaderProps> = ({
                   </span>
                   <span className="text-[10px] opacity-60 font-mono">Cmd+/</span>
                 </button>
+
+                <button
+                  onClick={() => handleAction(() => onSelectTab('settings'))}
+                  className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between"
+                >
+                  <span className="flex items-center space-x-2">
+                    <BookOpen className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Open Source Libraries & Licenses</span>
+                  </span>
+                  <span className="text-[10px] opacity-60 font-mono">MIT/ISC</span>
+                </button>
+
+                <button
+                  onClick={() => handleAction(() => onSelectTab('settings'))}
+                  className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between"
+                >
+                  <span className="flex items-center space-x-2">
+                    <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
+                    <span>Security & Privacy Architecture</span>
+                  </span>
+                  <span className="text-[10px] opacity-60 font-mono">Air-gapped</span>
+                </button>
+
+                <button
+                  onClick={() => handleAction(() => onSelectTab('settings'))}
+                  className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center justify-between"
+                >
+                  <span className="flex items-center space-x-2">
+                    <Info className="w-3.5 h-3.5 text-neutral-400" />
+                    <span>About DiffX Comparison Suite</span>
+                  </span>
+                </button>
+
                 <div className="my-1 border-t border-neutral-200 dark:border-neutral-800" />
                 <div className="px-3 py-1.5 text-[11px] text-neutral-500">
                   DiffX Comparison Suite v3.2.0<br />

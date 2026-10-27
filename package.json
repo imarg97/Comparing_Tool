@@ -31,9 +31,11 @@
       "target": [
         "dir"
       ],
+      "icon": "public/icon.png",
       "category": "public.app-category.developer-tools"
     },
     "win": {
+      "icon": "public/icon.png",
       "target": [
         "nsis",
         "portable"

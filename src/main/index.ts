@@ -4,6 +4,7 @@
 
 import { app, BrowserWindow, Menu, MenuItemConstructorOptions, shell } from 'electron';
 import * as path from 'path';
+import * as fs from 'fs';
 import { fileURLToPath } from 'url';
 import { registerIpcHandlers } from './ipc.js';
 
@@ -15,8 +16,10 @@ let mainWindow: BrowserWindow | null = null;
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
 function createMainWindow(): BrowserWindow {
+  const iconPath = path.join(__dirname, '../../public/icon.png');
   const win = new BrowserWindow({
     title: 'DiffX',
+    icon: fs.existsSync(iconPath) ? iconPath : undefined,
     width: 1360,
     height: 880,
     minWidth: 960,
@@ -24,6 +27,7 @@ function createMainWindow(): BrowserWindow {
     backgroundColor: '#000000',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     trafficLightPosition: { x: 14, y: 14 },
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -31,6 +35,11 @@ function createMainWindow(): BrowserWindow {
       sandbox: true,
     },
   });
+
+  // On Windows/Linux, disable the duplicate native menu bar so only the unified custom DiffX header is shown
+  if (process.platform !== 'darwin') {
+    win.setMenu(null);
+  }
 
   // Security: Handle external links securely via OS default browser; deny internal window creation
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -191,8 +200,12 @@ function buildMenu(): void {
     },
   ];
 
-  const menu = Menu.buildFromTemplate(template);
-  Menu.setApplicationMenu(menu);
+  if (process.platform === 'darwin') {
+    const menu = Menu.buildFromTemplate(template);
+    Menu.setApplicationMenu(menu);
+  } else {
+    Menu.setApplicationMenu(null);
+  }
 }
 
 app.whenReady().then(() => {
