@@ -1,6 +1,6 @@
-# DiffX v3.6.0 — Mavenir Internal Deployment Guide
+# DiffX v3.7.0 — Mavenir Internal Deployment Guide
 
-This package contains everything needed to deploy DiffX on Mavenir's internal network (e.g. `10.10.190.24` or any internal lab VM / Docker host).
+This package contains everything needed to deploy DiffX on Mavenir's internal network (e.g. `10.10.84.22` or any internal lab VM / Docker / Podman host).
 
 ---
 
@@ -9,16 +9,16 @@ This package contains everything needed to deploy DiffX on Mavenir's internal ne
 To run DiffX on port `8097` (or any custom port):
 
 ```bash
-# Default port 8097 (verified free on 10.10.190.24)
+# Default port 8097 (verified free)
 ./start-server.sh
 
 # Or specify any desired port
 ./start-server.sh 8097
 ```
 
-The script automatically detects if **Docker**, **Python 3**, or **Nginx** is present, starts DiffX in the background, and prints your internal URL:
+The script automatically detects if **Docker**, **Podman**, **Python 3**, or **Node.js** is present, starts DiffX in the background, and prints your internal URL:
 ```
-http://10.10.190.24:8097
+http://10.10.84.22:8097
 ```
 
 To stop the server at any time:
@@ -30,19 +30,19 @@ To stop the server at any time:
 
 ## Deployment Options
 
-### Option 1: Docker / Docker Compose
+### Option 1: Docker / Podman / Docker Compose
 ```bash
 # Run using docker compose
 docker compose up -d
 
-# Or run directly with docker run:
-docker run -d --name diffx-web --restart unless-stopped -p 8097:80 -v $(pwd)/dist:/usr/share/nginx/html:ro nginx:alpine
+# Or run directly with docker / podman run:
+docker run -d --name diffx-web --restart unless-stopped -p 8097:80 -v $(pwd)/dist:/usr/share/nginx/html:ro docker.io/library/nginx:alpine
 ```
 
-### Option 2: Standalone Linux Server (Python 3)
+### Option 2: Standalone Linux Server (Python 3 - Offline Zero-Dependency)
 ```bash
 cd dist
-nohup python3 -m http.server 8097 > ../diffx.log 2>&1 &
+nohup python3 -m http.server 8097 --bind 0.0.0.0 > ../diffx.log 2>&1 &
 ```
 
 ### Option 3: Standard Enterprise Nginx

@@ -67,26 +67,30 @@ export const LineDetailInspector: React.FC<LineDetailInspectorProps> = ({
         </span>
       </div>
 
-      {/* Main Split Comparison Bar (Image 3) */}
+      {/* Main Split Comparison Bar (Beyond Compare Red Stripe + Bold Red Text, No Boxes) */}
       <div className="flex-1 flex items-center min-h-0 divide-x divide-[#d8d8d8] dark:divide-neutral-800">
         {/* Left Side Line */}
-        <div className="flex-1 flex items-center px-2 py-1 min-w-0 h-full overflow-x-auto whitespace-pre bg-white dark:bg-black">
-          <span className="text-[10px] font-sans font-bold text-neutral-400 dark:text-neutral-500 mr-2 select-none flex-shrink-0">
+        <div
+          className={`flex-1 flex items-center px-2 py-1 min-w-0 h-full overflow-x-auto whitespace-pre ${
+            hasDifference ? 'bg-[#fdecec] dark:bg-[#2b1215]' : 'bg-white dark:bg-black'
+          }`}
+        >
+          <span className="text-[10px] font-sans font-bold text-neutral-500 dark:text-neutral-400 mr-2 select-none flex-shrink-0">
             {leftLineNumber !== null ? `${leftLineNumber}:` : '-:'}
           </span>
-          <div className="truncate flex-1 text-neutral-900 dark:text-neutral-100">
+          <div className="truncate flex-1 font-mono font-bold text-xs text-black dark:text-white">
             {leftDiff.prefix && <span>{leftDiff.prefix}</span>}
             {leftDiff.diff && (
-              <span className="bg-[#ffcdd2] dark:bg-[#5c1c24] text-[#b71c1c] dark:text-[#fee2e2] font-bold px-0.5 rounded border border-red-300 dark:border-red-600/60">
+              <span className="text-[#dc2626] dark:text-[#ff5c5c] font-bold">
                 {leftDiff.diff}
               </span>
             )}
             {leftDiff.suffix && <span>{leftDiff.suffix}</span>}
-            {!leftText && <span className="text-neutral-400 italic select-none">&lt;empty&gt;</span>}
+            {!leftText && <span className="text-neutral-400 font-normal select-none">&lt;empty&gt;</span>}
           </div>
         </div>
 
-        {/* Center Copy Arrows Gutter (Image 3) */}
+        {/* Center Copy Arrows Gutter */}
         <div className="flex items-center space-x-1 px-1.5 bg-[#eeeeee] dark:bg-[#111111] flex-shrink-0 select-none h-full">
           <button
             onClick={onCopyLeftToRight}
@@ -107,19 +111,23 @@ export const LineDetailInspector: React.FC<LineDetailInspectorProps> = ({
         </div>
 
         {/* Right Side Line */}
-        <div className="flex-1 flex items-center px-2 py-1 min-w-0 h-full overflow-x-auto whitespace-pre bg-white dark:bg-black">
-          <span className="text-[10px] font-sans font-bold text-neutral-400 dark:text-neutral-500 mr-2 select-none flex-shrink-0">
+        <div
+          className={`flex-1 flex items-center px-2 py-1 min-w-0 h-full overflow-x-auto whitespace-pre ${
+            hasDifference ? 'bg-[#fdecec] dark:bg-[#2b1215]' : 'bg-white dark:bg-black'
+          }`}
+        >
+          <span className="text-[10px] font-sans font-bold text-neutral-500 dark:text-neutral-400 mr-2 select-none flex-shrink-0">
             {rightLineNumber !== null ? `${rightLineNumber}:` : '-:'}
           </span>
-          <div className="truncate flex-1 text-neutral-900 dark:text-neutral-100">
+          <div className="truncate flex-1 font-mono font-bold text-xs text-black dark:text-white">
             {rightDiff.prefix && <span>{rightDiff.prefix}</span>}
             {rightDiff.diff && (
-              <span className="bg-[#ffcdd2] dark:bg-[#584116] text-[#b71c1c] dark:text-[#fef08a] font-bold px-0.5 rounded border border-red-300 dark:border-amber-600/60">
+              <span className="text-[#dc2626] dark:text-[#ff5c5c] font-bold">
                 {rightDiff.diff}
               </span>
             )}
             {rightDiff.suffix && <span>{rightDiff.suffix}</span>}
-            {!rightText && <span className="text-neutral-400 italic select-none">&lt;empty&gt;</span>}
+            {!rightText && <span className="text-neutral-400 font-normal select-none">&lt;empty&gt;</span>}
           </div>
         </div>
       </div>

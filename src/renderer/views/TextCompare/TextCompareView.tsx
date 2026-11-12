@@ -33,6 +33,14 @@ import {
 } from '@shared/comparison-engine/diff-copy.js';
 import { ConfirmModalConfig } from '../../components/ConfirmModal.js';
 import { LineDetailInspector } from '../../components/LineDetailInspector.js';
+import { buildInlineDiffDecorations } from '@shared/comparison-engine/inline-diff.js';
+import {
+  registerBeyondCompareThemes,
+  BEYOND_COMPARE_FONT_FAMILY,
+  BEYOND_COMPARE_FONT_SIZE,
+  BEYOND_COMPARE_LINE_HEIGHT,
+  BEYOND_COMPARE_FONT_WEIGHT,
+} from '../../utils/monaco-theme.js';
 import { DiffOverviewMap } from '../../components/DiffOverviewMap.js';
 import { registerBrowserFile } from '../../utils/browser-api.js';
 
@@ -1159,6 +1167,15 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         });
       }
 
+      // 3. Apply clean bold-red inline text decorations to differing character slices (no boxy outlines)
+      const { leftInlineDecs, rightInlineDecs } = buildInlineDiffDecorations(
+        lineChanges,
+        origEditor.getModel(),
+        modEditor.getModel()
+      );
+      newLeftDecs.push(...leftInlineDecs);
+      newRightDecs.push(...rightInlineDecs);
+
       leftDecorationsRef.current = origEditor.deltaDecorations(leftDecorationsRef.current, newLeftDecs);
       rightDecorationsRef.current = modEditor.deltaDecorations(rightDecorationsRef.current, newRightDecs);
       syncGapGutterArrows();
@@ -1200,6 +1217,9 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         }));
         updateGutterDecorations();
       });
+
+      // Trigger initial decoration pass in case initial diff completed prior to listener attach
+      updateGutterDecorations();
 
       // Right Editor Listeners
       modEditor.onDidChangeModelContent((e: any) => {
@@ -2695,94 +2715,17 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
               original={leftInitialContent}
               modified={rightInitialContent}
               theme={theme === 'dark' ? 'beyond-compare-dark' : 'beyond-compare-light'}
-              beforeMount={(monaco) => {
-                monaco.editor.defineTheme('beyond-compare-light', {
-                  base: 'vs',
-                  inherit: true,
-                  rules: [
-                    { token: '', foreground: '09090b' },
-                    { token: 'tag', foreground: '0284c7' },
-                    { token: 'tag.xml', foreground: '0284c7' },
-                    { token: 'tag.id.xml', foreground: 'b91c1c', fontStyle: 'bold' },
-                    { token: 'metatag.xml', foreground: '4338ca' },
-                    { token: 'attribute.name', foreground: '9a3412', fontStyle: 'bold' },
-                    { token: 'attribute.name.xml', foreground: '9a3412', fontStyle: 'bold' },
-                    { token: 'attribute.value', foreground: '15803d' },
-                    { token: 'attribute.value.xml', foreground: '15803d' },
-                    { token: 'string', foreground: '15803d' },
-                    { token: 'string.xml', foreground: '15803d' },
-                    { token: 'number', foreground: 'c2410c' },
-                    { token: 'keyword', foreground: '7c3aed', fontStyle: 'bold' },
-                    { token: 'delimiter', foreground: '334155' },
-                    { token: 'delimiter.xml', foreground: '0284c7' },
-                    { token: 'comment', foreground: '64748b', fontStyle: 'italic' },
-                  ],
-                  colors: {
-                    'editor.background': '#ffffff',
-                    'editor.foreground': '#09090b',
-                    'editorGutter.background': '#f8fafc',
-                    'editorLineNumber.foreground': '#64748b',
-                    'editorLineNumber.activeForeground': '#09090b',
-                    'editor.selectionBackground': '#93c5fd88',
-                    'editor.selectionHighlightBackground': '#bfdbfe66',
-                    'diffEditor.insertedTextBackground': '#fca5a5',
-                    'diffEditor.removedTextBackground': '#fca5a5',
-                    'diffEditor.insertedLineBackground': '#ffe4e6',
-                    'diffEditor.removedLineBackground': '#ffe4e6',
-                    'diffEditor.diagonalFill': '#f1f5f9',
-                    'diffEditorGutter.insertedLineBackground': '#00000000',
-                    'diffEditorGutter.removedLineBackground': '#00000000',
-                  },
-                });
-
-                monaco.editor.defineTheme('beyond-compare-dark', {
-                  base: 'vs-dark',
-                  inherit: true,
-                  rules: [
-                    { token: '', foreground: 'f8fafc' },
-                    { token: 'comment', foreground: '94a3b8', fontStyle: 'italic' },
-                    { token: 'keyword', foreground: 'f472b6', fontStyle: 'bold' },
-                    { token: 'string', foreground: '4ade80' },
-                    { token: 'string.xml', foreground: '4ade80' },
-                    { token: 'number', foreground: 'fde047' },
-                    { token: 'tag', foreground: '38bdf8' },
-                    { token: 'tag.xml', foreground: '38bdf8' },
-                    { token: 'tag.id.xml', foreground: 'fb7185', fontStyle: 'bold' },
-                    { token: 'attribute.name', foreground: 'fbbf24', fontStyle: 'bold' },
-                    { token: 'attribute.name.xml', foreground: 'fbbf24', fontStyle: 'bold' },
-                    { token: 'attribute.value', foreground: '34d399' },
-                    { token: 'attribute.value.xml', foreground: '34d399' },
-                    { token: 'delimiter', foreground: 'cbd5e1' },
-                    { token: 'delimiter.xml', foreground: '38bdf8' },
-                  ],
-                  colors: {
-                    'editor.background': '#000000',
-                    'editor.foreground': '#f8fafc',
-                    'editorGutter.background': '#000000',
-                    'editorLineNumber.foreground': '#64748b',
-                    'editorLineNumber.activeForeground': '#f8fafc',
-                    'editor.selectionBackground': '#3b82f644',
-                    'editor.selectionHighlightBackground': '#3b82f622',
-                    'diffEditor.insertedTextBackground': '#584116',
-                    'diffEditor.removedTextBackground': '#5c1c24',
-                    'diffEditor.insertedLineBackground': '#352915',
-                    'diffEditor.removedLineBackground': '#2e151b',
-                    'diffEditor.diagonalFill': '#000000',
-                    'diffEditorGutter.insertedLineBackground': '#00000000',
-                    'diffEditorGutter.removedLineBackground': '#00000000',
-                  },
-                });
-              }}
+              beforeMount={registerBeyondCompareThemes}
               onMount={handleEditorDidMount}
               options={{
                 renderSideBySide,
                 ignoreTrimWhitespace: options.ignoreWhitespace !== 'none',
                 readOnly: false,
                 originalEditable: true,
-                fontSize: 13.5,
-                lineHeight: 22,
-                fontWeight: '500',
-                fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', Menlo, Monaco, Consolas, monospace",
+                fontSize: BEYOND_COMPARE_FONT_SIZE,
+                lineHeight: BEYOND_COMPARE_LINE_HEIGHT,
+                fontWeight: BEYOND_COMPARE_FONT_WEIGHT,
+                fontFamily: BEYOND_COMPARE_FONT_FAMILY,
                 minimap: { enabled: false },
                 scrollBeyondLastLine: false,
                 automaticLayout: true,

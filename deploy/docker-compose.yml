@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: diffx-internal:3.6.0
+    image: diffx-internal:3.7.0
     container_name: diffx-web
     restart: unless-stopped
     ports:

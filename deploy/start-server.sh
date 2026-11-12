@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# DiffX v3.6.0 — Mavenir Internal Web Server Launcher
+# DiffX v3.7.0 — Mavenir Internal Web Server Launcher
 # Developed by im_arg
 # ==============================================================================
 
@@ -12,7 +12,7 @@ cd "$SCRIPT_DIR"
 SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || ip route get 1 2>/dev/null | awk '{print $7}' || echo "10.10.84.22")
 
 echo "=========================================================="
-echo " Starting DiffX v3.6.0 on Mavenir Internal Network"
+echo " Starting DiffX v3.7.0 on Mavenir Internal Network"
 echo " Target Port : $PORT"
 echo " Detected IP : $SERVER_IP"
 echo "=========================================================="
@@ -56,7 +56,7 @@ if [ -n "$CONTAINER_CLI" ]; then
         --restart unless-stopped \
         -p "${PORT}:80" \
         -v "$SCRIPT_DIR/dist":/usr/share/nginx/html:ro \
-        nginx:alpine 2>/dev/null; then
+        docker.io/library/nginx:alpine </dev/null 2>/dev/null; then
         
         sleep 1
         echo ""

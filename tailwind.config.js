@@ -40,7 +40,7 @@ export default {
         }
       },
       fontFamily: {
-        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'monospace'],
+        mono: ['Consolas', 'Lucida Console', 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', 'Menlo', 'Monaco', 'monospace'],
         sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
       }
     },

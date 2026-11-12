@@ -1,14 +1,25 @@
-# DiffX — Professional Desktop Comparison Suite
+# DiffX (v3.7.0) — Enterprise Desktop & Web Comparison Suite
 
-DiffX is a production-oriented desktop comparison application built for engineering teams, cloud operations, telecom deployment, and DevOps professionals. Inspired by the workflows of professional comparison suites, DiffX provides recursive folder comparison, Monaco-powered side-by-side text diffing, and semantic configuration comparison (Kubernetes, OpenShift, YAML, JSON) in an original, high-density desktop interface.
+DiffX is a production-oriented comparison application built for engineering teams, cloud operations, telecom deployment, and DevOps professionals. Inspired by the familiar high-contrast layout of Beyond Compare, DiffX provides recursive folder comparison (Desktop App), Monaco-powered side-by-side text diffing, and semantic configuration comparison (Kubernetes, OpenShift, XML, YAML, JSON) in both a standalone offline desktop app (Windows & macOS) and an air-gapped internal web app.
+
+---
+
+## What's New in v3.7.0
+
+- **Beyond Compare Visual Fidelity**:
+  - **High-Contrast Enterprise Typography**: Uses a crisp, familiar company-standard monospace stack (`Consolas`, `Lucida Console`, `DejaVu Sans Mono`, `Courier New`) with solid bold weight (`700`) — pure bold black (`#000000`) on light background and bold bright white (`#ffffff`) on dark background.
+  - **Box-Free Difference Highlighting**: Eliminated boxy outlines and heavy rectangular pills over changed tokens (e.g. VLAN IDs and IP octets). Differences are now rendered with a subtle red row stripe and crisp bold red text strictly on differing characters across both editors and the Line Inspection bar.
+- **v3.6.0 Highlights (Retained & Hardened)**:
+  - Graceful browser limitation notice when accessing Folder Compare in web mode (`WebFolderNoticeModal`).
+  - Pure JavaScript SHA-256 fallback for plain HTTP internal server deployments (`http://10.10.84.22:8097`).
 
 ---
 
 ## Key Principles & Guarantees
 
-- **100% Local-First & Offline**: Operates completely offline with zero outbound network calls.
+- **100% Local-First & Offline**: Operates completely offline with zero outbound network calls. Both desktop and web modes execute all comparisons locally in client-side memory.
 - **Zero Telemetry / No Tracking**: No analytics, telemetry beacons, cloud syncing, accounts, or mandatory license checks.
-- **Cryptographic Verification**: Compares file contents reliably using SHA-256 hashes—never assumes identity based on file size or modification time alone.
+- **Cryptographic Verification**: Compares file contents reliably using SHA-256 hashes (with pure-JS fallback for non-HTTPS internal hosts).
 - **Safety First**: Overwrite, copy, and save operations require explicit confirmation and provide automatic `.bak` safety backups.
 - **Security-Hardened Architecture**: Electron main process runs with `contextIsolation: true`, `nodeIntegration: false`, path-traversal prevention, and symlink loop protection.
 
@@ -90,13 +101,15 @@ diffx/
 │   │   ├── ipc.ts                  # Typed IPC dispatcher & security validation
 │   │   └── preload.ts              # Secure narrow contextBridge API
 │   ├── shared/                     # Pure TypeScript Engine (React-independent)
-│   │   ├── comparison-engine/      # Matcher, filter, wildcard, structured, whitespace
+│   │   ├── comparison-engine/      # Matcher, filter, wildcard, structured, inline-diff
 │   │   └── types.ts                # Central domain models & IPC interfaces
 │   └── renderer/                   # React 19 + Tailwind CSS + Monaco Editor
-│       ├── components/             # Header, StatusBar, ConfirmModal, ShortcutsModal
-│       ├── views/                  # FolderCompare, TextCompare, StructuredCompare, etc.
+│       ├── components/             # Header, LineDetailInspector, WebFolderNoticeModal
+│       ├── utils/                  # browser-api (HTTP SHA-256), monaco-theme
+│       ├── views/                  # FolderCompare, TextCompare, StructuredCompare
 │       ├── App.tsx                 # Core application shell & navigation
 │       └── main.tsx                # React entrypoint
+├── deploy/                         # Self-hosted Docker / Podman / Python deployment kit
 ├── test/
 │   ├── fixtures/                   # Deterministic test directories (left & right)
 │   └── unit/                       # Vitest suites for engine, security & fs

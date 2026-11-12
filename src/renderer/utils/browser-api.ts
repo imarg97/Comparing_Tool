@@ -497,7 +497,7 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
     },
 
     openInSystemExplorer: async () => true,
-    getAppVersion: async () => '3.6.0 (Security Hardened Web Release)',
+    getAppVersion: async () => '3.7.0 (Security Hardened Web Release)',
     getPlatform: async () => 'browser',
     isBrowser: true,
   };
