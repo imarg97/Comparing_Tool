@@ -37,7 +37,7 @@ function createMainWindow(): BrowserWindow {
   }
 
   const win = new BrowserWindow({
-    title: 'DiffX',
+    title: 'mDiff',
     icon: iconPath,
     width: 1360,
     height: 880,

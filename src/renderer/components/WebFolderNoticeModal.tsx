@@ -67,7 +67,7 @@ export const WebFolderNoticeModal: React.FC<WebFolderNoticeModalProps> = ({
             <p>
               Full recursive directory comparison, background cryptographic SHA-256 tree hashing, and
               safe in-place copy synchronization are exclusively supported in the standalone native
-              DiffX desktop application.
+              mDiff desktop application.
             </p>
           </div>
 

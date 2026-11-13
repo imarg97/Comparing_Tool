@@ -1,7 +1,7 @@
 {
-  "name": "diffx",
+  "name": "mdiff",
   "version": "3.7.0",
-  "description": "Professional Desktop Comparison Suite",
+  "description": "mDiff (Mavenir Diff) — Enterprise Desktop & Web Comparison Suite",
   "author": "im_arg",
   "type": "module",
   "private": true,
@@ -17,8 +17,8 @@
     "package:win": "npm run build && electron-builder --win"
   },
   "build": {
-    "appId": "com.diffx.desktop",
-    "productName": "DiffX",
+    "appId": "com.mavenir.mdiff",
+    "productName": "mDiff",
     "directories": {
       "output": "release"
     },

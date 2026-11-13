@@ -1,188 +1,80 @@
-# DiffX (v3.7.0) — Enterprise Desktop & Web Comparison Suite
+# mDiff (Mavenir Diff) — Enterprise Desktop & Web Comparison Suite
 
-DiffX is a production-oriented comparison application built for engineering teams, cloud operations, telecom deployment, and DevOps professionals. Inspired by the familiar high-contrast layout of Beyond Compare, DiffX provides recursive folder comparison (Desktop App), Monaco-powered side-by-side text diffing, and semantic configuration comparison (Kubernetes, OpenShift, XML, YAML, JSON) in both a standalone offline desktop app (Windows & macOS) and an air-gapped internal web app.
-
----
-
-## What's New in v3.7.0
-
-- **Beyond Compare Visual Fidelity**:
-  - **High-Contrast Enterprise Typography**: Uses a crisp, familiar company-standard monospace stack (`Consolas`, `Lucida Console`, `DejaVu Sans Mono`, `Courier New`) with solid bold weight (`700`) — pure bold black (`#000000`) on light background and bold bright white (`#ffffff`) on dark background.
-  - **Box-Free Difference Highlighting**: Eliminated boxy outlines and heavy rectangular pills over changed tokens (e.g. VLAN IDs and IP octets). Differences are now rendered with a subtle red row stripe and crisp bold red text strictly on differing characters across both editors and the Line Inspection bar.
-- **v3.6.0 Highlights (Retained & Hardened)**:
-  - Graceful browser limitation notice when accessing Folder Compare in web mode (`WebFolderNoticeModal`).
-  - Pure JavaScript SHA-256 fallback for plain HTTP internal server deployments (`http://10.10.84.22:8097`).
+**Version**: `v3.7.0`  
+**License**: Permissive Open-Source (100% MIT & ISC Compatible — Zero Copyleft)  
+**Security Classification**: Air-Gapped / Zero-Telemetry / Portable User-Space Utility  
+**Web Production URL**: `http://10.10.84.22:8097` *(Mavenir VPN)*  
+**Primary Repository**: `https://github.com/imarg97/mdiff`  
 
 ---
 
-## Key Principles & Guarantees
+## Overview
 
-- **100% Local-First & Offline**: Operates completely offline with zero outbound network calls. Both desktop and web modes execute all comparisons locally in client-side memory.
-- **Zero Telemetry / No Tracking**: No analytics, telemetry beacons, cloud syncing, accounts, or mandatory license checks.
-- **Cryptographic Verification**: Compares file contents reliably using SHA-256 hashes (with pure-JS fallback for non-HTTPS internal hosts).
-- **Safety First**: Overwrite, copy, and save operations require explicit confirmation and provide automatic `.bak` safety backups.
-- **Security-Hardened Architecture**: Electron main process runs with `contextIsolation: true`, `nodeIntegration: false`, path-traversal prevention, and symlink loop protection.
+**mDiff** (Mavenir Diff, formerly DiffX) is an enterprise comparison suite tailored specifically for telecommunications engineering, cloud platform operations (OpenShift / Kubernetes), and DevOps workflows. 
+
+Engineered with high visual fidelity to **Beyond Compare**, mDiff delivers side-by-side text diffing, deep cryptographic directory tree comparison, and semantic cellular/network XML, YAML, and JSON parameter comparisons across both native desktop operating systems (Windows & macOS) and internal air-gapped web servers.
 
 ---
 
-## Functional Workspaces
+## 📚 Complete Project Documentation
 
-### 1. Folder Compare
-- **Recursive Directory Scanning**: Scans arbitrary folder hierarchies with live progress updates and cancellation support.
-- **Precise Status Classification**:
-  - `Identical`: Cryptographic content hash matches.
-  - `Modified`: Content differs (modification timestamp differences are clearly displayed separately).
-  - `Left Only` & `Right Only`: Files or directories present on only one side.
-  - `Error`: Permissions or unreadable disk errors caught safely without crashing.
-- **Dual Presentation Modes**: Switch between an expandable **Tree View** and a unified **Flat File List**.
-- **Interactive Filtering & Sorting**: Filter by status (`Modified`, `Different`, `Identical`, `Left Only`, `Right Only`, `Errors`), search queries, and file extensions. Sort by Name, Status, Size, or Timestamp.
-- **Configurable Ignore Rules**: Ignore directories and files matching patterns (e.g. `.git, node_modules, .DS_Store, *.log, dist`).
-- **Safe Copy Operations**: Copy individual files left-to-right or right-to-left with collision checks, preview paths, and optional safety backups.
-- **Direct Editor Handoff**: Double-click any file pair in the folder tree to immediately launch them in side-by-side Text Compare.
+All official documentation has been organized into the [`docs/`](docs/) directory:
 
-### 2. Text Compare
-- **Monaco Diff Engine**: Microsoft Monaco Editor diff capabilities with full syntax highlighting (YAML, JSON, TypeScript, Python, Shell, Markdown, XML, etc.).
-- **View Modes**: Switch between **Side-by-Side** and **Inline Unified** diff layouts.
-- **Whitespace & Blank Line Normalization**:
-  - Compare whitespace strictly.
-  - Ignore leading and trailing whitespace.
-  - Ignore all whitespace.
-  - Ignore blank lines.
-  - **Whitespace Notice**: Clearly warns when documents differ solely in whitespace or line endings.
-- **Diff Navigation**: Jump forward and backward between differences using `F7` and `Shift+F7` (or toolbar buttons).
-- **Safe Editing & Backups**: Edit either left or right document directly, view unsaved edit badges, revert to disk version, or save atomically with timestamped backups.
-- **Large File Safety Guard**: Files exceeding 5 MB load with preview protection to ensure Monaco and UI smoothness.
-
-### 3. K8s & Config Compare (Structured Comparison)
-- **Semantic Diffing**: Parses YAML and JSON into structural ASTs to distinguish true structural value changes from non-functional formatting differences.
-- **Kubernetes & OpenShift Noise Suppression**: Automatically filters noisy runtime metadata fields (`metadata.resourceVersion`, `metadata.uid`, `metadata.generation`, `metadata.creationTimestamp`, `metadata.managedFields`, `status`) so engineers can compare deployments and helm charts without false alarms.
-- **Object Path Table**: Displays key paths (e.g. `spec.replicas`, `spec.template.spec.containers[0].image`) with added, removed, and modified badges.
-
-### 4. Recent Comparisons & History
-- Stores previously compared folder and file paths locally.
-- **Privacy Assurance**: Only stores path strings and timestamps in local storage. Never stores file contents.
-- Provides a one-click **Clear History** button and a preference toggle to disable history tracking entirely.
-
-### 5. Settings & License Inventory
-- Configure default ignore patterns, case sensitivity, and backup preferences.
-- Built-in third-party open-source license inventory (`LICENSES.md`).
-
----
-
-## Keyboard Shortcuts
-
-| Shortcut | Action |
+| Document | Description |
 | :--- | :--- |
-| `Cmd/Ctrl + 1` | Switch to Folder Compare |
-| `Cmd/Ctrl + 2` | Switch to Text Compare |
-| `Cmd/Ctrl + 3` | Switch to K8s & Config Compare |
-| `Cmd/Ctrl + 4` | Switch to Recent Comparisons |
-| `Cmd/Ctrl + 5` | Switch to Preferences & Settings |
-| `Cmd/Ctrl + R` | Refresh active comparison |
-| `Cmd/Ctrl + Alt + S` | Swap Left and Right sides |
-| `F7` / `Alt + Down` | Jump to next difference |
-| `Shift + F7` / `Alt + Up` | Jump to previous difference |
-| `Cmd/Ctrl + S` | Save file changes in editor (with confirmation) |
-| `Cmd/Ctrl + /` | Open Keyboard Shortcuts modal |
+| **[📖 User Guide & How-To Manual](docs/HOW-TO-USE.md)** | Step-by-step instructions for Text Compare, Config & XML Compare, Folder Compare, Line Detail Inspector, and Keyboard Shortcuts. |
+| **[🛡️ Second Security Audit Report](docs/SECURITY-AUDIT-REPORT.md)** | Cloudflare framework defensive audit evaluating 7 remediated vulnerability classes, trust boundaries, and test verification. |
+| **[📋 Enterprise Security & Compliance](docs/ENTERPRISE-SECURITY.md)** | Management & IT compliance report covering zero-admin user-space execution, non-destructive file operations, and endpoint policies. |
+| **[🔐 IT Security & SysAdmin Q&A](docs/IT-SECURITY-QA.md)** | Detailed answers for InfoSec, DLP, and endpoint administrators regarding zero network egress and Content Security Policy. |
+| **[⚖️ Licensing & Legal Compliance](docs/LICENSING.md)** | Full audit of all 9 third-party libraries, confirming 100% MIT/ISC permissive licensing and zero copyleft/GPL risk. |
+| **[🚀 Lab Server Deployment Runbook](docs/DEPLOYMENT-GUIDE.md)** | Complete operations guide for hosting and upgrading mDiff on Mavenir internal servers (`10.10.84.22:8097`). |
 
 ---
 
-## Technical Stack & Architecture
+## Key Guarantees & Features in v3.7.0
 
-```
-diffx/
-├── src/
-│   ├── main/                       # Electron Main Process
-│   │   ├── fs-engine/              # Native filesystem scanner & hasher
-│   │   │   ├── hasher.ts           # Streaming SHA-256 computation
-│   │   │   ├── scanner.ts          # Recursive directory scanner & progress
-│   │   │   └── safe-fs.ts          # Atomic writing, backups, traversal guard
-│   │   ├── index.ts                # App lifecycle, macOS menu, window creation
-│   │   ├── ipc.ts                  # Typed IPC dispatcher & security validation
-│   │   └── preload.ts              # Secure narrow contextBridge API
-│   ├── shared/                     # Pure TypeScript Engine (React-independent)
-│   │   ├── comparison-engine/      # Matcher, filter, wildcard, structured, inline-diff
-│   │   └── types.ts                # Central domain models & IPC interfaces
-│   └── renderer/                   # React 19 + Tailwind CSS + Monaco Editor
-│       ├── components/             # Header, LineDetailInspector, WebFolderNoticeModal
-│       ├── utils/                  # browser-api (HTTP SHA-256), monaco-theme
-│       ├── views/                  # FolderCompare, TextCompare, StructuredCompare
-│       ├── App.tsx                 # Core application shell & navigation
-│       └── main.tsx                # React entrypoint
-├── deploy/                         # Self-hosted Docker / Podman / Python deployment kit
-├── test/
-│   ├── fixtures/                   # Deterministic test directories (left & right)
-│   └── unit/                       # Vitest suites for engine, security & fs
-├── dist/                           # Compiled frontend bundle (Vite)
-├── dist-electron/                  # Compiled Electron main & preload
-├── release/                        # Packaged macOS & Windows application bundles
-├── package.json
-└── tsconfig.json
-```
+### 1. Beyond Compare Visual Parity
+- **High-Contrast Monospace Typography**: Employs corporate standard monospace fonts (`Consolas`, `Lucida Console`, `DejaVu Sans Mono`, `Liberation Mono`) rendered with **bold weight (`700`)** everywhere (bold black on light theme, bold white on pitch-black dark theme).
+- **Box-Free Difference Highlighting**: Replaced heavy rectangular boxes and border outlines with clean pastel rose row stripes (`#fdecec` light / `#2b1215` dark) and **crisp bold red text** (`#dc2626` light / `#ff5c5c` dark) strictly on differing characters.
+- **Line Detail Inspector**: Bottom-docked panel showing enlarged character-by-character differences.
+
+### 2. Telecom & Cloud Structured Compare
+- **Cellular XML Configurations**: Custom zero-dependency XML parser normalizes attributes, strips formatting differences, and highlights real parameter shifts between network snapshots.
+- **Kubernetes / OpenShift YAML**: Built-in noise filters automatically suppress dynamic runtime noise (`resourceVersion`, `managedFields`, `creationTimestamp`, `uid`, `status`).
+
+### 3. Absolute Privacy & Air-Gapped Execution
+- **Zero Data Egress**: All diff computations execute strictly on the client CPU and RAM. No files, configs, keystrokes, or diff results are ever transmitted across the network or stored on the server.
+- **Offline Self-Contained Bundles**: Zero external script dependencies (no Google Fonts, no public CDNs). Monaco Editor and all web workers are bundled locally.
+- **Pure JavaScript SHA-256 Fallback**: Deterministic cryptographic hashing that runs reliably in all environments (including non-HTTPS internal network IPs).
 
 ---
 
-## Getting Started
+## Pre-Built Distribution Packages (`release/`)
 
-### Prerequisites
-- Node.js >= 20 (Node.js 22+ recommended)
-- npm >= 10
+| Platform | Package Name | Format | Notes |
+| :--- | :--- | :---: | :--- |
+| **Windows (x64)** | `mDiff-windows-x64.zip` | Portable `.exe` | Extract and run `mDiff.exe`. No admin / UAC required. |
+| **Windows (ARM64)** | `mDiff-windows-arm64.zip` | Portable `.exe` | Optimized for Qualcomm Snapdragon Windows laptops. |
+| **macOS (Apple Silicon)** | `mDiff-macOS-arm64.zip` | Standalone `.app` | Drag `mDiff.app` to Applications. |
+| **Internal Web Server** | `mDiff-internal-web-deployment.tar.gz` | Linux Bundle | Single command `./start-server.sh 8097` for `10.10.84.22`. |
 
-### 1. Installation
+---
+
+## Local Development & Build Commands
+
 ```bash
+# Install dependencies
 npm install
-```
 
-### 2. Run Tests
-Execute the unit test suite covering classification, hash verification, whitespace normalization, path security, and directory scanning:
-```bash
+# Run automated test suite (81 tests)
 npm test
-```
 
-### 3. Run Type Checking & Linter
-```bash
+# Typecheck and lint
 npm run lint
-```
 
-### 4. Build Application
-Compile both the React web application and the Electron main process:
-```bash
+# Build production web bundle and Electron main process
 npm run build
-```
 
-### 5. Launch in Development Mode
-Start Vite dev server and launch the desktop window:
-```bash
-npm run dev
-# in a separate terminal:
-npm start
-```
-
-### 6. Package Desktop Application
-Build a standalone executable desktop application:
-```bash
+# Package desktop applications
 npm run package
 ```
-On macOS, this packages the native application into `release/mac-arm64/DiffX.app`.
-
----
-
-## Security Model
-
-DiffX is designed with a defense-in-depth security posture:
-1. **Sandboxed Window**: `contextIsolation: true` and `nodeIntegration: false` prevent arbitrary script execution from accessing Node.js.
-2. **Path Traversal Guard**: Prevents attempts to write or read outside designated targets via `..` or maliciously crafted relative paths.
-3. **Symlink Cycle Protection**: Directory symlinks are not followed by default to prevent infinite recursion, disk exhaustion, and unexpected writes outside the comparison root.
-4. **Non-Destructive Defaults**: No destructive actions (overwrites, deletions, synchronization) occur automatically. Every file modification requires explicit confirmation.
-
----
-
-## Known Limitations & Roadmap
-
-- **Phase 3 Planned Capabilities**:
-  - Three-way folder merge.
-  - Image side-by-side overlay diffing.
-  - Archive (.zip, .tar.gz) in-place comparison.
-  - CSV / Tabular column-aligned diffing.
-- **Phase 5 Optional AI Explanations**:
-  - Optional local-LLM assistant interface for operational change impact summaries (disabled by default, strictly opt-in).

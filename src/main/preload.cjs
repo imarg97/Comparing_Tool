@@ -103,3 +103,4 @@ const api = {
 };
 
 contextBridge.exposeInMainWorld('diffxAPI', api);
+contextBridge.exposeInMainWorld('mdiffAPI', api);

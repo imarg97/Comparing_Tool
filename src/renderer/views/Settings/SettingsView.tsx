@@ -145,7 +145,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 Save Recent Comparison Paths
               </span>
               <span className="text-[11px] text-neutral-500 block">
-                DiffX only stores paths and timestamps locally. File contents are never stored.
+                mDiff only stores paths and timestamps locally. File contents are never stored.
               </span>
             </div>
             <input
@@ -200,12 +200,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         {/* 4. About & System Information */}
         <div className="bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-lg p-4 space-y-2">
           <h3 className="font-semibold text-xs uppercase tracking-wider text-neutral-500">
-            About DiffX
+            About mDiff
           </h3>
           <div className="flex items-center justify-between text-xs">
             <div>
-              <span className="font-medium text-neutral-900 dark:text-white">DiffX Comparison Suite</span>
-              <span className="text-neutral-500 block text-[11px] mt-0.5">Developed by im_arg</span>
+              <span className="font-medium text-neutral-900 dark:text-white">mDiff Comparison Suite</span>
+              <span className="text-neutral-500 block text-[11px] mt-0.5">Mavenir Internal Release • Developed by im_arg</span>
             </div>
             <span className="px-2 py-0.5 rounded font-mono text-[11px] font-semibold bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
               v3.7.0

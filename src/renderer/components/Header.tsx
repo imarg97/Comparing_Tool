@@ -52,6 +52,8 @@ export const DiffXLogo: React.FC<{ className?: string }> = ({ className = 'w-4 h
   </svg>
 );
 
+export const MDiffLogo = DiffXLogo;
+
 export type NavigationTab = 'folder' | 'text' | 'structured' | 'home' | 'settings';
 
 interface HeaderProps {
@@ -118,7 +120,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="flex items-center space-x-1.5 mr-2 pl-1 hover:opacity-80 transition cursor-pointer"
           >
             <span className="font-bold text-[11px] tracking-tight text-neutral-900 dark:text-neutral-100">
-              DiffX
+              mDiff
             </span>
             <span className="px-1.5 py-0.5 text-[9px] font-semibold rounded bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30">
               v3.7.0
@@ -492,14 +494,14 @@ export const Header: React.FC<HeaderProps> = ({
                 >
                   <span className="flex items-center space-x-2">
                     <Info className="w-3.5 h-3.5 text-neutral-400" />
-                    <span>About DiffX Comparison Suite</span>
+                    <span>About mDiff Comparison Suite</span>
                   </span>
                 </button>
 
                 <div className="my-1 border-t border-neutral-200 dark:border-neutral-800" />
                 <div className="px-3 py-1.5 text-[11px] text-neutral-500">
-                  DiffX Comparison Suite v3.7.0<br />
-                  Developed by im_arg
+                  mDiff Comparison Suite v3.7.0<br />
+                  Mavenir Internal Release • Developed by im_arg
                 </div>
               </div>
             )}

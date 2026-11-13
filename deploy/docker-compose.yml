@@ -1,10 +1,10 @@
 services:
-  diffx-web:
+  mdiff-web:
     build:
       context: .
       dockerfile: Dockerfile
-    image: diffx-internal:3.7.0
-    container_name: diffx-web
+    image: mdiff-internal:3.7.0
+    container_name: mdiff-web
     restart: unless-stopped
     ports:
-      - "${DIFFX_PORT:-8097}:80"
+      - "${MDIFF_PORT:-${DIFFX_PORT:-8097}}:80"

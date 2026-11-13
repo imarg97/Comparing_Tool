@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# DiffX v3.7.0 — Mavenir Internal Web Server Launcher
+# DiffX / mDiff v3.7.0 — Mavenir Internal Web Server Launcher
 # Developed by im_arg
 # ==============================================================================
 
@@ -12,7 +12,7 @@ cd "$SCRIPT_DIR"
 SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || ip route get 1 2>/dev/null | awk '{print $7}' || echo "10.10.84.22")
 
 echo "=========================================================="
-echo " Starting DiffX v3.7.0 on Mavenir Internal Network"
+echo " Starting mDiff v3.7.0 on Mavenir Internal Network"
 echo " Target Port : $PORT"
 echo " Detected IP : $SERVER_IP"
 echo "=========================================================="
