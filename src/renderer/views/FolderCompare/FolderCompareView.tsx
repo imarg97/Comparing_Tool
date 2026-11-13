@@ -14,6 +14,8 @@ import {
   ChevronLeft,
   Home,
   AlertCircle,
+  Trash2,
+  FileCode2,
 } from 'lucide-react';
 import {
   ComparisonEntry,
@@ -89,6 +91,25 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
   });
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [selectedEntry, setSelectedEntry] = useState<ComparisonEntry | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    node: ComparisonEntry;
+  } | null>(null);
+
+  // Close context menu on outside click or Escape
+  useEffect(() => {
+    const handleOutsideClick = () => setContextMenu(null);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setContextMenu(null);
+    };
+    window.addEventListener('click', handleOutsideClick);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('click', handleOutsideClick);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   // Drag and drop states across whole page
   const [isDraggingLeft, setIsDraggingLeft] = useState(false);
@@ -268,11 +289,8 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
       if (window.diffxAPI) {
         const res = await window.diffxAPI.compareFolders(leftFolder, rightFolder, options);
         setResult(res);
-        const initialExpanded = new Set<string>();
-        for (const root of res.tree) {
-          if (root.isDirectory) initialExpanded.add(root.relativePath);
-        }
-        setExpandedFolders(initialExpanded);
+        // Start collapsed by default (Beyond Compare standard behavior)
+        setExpandedFolders(new Set());
         onUpdateStatus('Comparison complete', res.summary.total, res.summary.scanDurationMs);
       }
     } catch (err: unknown) {
@@ -403,6 +421,81 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
     });
   };
 
+  const handleDeleteEntry = (entry: ComparisonEntry, side: 'left' | 'right' | 'both') => {
+    if (!result) return;
+    setContextMenu(null);
+
+    const isDir = entry.isDirectory;
+    const itemLabel = isDir ? 'Folder' : 'File';
+    const leftPath = `${result.leftRoot}/${entry.relativePath}`;
+    const rightPath = `${result.rightRoot}/${entry.relativePath}`;
+
+    let title = '';
+    let msg = '';
+    let detail = '';
+    let targetPath = '';
+
+    if (side === 'left') {
+      title = `Delete Left ${itemLabel}`;
+      msg = `Permanently delete '${entry.name}' from the Left folder?`;
+      detail = `Target: ${leftPath}`;
+      targetPath = leftPath;
+    } else if (side === 'right') {
+      title = `Delete Right ${itemLabel}`;
+      msg = `Permanently delete '${entry.name}' from the Right folder?`;
+      detail = `Target: ${rightPath}`;
+      targetPath = rightPath;
+    } else {
+      title = `Delete ${itemLabel} (Both Sides)`;
+      msg = `Permanently delete '${entry.name}' from BOTH Left and Right folders?`;
+      detail = `Left: ${leftPath}\nRight: ${rightPath}`;
+      targetPath = leftPath;
+    }
+
+    onRequestConfirm({
+      isOpen: true,
+      title,
+      actionType: 'delete',
+      sourcePath: targetPath,
+      message: msg,
+      detail: `${detail}\n\nThis will permanently delete the ${itemLabel.toLowerCase()} from disk. A safety backup will be created if enabled.`,
+      requireBackupOption: true,
+      onConfirm: async ({ createBackup }) => {
+        if (!window.diffxAPI?.deleteFile) {
+          onUpdateStatus('File deletion is only supported in the native desktop app.');
+          return;
+        }
+
+        try {
+          if (side === 'left' || side === 'both') {
+            if (entry.left.exists) {
+              const res = await window.diffxAPI.deleteFile({ filePath: leftPath, createBackup });
+              if (!res.success) {
+                setScanError(`Delete failed on Left: ${res.error}`);
+                return;
+              }
+            }
+          }
+          if (side === 'right' || side === 'both') {
+            if (entry.right.exists) {
+              const res = await window.diffxAPI.deleteFile({ filePath: rightPath, createBackup });
+              if (!res.success) {
+                setScanError(`Delete failed on Right: ${res.error}`);
+                return;
+              }
+            }
+          }
+          onUpdateStatus(`Deleted '${entry.name}' successfully`);
+          handleStartCompare();
+        } catch (err: unknown) {
+          const m = err instanceof Error ? err.message : String(err);
+          setScanError(`Delete error: ${m}`);
+        }
+      },
+      onCancel: () => {},
+    });
+  };
+
   // Keyboard shortcuts: Alt+Right / Alt+Left for transferring selected file
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -454,7 +547,18 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
     return (
       <React.Fragment key={node.relativePath}>
         <div
-          onClick={() => setSelectedEntry(node)}
+          onClick={() => {
+            setSelectedEntry(node);
+            if (node.isDirectory) {
+              toggleFolder(node.relativePath);
+            }
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setSelectedEntry(node);
+            setContextMenu({ x: e.clientX, y: e.clientY, node });
+          }}
           onDoubleClick={() => {
             if (node.isDirectory) {
               toggleFolder(node.relativePath);
@@ -1242,6 +1346,129 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 6. Right-Click Context Menu */}
+      {contextMenu && (
+        <div
+          className="fixed z-50 min-w-[210px] bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-md shadow-2xl py-1 text-xs font-sans text-neutral-800 dark:text-neutral-200 animate-in fade-in zoom-in-95 duration-75 select-none"
+          style={{
+            top: Math.min(contextMenu.y, window.innerHeight - 260),
+            left: Math.min(contextMenu.x, window.innerWidth - 230),
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="px-3 py-1.5 border-b border-neutral-200 dark:border-neutral-800 text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 truncate flex items-center space-x-1.5">
+            {contextMenu.node.isDirectory ? (
+              <Folder className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+            ) : (
+              <File className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" />
+            )}
+            <span className="truncate">{contextMenu.node.name}</span>
+          </div>
+
+          {/* Delete Options */}
+          {contextMenu.node.left.exists && (
+            <button
+              onClick={() => handleDeleteEntry(contextMenu.node, 'left')}
+              className="w-full text-left px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-950/60 hover:text-red-600 dark:hover:text-red-400 flex items-center space-x-2 text-red-600 dark:text-red-400 transition cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>Delete Left {contextMenu.node.isDirectory ? 'Folder' : 'File'}</span>
+            </button>
+          )}
+
+          {contextMenu.node.right.exists && (
+            <button
+              onClick={() => handleDeleteEntry(contextMenu.node, 'right')}
+              className="w-full text-left px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-950/60 hover:text-red-600 dark:hover:text-red-400 flex items-center space-x-2 text-red-600 dark:text-red-400 transition cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>Delete Right {contextMenu.node.isDirectory ? 'Folder' : 'File'}</span>
+            </button>
+          )}
+
+          {contextMenu.node.left.exists && contextMenu.node.right.exists && (
+            <button
+              onClick={() => handleDeleteEntry(contextMenu.node, 'both')}
+              className="w-full text-left px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-950/60 hover:text-red-600 dark:hover:text-red-400 flex items-center space-x-2 text-red-600 dark:text-red-400 transition cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>Delete Both Sides</span>
+            </button>
+          )}
+
+          <div className="my-1 border-t border-neutral-200 dark:border-neutral-800" />
+
+          {/* Text compare if file */}
+          {!contextMenu.node.isDirectory && result && (
+            <button
+              onClick={() => {
+                const node = contextMenu.node;
+                setContextMenu(null);
+                onOpenInTextCompare(
+                  `${result.leftRoot}/${node.relativePath}`,
+                  `${result.rightRoot}/${node.relativePath}`
+                );
+              }}
+              className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center space-x-2 transition cursor-pointer"
+            >
+              <FileCode2 className="w-3.5 h-3.5 flex-shrink-0 text-blue-500" />
+              <span>Compare in Text Editor</span>
+            </button>
+          )}
+
+          {/* Copy actions */}
+          {contextMenu.node.left.exists && (
+            <button
+              onClick={() => {
+                const node = contextMenu.node;
+                setContextMenu(null);
+                handleCopyLeftToRight(node);
+              }}
+              className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center space-x-2 transition cursor-pointer"
+            >
+              <ChevronRight className="w-3.5 h-3.5 flex-shrink-0 text-blue-500" />
+              <span>Copy Left &rarr; Right</span>
+            </button>
+          )}
+
+          {contextMenu.node.right.exists && (
+            <button
+              onClick={() => {
+                const node = contextMenu.node;
+                setContextMenu(null);
+                handleCopyRightToLeft(node);
+              }}
+              className="w-full text-left px-3 py-1.5 hover:bg-blue-600 hover:text-white flex items-center space-x-2 transition cursor-pointer"
+            >
+              <ChevronLeft className="w-3.5 h-3.5 flex-shrink-0 text-purple-500" />
+              <span>Copy Right &rarr; Left</span>
+            </button>
+          )}
+
+          {/* Open in explorer / finder */}
+          {result && (
+            <>
+              <div className="my-1 border-t border-neutral-200 dark:border-neutral-800" />
+              <button
+                onClick={() => {
+                  const node = contextMenu.node;
+                  setContextMenu(null);
+                  const p = node.left.exists
+                    ? `${result.leftRoot}/${node.relativePath}`
+                    : `${result.rightRoot}/${node.relativePath}`;
+                  window.diffxAPI?.openInSystemExplorer?.(p);
+                }}
+                className="w-full text-left px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center space-x-2 text-neutral-600 dark:text-neutral-400 transition cursor-pointer"
+              >
+                <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>Show in System Explorer</span>
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

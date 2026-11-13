@@ -7,6 +7,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import {
   CopyRequest,
+  DeleteRequest,
   FolderComparisonOptions,
   FolderComparisonResult,
   SaveRequest,
@@ -15,7 +16,7 @@ import {
 } from '../shared/types.js';
 import { scanDirectory, ScanContext } from './fs-engine/scanner.js';
 import { matchEntries } from '../shared/comparison-engine/matcher.js';
-import { copySafeFile, readSafeFile, saveSafeFile } from './fs-engine/safe-fs.js';
+import { copySafeFile, deleteSafeFile, readSafeFile, saveSafeFile } from './fs-engine/safe-fs.js';
 import { compareStructuredData } from '../shared/comparison-engine/structured.js';
 
 let activeScanContext: ScanContext | null = null;
@@ -183,6 +184,22 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       };
     }
     return await copySafeFile(request as CopyRequest);
+  });
+
+  // Safe File / Directory Delete
+  ipcMain.handle('file:delete', async (_event, request: unknown) => {
+    if (
+      !request ||
+      typeof request !== 'object' ||
+      typeof (request as DeleteRequest).filePath !== 'string'
+    ) {
+      return {
+        success: false,
+        filePath: '',
+        error: 'Invalid DeleteRequest payload provided to IPC.',
+      };
+    }
+    return await deleteSafeFile(request as DeleteRequest);
   });
 
   // Structured Compare

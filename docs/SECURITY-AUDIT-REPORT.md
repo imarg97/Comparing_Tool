@@ -17,8 +17,9 @@ A comprehensive, defense-in-depth **Second Security Audit** was executed across 
 - **Total Threat Boundaries Analyzed**: 4 primary boundaries (Renderer, Preload Bridge, Main Process, OS Filesystem).
 - **Vulnerabilities Identified & Remediated**: 7 of 7 resolved in source code (1 Critical, 2 High, 2 Medium, 2 Low).
 - **Open High or Critical Vulnerabilities**: **0 (Zero)**.
-- **Automated Security & Regression Tests**: **81 of 81 tests passing cleanly (100% pass rate)**.
+- **Automated Security & Regression Tests**: **83 of 83 tests passing cleanly (100% pass rate)**.
 - **Data Privacy & Exfiltration Risk**: **Zero (Air-Gapped / No Telemetry / Local-Only Memory Computation)**.
+- **Safe Deletion Controls**: **Cryptographically bounded, path-traversal immune file deletion with mandatory user confirmation modal and optional safety backups**.
 
 ---
 

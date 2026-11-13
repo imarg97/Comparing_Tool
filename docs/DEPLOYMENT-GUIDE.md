@@ -69,22 +69,31 @@ ssh root@10.10.84.22
 cd /root/DiffX
 tar -xzf mDiff-internal-web-deployment.tar.gz
 cd mdiff
-chmod +x *.sh
+chmod +x *.sh *.py
 ./start-server.sh 8097
 ```
 
 The script automatically probes the system:
-1. Detects `docker` or `podman`.
-2. Starts containerized Nginx on port `8097`.
-3. If container engines are locked or restricted, gracefully falls back to standalone Python 3:
-   ```bash
-   python3 -m http.server 8097 --bind 0.0.0.0
-   ```
-4. Prints the live internal URL: `http://10.10.84.22:8097`.
+1. **Container Engine (Docker / Podman)**: Uses fully-qualified image names (`docker.io/library/nginx:alpine`) with SELinux `:ro,Z` volume mounts and `/dev/null` redirection to prevent interactive terminal prompts or SELinux permission denials.
+2. **Python 3 High-Performance Server (`serve.py`)**: When container engines are absent or restricted, automatically starts `serve.py`—a multi-threaded `ThreadingHTTPServer` with guaranteed ES Module MIME types (`.js` as `application/javascript`, `.wasm` as `application/wasm`, `.css` as `text/css`) and SPA routing fallback.
+3. Prints the live internal URL: `http://10.10.84.22:8097`.
 
 ---
 
-## 4. Operational Maintenance
+## 4. Troubleshooting: Infinite Loading / Blank Screen Resolution
+
+### Root Cause Analysis (Why `python3 -m http.server` hung)
+1. **ES Module MIME Type Enforcement**: Modern browsers (Edge / Chrome) strictly enforce MIME types for `<script type="module">`. On minimal enterprise RHEL/CentOS systems without `/etc/mime.types` installed, the default Python CLI `http.server` serves `.js` files as `text/plain` or `application/octet-stream`. The browser refuses to execute the script for security reasons and hangs indefinitely.
+2. **Single-Threaded Socket Starvation**: Python's built-in `http.server` module CLI is single-threaded. When a modern browser fires concurrent requests for the 4MB JS bundle, stylesheet, and web workers over VPN, connections queue and timeout.
+3. **Container Registry Prompts**: On RHEL systems, calling unqualified `nginx:alpine` in Podman triggered an interactive prompt (`? Please select an image:`), blocking non-interactive startup.
+
+### The Permanent Fix in v3.7.0
+- **`serve.py`**: Custom multi-threaded server using Python's `ThreadingHTTPServer` with an explicit in-memory MIME dictionary, cache control headers, and single-page-app routing fallback.
+- **Enhanced `start-server.sh`**: Directly wires `serve.py`, adds SELinux `:ro,Z` volume flags for containers, suppresses interactive prompts, and writes verified logs to `mdiff.log`.
+
+---
+
+## 5. Operational Maintenance
 
 ### Check Service Status
 ```bash

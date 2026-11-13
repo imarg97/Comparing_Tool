@@ -86,14 +86,27 @@ Designed specifically for cellular network parameters, Kubernetes manifests, and
 Designed for entire directory trees, firmware bundles, and release folders.
 
 1. **Selecting Directories**:
-   - Select Left Root and Right Root directories.
-   - The recursive scanner indexes the directory trees in background threads.
-2. **Comparison Criteria**:
+   - Select Left Root and Right Root directories via the **Browse** buttons or by dragging and dropping folders directly onto the Left / Right headers.
+   - The recursive scanner indexes directory trees in background threads with zero UI freezing.
+2. **Beyond Compare Collapsed Tree Paradigm**:
+   - **Default Initial Collapsed View**: Following the Beyond Compare paradigm, directories start collapsed at the root level upon comparison. This allows engineers navigating multi-gigabyte or deeply nested folder structures to immediately see high-level summary counts without being overwhelmed by thousands of expanded sub-files.
+   - **Click Anywhere on Folder to Open / Close**: Clicking anywhere along a folder row (folder icon, name, or metadata) instantly toggles folder expansion open or closed (no need to hunt for the small chevron arrow).
+   - **Global Expand / Collapse**: Use the `+^ Expand` and `-^ Collapse` buttons in the toolbar to expand or collapse all subdirectories at once.
+3. **Right-Click Context Menu & Safe Deletion**:
+   - Right-click any file or folder (e.g. `desktop.ini`, temporary caches, or orphan files) to reveal the contextual action menu:
+     - **Delete Left File...** / **Delete Right File...**: Safely remove an unwanted file or folder from either side with an explicit confirmation dialog.
+     - **Delete Both Sides...**: Simultaneously delete corresponding items from both directories.
+     - **Compare in Text Editor**: Immediately open the selected file pair directly in Text Compare (`Ctrl+2`).
+     - **Copy Left to Right** / **Copy Right to Left**: Synchronize individual files.
+     - **Show in System Explorer**: Open the containing folder in Windows Explorer or macOS Finder.
+   - **Safe Deletion Engine**: Prevents path traversal (`..`), protects Windows reserved devices (`CON`, `PRN`, `AUX`, `NUL`), and optionally creates timestamped `.bak.<timestamp>` safety copies before removal.
+4. **Comparison Criteria**:
    - **Timestamp & File Size**: Instant initial reconciliation.
    - **Cryptographic SHA-256 Hash**: Deep bit-level verification of file contents.
-3. **Difference Filtering**:
+5. **Difference Filtering**:
    - Toggle **All** (show every file), **Diffs** (show only differing or orphan files), or **Same** (show identical files).
-4. **Safe In-Place Synchronization**:
+   - Filter by **Left Orphans** or **Right Orphans** to identify files unique to one side.
+6. **Safe In-Place Synchronization**:
    - Copy files from Left to Right or Right to Left directly.
    - **Safety Backup Copy**: Automatically generates a timestamped `.bak.timestamp` copy before overwriting any file on disk.
 

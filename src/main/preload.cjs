@@ -92,6 +92,9 @@ const api = {
   copyFile: (request) =>
     ipcRenderer.invoke('file:copy', request),
 
+  deleteFile: (request) =>
+    ipcRenderer.invoke('file:delete', request),
+
   compareStructured: (request) =>
     ipcRenderer.invoke('structured:compare', request),
 

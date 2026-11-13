@@ -39,10 +39,13 @@ docker compose up -d
 docker run -d --name mdiff-web --restart unless-stopped -p 8097:80 -v $(pwd)/dist:/usr/share/nginx/html:ro docker.io/library/nginx:alpine
 ```
 
-### Option 2: Standalone Linux Server (Python 3 - Offline Zero-Dependency)
+### Option 2: Standalone Linux Server (Python 3 - Threaded, Zero-Dependency)
 ```bash
-cd dist
-nohup python3 -m http.server 8097 --bind 0.0.0.0 > ../mdiff.log 2>&1 &
+# Start multi-threaded server with guaranteed MIME types and SPA fallback:
+./start-server.sh 8097
+
+# Or run directly via Python 3:
+nohup python3 serve.py 8097 > mdiff.log 2>&1 &
 ```
 
 ### Option 3: Standard Enterprise Nginx

@@ -8,6 +8,8 @@ import * as crypto from 'crypto';
 import {
   CopyRequest,
   CopyResult,
+  DeleteRequest,
+  DeleteResult,
   FileContentResult,
   SaveRequest,
   SaveResult,
@@ -367,6 +369,73 @@ export async function copySafeFile(request: CopyRequest): Promise<CopyResult> {
       sourcePath: src,
       destinationPath: dest,
       error: `Failed to copy file: ${msg}`,
+    };
+  }
+}
+
+export async function deleteSafeFile(request: DeleteRequest): Promise<DeleteResult> {
+  const { filePath, createBackup = false } = request;
+
+  if (!filePath || typeof filePath !== 'string' || filePath.includes('\0')) {
+    return {
+      success: false,
+      filePath: filePath || '',
+      error: 'Invalid file path or null byte detected.',
+    };
+  }
+
+  if (isWindowsReservedDeviceName(filePath)) {
+    return {
+      success: false,
+      filePath,
+      error: 'Access to Windows reserved device name is prohibited.',
+    };
+  }
+
+  const resolved = path.resolve(filePath);
+
+  if (!fs.existsSync(resolved)) {
+    return {
+      success: false,
+      filePath: resolved,
+      error: `Target path does not exist: ${resolved}`,
+    };
+  }
+
+  let backupPath: string | undefined;
+  if (createBackup) {
+    try {
+      backupPath = `${resolved}.bak.${Date.now()}`;
+      await fs.promises.copyFile(resolved, backupPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return {
+        success: false,
+        filePath: resolved,
+        error: `Could not create safety backup before deletion: ${msg}`,
+      };
+    }
+  }
+
+  try {
+    const stat = await fs.promises.stat(resolved);
+    if (stat.isDirectory()) {
+      await fs.promises.rm(resolved, { recursive: true, force: true });
+    } else {
+      await fs.promises.unlink(resolved);
+    }
+
+    return {
+      success: true,
+      filePath: resolved,
+      backupPath,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      success: false,
+      filePath: resolved,
+      error: `Failed to delete path: ${msg}`,
     };
   }
 }

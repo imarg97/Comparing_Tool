@@ -110,6 +110,18 @@ export interface SaveResult {
   error?: string;
 }
 
+export interface DeleteRequest {
+  filePath: string;
+  createBackup?: boolean;
+}
+
+export interface DeleteResult {
+  success: boolean;
+  filePath: string;
+  backupPath?: string;
+  error?: string;
+}
+
 export type StructuredFormat = 'yaml' | 'json' | 'xml';
 
 export interface StructuredDiffRequest {
@@ -175,6 +187,7 @@ export interface DiffxPreloadAPI {
   readFile: (filePath: string, maxBytes?: number, side?: 'left' | 'right') => Promise<FileContentResult>;
   saveFile: (request: SaveRequest) => Promise<SaveResult>;
   copyFile: (request: CopyRequest) => Promise<CopyResult>;
+  deleteFile?: (request: DeleteRequest) => Promise<DeleteResult>;
 
   // Structured Compare
   compareStructured: (request: StructuredDiffRequest) => Promise<StructuredDiffResult>;
@@ -189,5 +202,6 @@ export interface DiffxPreloadAPI {
 declare global {
   interface Window {
     diffxAPI?: DiffxPreloadAPI;
+    mdiffAPI?: DiffxPreloadAPI;
   }
 }

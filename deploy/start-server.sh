@@ -38,7 +38,7 @@ if is_port_in_use "$PORT"; then
     exit 1
 fi
 
-# Strategy 1: Docker / Podman (Containerized)
+# Strategy 1: Docker / Podman (Containerized with SELinux support)
 CONTAINER_CLI=""
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
     CONTAINER_CLI="docker"
@@ -48,20 +48,21 @@ fi
 
 if [ -n "$CONTAINER_CLI" ]; then
     echo "[INFO] $CONTAINER_CLI detected. Attempting to start container on port $PORT..."
-    $CONTAINER_CLI rm -f diffx-web 2>/dev/null || true
+    $CONTAINER_CLI rm -f mdiff-web diffx-web 2>/dev/null || true
     
-    # Try running container
+    # Try running container with SELinux :ro,Z and custom nginx.conf
     if $CONTAINER_CLI run -d \
-        --name diffx-web \
+        --name mdiff-web \
         --restart unless-stopped \
         -p "${PORT}:80" \
-        -v "$SCRIPT_DIR/dist":/usr/share/nginx/html:ro \
+        -v "$SCRIPT_DIR/dist":/usr/share/nginx/html:ro,Z \
+        -v "$SCRIPT_DIR/nginx.conf":/etc/nginx/conf.d/default.conf:ro,Z \
         docker.io/library/nginx:alpine </dev/null 2>/dev/null; then
         
         sleep 1
         echo ""
         echo "=========================================================="
-        echo " SUCCESS! DiffX is live via $CONTAINER_CLI container"
+        echo " SUCCESS! mDiff is live via $CONTAINER_CLI container"
         echo " Accessible URL : http://${SERVER_IP}:${PORT}"
         echo " To stop        : ./stop-server.sh"
         echo "=========================================================="
@@ -71,21 +72,20 @@ if [ -n "$CONTAINER_CLI" ]; then
     fi
 fi
 
-# Strategy 2: Python 3 HTTP Server (Standard on RHEL / CentOS / Linux)
+# Strategy 2: Python 3 Threaded HTTP Server (Ultra-Reliable on RHEL / CentOS / Linux)
 if command -v python3 >/dev/null 2>&1; then
-    echo "[INFO] Starting standalone Python 3 HTTP server on 0.0.0.0:$PORT..."
-    cd "$SCRIPT_DIR/dist"
-    nohup python3 -m http.server "$PORT" --bind 0.0.0.0 > "$SCRIPT_DIR/diffx.log" 2>&1 &
+    echo "[INFO] Starting high-performance multi-threaded Python 3 server on 0.0.0.0:$PORT..."
+    nohup python3 "$SCRIPT_DIR/serve.py" "$PORT" > "$SCRIPT_DIR/mdiff.log" 2>&1 &
     PID=$!
-    echo "$PID" > "$SCRIPT_DIR/diffx.pid"
+    echo "$PID" > "$SCRIPT_DIR/mdiff.pid"
     
     sleep 1
     if kill -0 "$PID" 2>/dev/null; then
         echo ""
         echo "=========================================================="
-        echo " SUCCESS! DiffX is running in background (PID: $PID)"
+        echo " SUCCESS! mDiff is running in background (PID: $PID)"
         echo " Accessible URL : http://${SERVER_IP}:${PORT}"
-        echo " Logs           : tail -f $SCRIPT_DIR/diffx.log"
+        echo " Logs           : tail -f $SCRIPT_DIR/mdiff.log"
         echo " To stop        : ./stop-server.sh"
         echo "=========================================================="
         exit 0
@@ -97,13 +97,13 @@ fi
 if command -v npx >/dev/null 2>&1; then
     echo "[INFO] Starting Node.js static server on port $PORT..."
     cd "$SCRIPT_DIR/dist"
-    nohup npx -y serve -s . -l "$PORT" > "$SCRIPT_DIR/diffx.log" 2>&1 &
+    nohup npx -y serve -s . -l "$PORT" > "$SCRIPT_DIR/mdiff.log" 2>&1 &
     PID=$!
-    echo "$PID" > "$SCRIPT_DIR/diffx.pid"
+    echo "$PID" > "$SCRIPT_DIR/mdiff.pid"
     
     echo ""
     echo "=========================================================="
-    echo " SUCCESS! DiffX is running in background (PID: $PID)"
+    echo " SUCCESS! mDiff is running in background (PID: $PID)"
     echo " Accessible URL : http://${SERVER_IP}:${PORT}"
     echo " To stop        : ./stop-server.sh"
     echo "=========================================================="

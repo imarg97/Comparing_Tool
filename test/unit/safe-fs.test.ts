@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import {
   copySafeFile,
+  deleteSafeFile,
   readSafeFile,
   saveSafeFile,
 } from '../../src/main/fs-engine/safe-fs.js';
@@ -133,5 +134,34 @@ describe('Safe Filesystem Operations', () => {
     });
     expect(copyRes.success).toBe(false);
     expect(copyRes.error).toContain('Null bytes detected');
+  });
+
+  it('safely deletes files with backup', async () => {
+    const targetFile = path.join(tempTestDir, 'to_delete.txt');
+    await fs.promises.writeFile(targetFile, 'content before delete');
+
+    const delRes = await deleteSafeFile({
+      filePath: targetFile,
+      createBackup: true,
+    });
+
+    expect(delRes.success).toBe(true);
+    expect(fs.existsSync(targetFile)).toBe(false);
+    expect(delRes.backupPath).toBeDefined();
+    if (delRes.backupPath) {
+      expect(fs.existsSync(delRes.backupPath)).toBe(true);
+      const backupContent = await fs.promises.readFile(delRes.backupPath, 'utf-8');
+      expect(backupContent).toBe('content before delete');
+    }
+  });
+
+  it('rejects delete requests on Windows reserved names or null bytes', async () => {
+    const delNull = await deleteSafeFile({ filePath: 'file\0.txt' });
+    expect(delNull.success).toBe(false);
+    expect(delNull.error).toContain('Invalid file path or null byte');
+
+    const delReserved = await deleteSafeFile({ filePath: 'CON' });
+    expect(delReserved.success).toBe(false);
+    expect(delReserved.error).toContain('Windows reserved device name');
   });
 });

@@ -9,6 +9,7 @@ import {
   FolderComparisonResult,
   SaveRequest,
   CopyRequest,
+  DeleteRequest,
   StructuredDiffRequest,
   ScanProgress,
 } from '@shared/types.js';
@@ -489,6 +490,13 @@ export function createBrowserFallbackAPI(): DiffxPreloadAPI {
         success: true,
         sourcePath: request.sourcePath,
         destinationPath: request.destinationPath,
+      };
+    },
+
+    deleteFile: async (request: DeleteRequest) => {
+      return {
+        success: true,
+        filePath: request.filePath,
       };
     },
 

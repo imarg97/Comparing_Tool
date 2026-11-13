@@ -5,6 +5,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import {
   CopyRequest,
+  DeleteRequest,
   DiffxPreloadAPI,
   FolderComparisonOptions,
   SaveRequest,
@@ -98,6 +99,9 @@ const api: DiffxPreloadAPI = {
 
   copyFile: (request: CopyRequest) =>
     ipcRenderer.invoke('file:copy', request),
+
+  deleteFile: (request: DeleteRequest) =>
+    ipcRenderer.invoke('file:delete', request),
 
   compareStructured: (request: StructuredDiffRequest) =>
     ipcRenderer.invoke('structured:compare', request),
