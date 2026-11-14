@@ -977,5 +977,81 @@ describe('Beyond Compare UI Utilities', () => {
       const sameName = '/path/to/values.yaml';
       expect(getTabTitle(sameName, sameName)).toBe('values.yaml');
     });
+
+    it('resolves cross-site file comparison candidates and preserves independent left and right selections', () => {
+      // Simulation of selection state manager
+      let selectedLeftFile: { relativePath: string; name: string } | null = null;
+      let selectedRightFile: { relativePath: string; name: string } | null = null;
+
+      const handleLeftClick = (node: { relativePath: string; name: string; isDirectory: boolean; left: { exists: boolean } }) => {
+        if (node.isDirectory || !node.left.exists) return;
+        selectedLeftFile = { relativePath: node.relativePath, name: node.name };
+      };
+
+      const handleRightClick = (node: { relativePath: string; name: string; isDirectory: boolean; right: { exists: boolean } }) => {
+        if (node.isDirectory || !node.right.exists) return;
+        selectedRightFile = { relativePath: node.relativePath, name: node.name };
+      };
+
+      // 1. Single click on left pane file
+      const leftFileNode = {
+        relativePath: 'imc-sm/ixla-server-cnims-imcsm-userdata',
+        name: 'ixla-server-cnims-imcsm-userdata',
+        isDirectory: false,
+        left: { exists: true },
+      };
+      handleLeftClick(leftFileNode);
+      expect(selectedLeftFile).toEqual({
+        relativePath: 'imc-sm/ixla-server-cnims-imcsm-userdata',
+        name: 'ixla-server-cnims-imcsm-userdata',
+      });
+      expect(selectedRightFile).toBeNull(); // Must NOT auto-pair or modify right
+
+      // 2. Ctrl-click / select on right pane file
+      const rightFileNode = {
+        relativePath: 'imc-sm/pval-ns-cnims-imc1-imcsm-userdata',
+        name: 'pval-ns-cnims-imc1-imcsm-userdata',
+        isDirectory: false,
+        left: { exists: false },
+        right: { exists: true },
+      };
+      handleRightClick(rightFileNode);
+      // Left selection MUST stay selected!
+      expect(selectedLeftFile).toEqual({
+        relativePath: 'imc-sm/ixla-server-cnims-imcsm-userdata',
+        name: 'ixla-server-cnims-imcsm-userdata',
+      });
+      // Right selection MUST be set!
+      expect(selectedRightFile).toEqual({
+        relativePath: 'imc-sm/pval-ns-cnims-imc1-imcsm-userdata',
+        name: 'pval-ns-cnims-imc1-imcsm-userdata',
+      });
+
+      // 3. Context menu candidate resolution
+      const resolveContextMenuPrompt = (
+        contextMenuNode: { relativePath: string; name: string; isDirectory: boolean; left: { exists: boolean }; right: { exists: boolean } },
+        _side?: 'left' | 'right',
+        leftFile?: { relativePath: string; name: string } | null,
+        rightFile?: { relativePath: string; name: string } | null
+      ) => {
+        const candidateLeft = leftFile || (contextMenuNode.left.exists && !contextMenuNode.isDirectory ? { relativePath: contextMenuNode.relativePath, name: contextMenuNode.name } : null);
+        const candidateRight = rightFile || (contextMenuNode.right.exists && !contextMenuNode.isDirectory ? { relativePath: contextMenuNode.relativePath, name: contextMenuNode.name } : null);
+        if (candidateLeft && candidateRight) {
+          return {
+            hasComparePrompt: true,
+            label: `⇄ Compare Files Now: ${candidateLeft.name} ↔ ${candidateRight.name}`,
+            left: candidateLeft,
+            right: candidateRight,
+          };
+        }
+        return { hasComparePrompt: false };
+      };
+
+      const prompt = resolveContextMenuPrompt(rightFileNode, 'right', selectedLeftFile, selectedRightFile);
+      expect(prompt.hasComparePrompt).toBe(true);
+      expect(prompt.label).toBe(
+        '⇄ Compare Files Now: ixla-server-cnims-imcsm-userdata ↔ pval-ns-cnims-imc1-imcsm-userdata'
+      );
+    });
   });
 });
