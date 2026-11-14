@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# DiffX / mDiff v3.7.0 — Mavenir Internal Web Server Launcher
+# mDiff v3.7.0 — Mavenir Internal Web Server Launcher
 # Developed by im_arg
 # ==============================================================================
 
@@ -30,35 +30,68 @@ is_port_in_use() {
     return 1
 }
 
-if is_port_in_use "$PORT"; then
-    echo "[ERROR] Port $PORT is ALREADY IN USE on this server!"
-    echo "Currently listening ports around $PORT:"
-    (ss -tuln 2>/dev/null || netstat -tuln 2>/dev/null) | grep -E ":(809[0-9]|808[0-9])\b" || true
-    echo "Please specify a free port. Example: ./start-server.sh 8098"
-    exit 1
+# Stop any previous instance started from this folder
+if [ -f "$SCRIPT_DIR/stop-server.sh" ]; then
+    bash "$SCRIPT_DIR/stop-server.sh" >/dev/null 2>&1 || true
 fi
 
-# Strategy 1: Docker / Podman (Containerized with SELinux support)
+if is_port_in_use "$PORT"; then
+    echo "[WARN] Port $PORT is currently in use. Checking for existing mDiff/python processes..."
+    # If an older serve.py is running on this port, kill it
+    OLD_PID=$(lsof -ti :"$PORT" 2>/dev/null || ss -tulpn 2>/dev/null | grep ":$PORT\b" | grep -o 'pid=[0-9]*' | cut -d= -f2 || true)
+    if [ -n "$OLD_PID" ]; then
+        echo "[INFO] Terminating previous process on port $PORT (PID: $OLD_PID)..."
+        kill -9 $OLD_PID 2>/dev/null || true
+        sleep 1
+    fi
+    
+    if is_port_in_use "$PORT"; then
+        echo "[ERROR] Port $PORT is STILL in use by another non-mDiff service!"
+        echo "Currently listening ports around $PORT:"
+        (ss -tuln 2>/dev/null || netstat -tuln 2>/dev/null) | grep -E ":(809[0-9]|808[0-9])\b" || true
+        echo "Please specify a free port. Example: ./start-server.sh 8098"
+        exit 1
+    fi
+fi
+
+# Strategy 1: Container Engine (Podman or Docker) with Local Image Detection
 CONTAINER_CLI=""
-if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
-    CONTAINER_CLI="docker"
-elif command -v podman >/dev/null 2>&1; then
+if command -v podman >/dev/null 2>&1; then
     CONTAINER_CLI="podman"
+elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    CONTAINER_CLI="docker"
 fi
 
 if [ -n "$CONTAINER_CLI" ]; then
-    echo "[INFO] $CONTAINER_CLI detected. Attempting to start container on port $PORT..."
-    $CONTAINER_CLI rm -f mdiff-web diffx-web 2>/dev/null || true
+    echo "[INFO] $CONTAINER_CLI detected. Scanning for cached Nginx container images..."
+    $CONTAINER_CLI rm -f mdiff-web diffx-web >/dev/null 2>&1 || true
     
-    # Try running container with SELinux :ro,Z and custom nginx.conf
-    if $CONTAINER_CLI run -d \
-        --name mdiff-web \
-        --restart unless-stopped \
-        -p "${PORT}:80" \
-        -v "$SCRIPT_DIR/dist":/usr/share/nginx/html:ro,Z \
-        -v "$SCRIPT_DIR/nginx.conf":/etc/nginx/conf.d/default.conf:ro,Z \
-        docker.io/library/nginx:alpine </dev/null 2>/dev/null; then
-        
+    # Identify any local nginx image (e.g. registry.access.redhat.com/nginx:alpine, docker.io/library/nginx:alpine, etc.)
+    LOCAL_IMG=$($CONTAINER_CLI images --format "{{.Repository}}:{{.Tag}}" 2>/dev/null | grep -E "nginx" | head -n 1)
+    if [ -z "$LOCAL_IMG" ]; then
+        LOCAL_IMG=$($CONTAINER_CLI images --format "{{.Repository}}" 2>/dev/null | grep -E "nginx" | head -n 1)
+    fi
+    
+    # Candidate images if nothing was found in local storage
+    CANDIDATES=("$LOCAL_IMG" "registry.access.redhat.com/nginx:alpine" "registry.redhat.io/nginx:alpine" "docker.io/library/nginx:alpine" "nginx:alpine")
+    
+    CONTAINER_STARTED=false
+    for img in "${CANDIDATES[@]}"; do
+        if [ -n "$img" ]; then
+            echo "[INFO] Trying container image: $img..."
+            if $CONTAINER_CLI run -d \
+                --name mdiff-web \
+                --restart unless-stopped \
+                -p "${PORT}:80" \
+                -v "$SCRIPT_DIR/dist":/usr/share/nginx/html:ro,Z \
+                "$img" >/dev/null 2>&1; then
+                CONTAINER_STARTED=true
+                break
+            fi
+        fi
+    done
+    
+    if [ "$CONTAINER_STARTED" = true ]; then
         sleep 1
         echo ""
         echo "=========================================================="
@@ -68,29 +101,39 @@ if [ -n "$CONTAINER_CLI" ]; then
         echo "=========================================================="
         exit 0
     else
-        echo "[WARN] $CONTAINER_CLI container failed (offline image or permissions). Falling back to Python 3..."
+        echo "[WARN] Container launch did not succeed. Falling back to universal Python 3 server..."
     fi
 fi
 
-# Strategy 2: Python 3 Threaded HTTP Server (Ultra-Reliable on RHEL / CentOS / Linux)
+# Strategy 2: Python 3 Universal Threaded Server (Rock Solid on RHEL / CentOS / Linux)
 if command -v python3 >/dev/null 2>&1; then
-    echo "[INFO] Starting high-performance multi-threaded Python 3 server on 0.0.0.0:$PORT..."
-    nohup python3 "$SCRIPT_DIR/serve.py" "$PORT" > "$SCRIPT_DIR/mdiff.log" 2>&1 &
+    echo "[INFO] Launching universal Python 3 threaded server on port $PORT..."
+    nohup python3 -u "$SCRIPT_DIR/serve.py" "$PORT" > "$SCRIPT_DIR/mdiff.log" 2>&1 &
     PID=$!
     echo "$PID" > "$SCRIPT_DIR/mdiff.pid"
     
     sleep 1
     if kill -0 "$PID" 2>/dev/null; then
+        # Perform instant local HTTP verification
+        HTTP_CODE=""
+        if command -v curl >/dev/null 2>&1; then
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${PORT}/" 2>/dev/null || true)
+        fi
+        
         echo ""
         echo "=========================================================="
         echo " SUCCESS! mDiff is running in background (PID: $PID)"
         echo " Accessible URL : http://${SERVER_IP}:${PORT}"
+        if [ -n "$HTTP_CODE" ]; then
+            echo " Health Check   : HTTP $HTTP_CODE (Live & Responding)"
+        fi
         echo " Logs           : tail -f $SCRIPT_DIR/mdiff.log"
         echo " To stop        : ./stop-server.sh"
         echo "=========================================================="
         exit 0
     fi
-    echo "[WARN] Python server failed to bind. Trying Node.js..."
+    echo "[WARN] Python server did not start. Check $SCRIPT_DIR/mdiff.log:"
+    tail -n 10 "$SCRIPT_DIR/mdiff.log" 2>/dev/null || true
 fi
 
 # Strategy 3: Node.js / npx serve
@@ -110,6 +153,5 @@ if command -v npx >/dev/null 2>&1; then
     exit 0
 fi
 
-echo "[ERROR] Neither Docker, Podman, Python 3, nor Node.js was found on this server."
-echo "Please install Docker, Podman, Python 3, or Nginx to host DiffX."
+echo "[ERROR] Neither Podman/Docker, Python 3, nor Node.js could start mDiff on this server."
 exit 1
