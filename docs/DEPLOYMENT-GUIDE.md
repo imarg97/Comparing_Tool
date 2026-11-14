@@ -66,8 +66,8 @@ scp release/mDiff-internal-web-deployment.tar.gz root@10.10.84.22:/root/DiffX/
 Log into the server and run the automated launcher:
 ```bash
 ssh root@10.10.84.22
-cd /root/DiffX
-tar -xzf mDiff-internal-web-deployment.tar.gz
+# Extract (automatically creates the mdiff/ directory with zero Apple xattr noise)
+tar -xvf mDiff-internal-web-deployment.tar.gz
 cd mdiff
 chmod +x *.sh *.py
 ./start-server.sh 8097

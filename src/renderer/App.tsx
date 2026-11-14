@@ -284,10 +284,12 @@ export const App: React.FC = () => {
     addRecent('text', left, right);
     setActiveTab('text');
 
+    const leftName = left.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || '';
+    const rightName = right.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || '';
     const fileName =
-      left.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ||
-      right.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ||
-      'values.yaml';
+      leftName && rightName && leftName !== rightName
+        ? `${leftName} ↔ ${rightName}`
+        : leftName || rightName || 'values.yaml';
 
     setSessionTabs((prev) => {
       const existing = prev.find((t) => t.leftPath === left && t.rightPath === right);

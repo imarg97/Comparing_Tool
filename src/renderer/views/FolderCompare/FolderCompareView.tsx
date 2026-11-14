@@ -95,10 +95,22 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
   });
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [selectedEntry, setSelectedEntry] = useState<ComparisonEntry | null>(null);
+
+  // Individual left and right file selections for cross-name / orphan comparison
+  const [selectedLeftFile, setSelectedLeftFile] = useState<{
+    relativePath: string;
+    name: string;
+  } | null>(null);
+  const [selectedRightFile, setSelectedRightFile] = useState<{
+    relativePath: string;
+    name: string;
+  } | null>(null);
+
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
     node: ComparisonEntry;
+    side?: 'left' | 'right';
   } | null>(null);
 
   // Zoom calculation
@@ -117,11 +129,20 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
     return false;
   };
 
-  // Close context menu on outside click or Escape
+  // Close context menu on outside click or Escape, and Enter key to compare selected pair
   useEffect(() => {
     const handleOutsideClick = () => setContextMenu(null);
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setContextMenu(null);
+      if (e.key === 'Enter') {
+        if (selectedLeftFile && selectedRightFile && result) {
+          e.preventDefault();
+          onOpenInTextCompare(
+            `${result.leftRoot}/${selectedLeftFile.relativePath}`,
+            `${result.rightRoot}/${selectedRightFile.relativePath}`
+          );
+        }
+      }
     };
     window.addEventListener('click', handleOutsideClick);
     window.addEventListener('keydown', handleKeyDown);
@@ -129,7 +150,7 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
       window.removeEventListener('click', handleOutsideClick);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [selectedLeftFile, selectedRightFile, result]);
 
   // Drag and drop states across whole page
   const [isDraggingLeft, setIsDraggingLeft] = useState(false);
@@ -302,6 +323,8 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
 
     setScanError(null);
     setIsScanning(true);
+    setSelectedLeftFile(null);
+    setSelectedRightFile(null);
     setScanProgress({ currentPath: 'Starting scanner...', scannedCount: 0, phase: 'scanning-left' });
     onUpdateStatus('Comparing directory trees...');
 
@@ -538,10 +561,129 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
     }));
   };
 
+  const handleCompareSelectedPair = () => {
+    if (!result) return;
+    if (selectedLeftFile && selectedRightFile) {
+      onOpenInTextCompare(
+        `${result.leftRoot}/${selectedLeftFile.relativePath}`,
+        `${result.rightRoot}/${selectedRightFile.relativePath}`
+      );
+    } else if (selectedEntry && !selectedEntry.isDirectory) {
+      if (selectedEntry.left.exists && selectedEntry.right.exists) {
+        onOpenInTextCompare(
+          `${result.leftRoot}/${selectedEntry.relativePath}`,
+          `${result.rightRoot}/${selectedEntry.relativePath}`
+        );
+      }
+    }
+  };
+
+  const handleLeftClick = (e: React.MouseEvent, node: ComparisonEntry) => {
+    e.stopPropagation();
+    setSelectedEntry(node);
+    if (node.isDirectory) {
+      toggleFolder(node.relativePath);
+      return;
+    }
+    if (!node.left.exists) return;
+
+    if (e.ctrlKey || e.metaKey) {
+      // Toggle Ctrl-click selection on the left
+      setSelectedLeftFile((prev) =>
+        prev?.relativePath === node.relativePath
+          ? null
+          : { relativePath: node.relativePath, name: node.name }
+      );
+      onUpdateStatus(`Selected left file: "${node.name}". Now Ctrl-click a file on the right to compare.`);
+    } else {
+      // Normal click: select as left file
+      setSelectedLeftFile({ relativePath: node.relativePath, name: node.name });
+      // If right side exists with same relativePath on this node and no different right file was Ctrl-selected, pair them
+      if (node.right.exists && (!selectedRightFile || selectedRightFile.relativePath === node.relativePath)) {
+        setSelectedRightFile({ relativePath: node.relativePath, name: node.name });
+      }
+    }
+  };
+
+  const handleRightClick = (e: React.MouseEvent, node: ComparisonEntry) => {
+    e.stopPropagation();
+    setSelectedEntry(node);
+    if (node.isDirectory) {
+      toggleFolder(node.relativePath);
+      return;
+    }
+    if (!node.right.exists) return;
+
+    if (e.ctrlKey || e.metaKey) {
+      // Toggle Ctrl-click selection on the right
+      setSelectedRightFile((prev) =>
+        prev?.relativePath === node.relativePath
+          ? null
+          : { relativePath: node.relativePath, name: node.name }
+      );
+      onUpdateStatus(`Selected right file: "${node.name}". Now Ctrl-click a file on the left to compare.`);
+    } else {
+      // Normal click: select as right file
+      setSelectedRightFile({ relativePath: node.relativePath, name: node.name });
+      // If left side exists with same relativePath on this node and no different left file was Ctrl-selected, pair them
+      if (node.left.exists && (!selectedLeftFile || selectedLeftFile.relativePath === node.relativePath)) {
+        setSelectedLeftFile({ relativePath: node.relativePath, name: node.name });
+      }
+    }
+  };
+
+  const handleLeftDoubleClick = (node: ComparisonEntry) => {
+    if (node.isDirectory) {
+      toggleFolder(node.relativePath);
+      return;
+    }
+    if (!result || !node.left.exists) return;
+
+    if (selectedRightFile) {
+      onOpenInTextCompare(
+        `${result.leftRoot}/${node.relativePath}`,
+        `${result.rightRoot}/${selectedRightFile.relativePath}`
+      );
+    } else if (node.right.exists) {
+      onOpenInTextCompare(
+        `${result.leftRoot}/${node.relativePath}`,
+        `${result.rightRoot}/${node.relativePath}`
+      );
+    } else {
+      setSelectedLeftFile({ relativePath: node.relativePath, name: node.name });
+      onUpdateStatus(`Selected left file: "${node.name}". Now Ctrl-click a file on the right to compare.`);
+    }
+  };
+
+  const handleRightDoubleClick = (node: ComparisonEntry) => {
+    if (node.isDirectory) {
+      toggleFolder(node.relativePath);
+      return;
+    }
+    if (!result || !node.right.exists) return;
+
+    if (selectedLeftFile) {
+      onOpenInTextCompare(
+        `${result.leftRoot}/${selectedLeftFile.relativePath}`,
+        `${result.rightRoot}/${node.relativePath}`
+      );
+    } else if (node.left.exists) {
+      onOpenInTextCompare(
+        `${result.leftRoot}/${node.relativePath}`,
+        `${result.rightRoot}/${node.relativePath}`
+      );
+    } else {
+      setSelectedRightFile({ relativePath: node.relativePath, name: node.name });
+      onUpdateStatus(`Selected right file: "${node.name}". Now Ctrl-click a file on the left to compare.`);
+    }
+  };
+
   // Render synchronized side-by-side split row (Beyond Compare architecture)
   const renderRow = (node: ComparisonEntry, depth: number = 0) => {
     const isExpanded = expandedFolders.has(node.relativePath);
     const isSelected = selectedEntry?.relativePath === node.relativePath;
+    const isLeftSelected = selectedLeftFile?.relativePath === node.relativePath;
+    const isRightSelected = selectedRightFile?.relativePath === node.relativePath;
 
     const isModified = node.status === 'modified';
     const isLeftOnly = node.status === 'left-only';
@@ -616,10 +758,17 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
             if (node.isDirectory) {
               toggleFolder(node.relativePath);
             } else if (result) {
-              onOpenInTextCompare(
-                `${result.leftRoot}/${node.relativePath}`,
-                `${result.rightRoot}/${node.relativePath}`
-              );
+              if (selectedLeftFile && selectedRightFile) {
+                onOpenInTextCompare(
+                  `${result.leftRoot}/${selectedLeftFile.relativePath}`,
+                  `${result.rightRoot}/${selectedRightFile.relativePath}`
+                );
+              } else if (node.left.exists && node.right.exists) {
+                onOpenInTextCompare(
+                  `${result.leftRoot}/${node.relativePath}`,
+                  `${result.rightRoot}/${node.relativePath}`
+                );
+              }
             }
           }}
           className={`flex items-center border-b border-neutral-200 dark:border-neutral-900 font-mono select-none cursor-pointer transition-colors ${
@@ -630,7 +779,27 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
           style={{ height: `${rowHeight}px`, fontSize: `${fontSizePx}px` }}
         >
           {/* ================= LEFT PANE ================= */}
-          <div className="flex-1 flex items-center min-w-0 pr-1 h-full">
+          <div
+            onClick={(e) => handleLeftClick(e, node)}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              handleLeftDoubleClick(node);
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setSelectedEntry(node);
+              if (node.left.exists && !node.isDirectory) {
+                setSelectedLeftFile({ relativePath: node.relativePath, name: node.name });
+              }
+              setContextMenu({ x: e.clientX, y: e.clientY, node, side: 'left' });
+            }}
+            className={`flex-1 flex items-center min-w-0 pr-1 h-full cursor-pointer transition-colors ${
+              isLeftSelected
+                ? 'bg-blue-100/90 dark:bg-blue-900/60 ring-2 ring-blue-500/80 rounded-xs'
+                : ''
+            }`}
+          >
             {node.left.exists ? (
               <div
                 className="flex items-center w-full min-w-0"
@@ -724,7 +893,27 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
           </div>
 
           {/* ================= RIGHT PANE ================= */}
-          <div className="flex-1 flex items-center min-w-0 pl-1 h-full">
+          <div
+            onClick={(e) => handleRightClick(e, node)}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              handleRightDoubleClick(node);
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setSelectedEntry(node);
+              if (node.right.exists && !node.isDirectory) {
+                setSelectedRightFile({ relativePath: node.relativePath, name: node.name });
+              }
+              setContextMenu({ x: e.clientX, y: e.clientY, node, side: 'right' });
+            }}
+            className={`flex-1 flex items-center min-w-0 pl-1 h-full cursor-pointer transition-colors ${
+              isRightSelected
+                ? 'bg-blue-100/90 dark:bg-blue-900/60 ring-2 ring-blue-500/80 rounded-xs'
+                : ''
+            }`}
+          >
             {node.right.exists ? (
               <div
                 className="flex items-center w-full min-w-0"
@@ -1313,6 +1502,45 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
         </div>
       </div>
 
+      {/* 4.5 Cross-Selection Comparison Action Bar (Compare files with different names) */}
+      {selectedLeftFile && selectedRightFile && result && (
+        <div className="flex-shrink-0 bg-blue-50 dark:bg-[#0c1929] border-t-2 border-blue-500 px-4 py-2.5 flex items-center justify-between shadow-lg z-30 animate-in fade-in slide-in-from-bottom-2 select-none">
+          <div className="flex items-center space-x-2.5 min-w-0">
+            <ArrowLeftRight className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+            <span className="text-xs font-semibold text-blue-900 dark:text-blue-200">
+              Ready to Compare:
+            </span>
+            <div className="flex items-center space-x-2 font-mono text-[11px] truncate">
+              <span className="px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/80 text-blue-800 dark:text-blue-200 border border-blue-300 dark:border-blue-700 font-semibold truncate max-w-[260px]" title={selectedLeftFile.relativePath}>
+                {selectedLeftFile.name}
+              </span>
+              <span className="text-neutral-400 font-bold">↔</span>
+              <span className="px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-900/80 text-purple-800 dark:text-purple-200 border border-purple-300 dark:border-purple-700 font-semibold truncate max-w-[260px]" title={selectedRightFile.relativePath}>
+                {selectedRightFile.name}
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 flex-shrink-0">
+            <button
+              onClick={handleCompareSelectedPair}
+              className="px-3.5 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-xs flex items-center space-x-1.5 transition cursor-pointer"
+            >
+              <FileCode2 className="w-3.5 h-3.5" />
+              <span>Compare Selected (Enter)</span>
+            </button>
+            <button
+              onClick={() => {
+                setSelectedLeftFile(null);
+                setSelectedRightFile(null);
+              }}
+              className="px-2.5 py-1.5 rounded text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 text-xs transition cursor-pointer"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 5. Rules & Ignore Patterns Modal */}
       {showOptionsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -1468,6 +1696,88 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
           )}
 
           <div className="my-1 border-t border-neutral-200 dark:border-neutral-800" />
+
+          {/* Custom cross-pair comparison */}
+          {selectedLeftFile && selectedRightFile && result && (
+            <button
+              onClick={() => {
+                setContextMenu(null);
+                onOpenInTextCompare(
+                  `${result.leftRoot}/${selectedLeftFile.relativePath}`,
+                  `${result.rightRoot}/${selectedRightFile.relativePath}`
+                );
+              }}
+              className="w-full text-left px-3 py-1.5 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-600 hover:text-white flex items-center space-x-2 text-blue-700 dark:text-blue-300 font-semibold transition cursor-pointer"
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="truncate">Compare: {selectedLeftFile.name} ↔ {selectedRightFile.name}</span>
+            </button>
+          )}
+
+          {/* If right-clicked on right file while left file is selected */}
+          {selectedLeftFile && !selectedRightFile && contextMenu.side === 'right' && contextMenu.node.right.exists && !contextMenu.node.isDirectory && result && (
+            <button
+              onClick={() => {
+                const rightNode = contextMenu.node;
+                setContextMenu(null);
+                onOpenInTextCompare(
+                  `${result.leftRoot}/${selectedLeftFile.relativePath}`,
+                  `${result.rightRoot}/${rightNode.relativePath}`
+                );
+              }}
+              className="w-full text-left px-3 py-1.5 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-600 hover:text-white flex items-center space-x-2 text-blue-700 dark:text-blue-300 font-semibold transition cursor-pointer"
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="truncate">Compare with Left "{selectedLeftFile.name}"</span>
+            </button>
+          )}
+
+          {/* If right-clicked on left file while right file is selected */}
+          {selectedRightFile && !selectedLeftFile && contextMenu.side === 'left' && contextMenu.node.left.exists && !contextMenu.node.isDirectory && result && (
+            <button
+              onClick={() => {
+                const leftNode = contextMenu.node;
+                setContextMenu(null);
+                onOpenInTextCompare(
+                  `${result.leftRoot}/${leftNode.relativePath}`,
+                  `${result.rightRoot}/${selectedRightFile.relativePath}`
+                );
+              }}
+              className="w-full text-left px-3 py-1.5 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-600 hover:text-white flex items-center space-x-2 text-blue-700 dark:text-blue-300 font-semibold transition cursor-pointer"
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="truncate">Compare with Right "{selectedRightFile.name}"</span>
+            </button>
+          )}
+
+          {/* Manual selection for pairing */}
+          {contextMenu.node.left.exists && !contextMenu.node.isDirectory && (
+            <button
+              onClick={() => {
+                setSelectedLeftFile({ relativePath: contextMenu.node.relativePath, name: contextMenu.node.name });
+                setContextMenu(null);
+                onUpdateStatus(`Selected "${contextMenu.node.name}" as Left file. Now select a Right file to compare.`);
+              }}
+              className="w-full text-left px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center space-x-2 text-neutral-700 dark:text-neutral-300 transition cursor-pointer"
+            >
+              <ChevronRight className="w-3.5 h-3.5 text-blue-500" />
+              <span>Select as Left File for Compare</span>
+            </button>
+          )}
+
+          {contextMenu.node.right.exists && !contextMenu.node.isDirectory && (
+            <button
+              onClick={() => {
+                setSelectedRightFile({ relativePath: contextMenu.node.relativePath, name: contextMenu.node.name });
+                setContextMenu(null);
+                onUpdateStatus(`Selected "${contextMenu.node.name}" as Right file. Now select a Left file to compare.`);
+              }}
+              className="w-full text-left px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center space-x-2 text-neutral-700 dark:text-neutral-300 transition cursor-pointer"
+            >
+              <ChevronLeft className="w-3.5 h-3.5 text-purple-500" />
+              <span>Select as Right File for Compare</span>
+            </button>
+          )}
 
           {/* Text compare if file */}
           {!contextMenu.node.isDirectory && result && (

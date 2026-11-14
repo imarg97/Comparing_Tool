@@ -958,5 +958,24 @@ describe('Beyond Compare UI Utilities', () => {
       };
       expect(hasDiffDescendant(cleanFolder)).toBe(false);
     });
+
+    it('formats tab title for files with different names (cross-site comparison)', () => {
+      const getTabTitle = (left: string, right: string) => {
+        const leftName = left.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || '';
+        const rightName = right.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || '';
+        return leftName && rightName && leftName !== rightName
+          ? `${leftName} ↔ ${rightName}`
+          : leftName || rightName || 'values.yaml';
+      };
+
+      const left = '/path/to/left/imc-sm/ixla-server-cnims-imcsm-userdata';
+      const right = '/path/to/right/imc-sm/pval-ns-cnims-imc1-imcsm-userdata';
+      expect(getTabTitle(left, right)).toBe(
+        'ixla-server-cnims-imcsm-userdata ↔ pval-ns-cnims-imc1-imcsm-userdata'
+      );
+
+      const sameName = '/path/to/values.yaml';
+      expect(getTabTitle(sameName, sameName)).toBe('values.yaml');
+    });
   });
 });

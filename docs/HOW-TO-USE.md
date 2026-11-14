@@ -103,7 +103,20 @@ Designed for entire directory trees, firmware bundles, and release folders.
      - **Copy Left to Right** / **Copy Right to Left**: Synchronize individual files.
      - **Show in System Explorer**: Open the containing folder in Windows Explorer or macOS Finder.
    - **Safe Deletion Engine**: Prevents path traversal (`..`), protects Windows reserved devices (`CON`, `PRN`, `AUX`, `NUL`), and optionally creates timestamped `.bak.<timestamp>` safety copies before removal.
-4. **Comparison Criteria**:
+4. **Cross-Name & Orphan Manual File Comparison (Beyond Compare Manual Alignment)**:
+   In telecom configurations, corresponding configuration files often have different site-specific prefixes or names (for example, `ixla-server-cnims-imcsm-userdata` on Site 1 vs `pval-ns-cnims-imc1-imcsm-userdata` on Site 2). Because the filenames differ, standard directory comparison displays each as an orphan file. mDiff provides complete flexibility to pair and compare any two files with different names:
+   - **Method 1 (`Ctrl + Click`)**:
+     1. Hold `Ctrl` (or `Cmd` on macOS) and click the file on the **Left Pane** (e.g. `ixla-server-cnims-imcsm-userdata`). The left item is highlighted with an active blue selection ring.
+     2. Hold `Ctrl` and click the corresponding file on the **Right Pane** (e.g. `pval-ns-cnims-imc1-imcsm-userdata`). The right item is highlighted with an active blue selection ring.
+     3. A prominent comparison action bar automatically appears at the bottom:
+        `Ready to Compare: [ixla-server-cnims-imcsm-userdata] ↔ [pval-ns-cnims-imc1-imcsm-userdata]   [Compare Selected (Enter)] [Clear]`
+     4. Press **`Enter`** or click **`Compare Selected`** to open both files side-by-side in Text Compare immediately!
+     5. The session tab displays both names clearly: `[📄 ixla-server-cnims-imcsm-userdata ↔ pval-ns-cnims-imc1-imcsm-userdata ✕]` with the active green accent badge (`#22c55e`).
+   - **Method 2 (Double-Click)**:
+     With one file selected on either side, simply double-click the file on the opposite side to immediately open both in Text Compare.
+   - **Method 3 (Right-Click Context Menu)**:
+     Right-click any file and choose **`Select as Left File for Compare`** or **`Select as Right File for Compare`**, or right-click the second file and select **`Compare with Left/Right [Selected File]`**.
+5. **Comparison Criteria**:
    - **Timestamp & File Size**: Instant initial reconciliation.
    - **Cryptographic SHA-256 Hash**: Deep bit-level verification of file contents.
 5. **Difference Filtering**:
