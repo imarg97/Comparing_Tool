@@ -1,4 +1,4 @@
-# mDiff v3.7.0 — Mavenir Internal Deployment Guide
+# mDiff v4.0.0 — Mavenir Internal Deployment Guide
 
 This package contains everything needed to deploy mDiff (Mavenir Diff, formerly DiffX) on Mavenir's internal network (e.g. `10.10.84.22` or any internal lab VM / Docker / Podman host).
 

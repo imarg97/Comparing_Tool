@@ -17,7 +17,12 @@ import {
   BookOpen,
   ShieldCheck,
   Info,
+  X,
+  Plus,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
+import { SessionTab } from '@shared/types.js';
 
 export const DiffXLogo: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
   <svg viewBox="0 0 512 512" className={className} xmlns="http://www.w3.org/2000/svg">
@@ -56,22 +61,40 @@ export const MDiffLogo = DiffXLogo;
 
 export type NavigationTab = 'folder' | 'text' | 'structured' | 'home' | 'settings';
 
-interface HeaderProps {
+export interface HeaderProps {
   activeTab: NavigationTab;
   onSelectTab: (tab: NavigationTab) => void;
+  sessionTabs: SessionTab[];
+  activeTabId: string;
+  onSelectSessionTab: (id: string) => void;
+  onCloseSessionTab: (id: string) => void;
+  onNewSession: () => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
   onOpenShortcuts: () => void;
   isWeb?: boolean;
+  zoomLevel?: number;
+  onZoomIn?: () => void;
+  onZoomOut?: () => void;
+  onResetZoom?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   activeTab,
   onSelectTab,
+  sessionTabs,
+  activeTabId,
+  onSelectSessionTab,
+  onCloseSessionTab,
+  onNewSession,
   theme,
   onToggleTheme,
   onOpenShortcuts,
   isWeb = false,
+  zoomLevel = 100,
+  onZoomIn,
+  onZoomOut,
+  onResetZoom,
 }) => {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const menuBarRef = useRef<HTMLDivElement>(null);
@@ -123,7 +146,7 @@ export const Header: React.FC<HeaderProps> = ({
               mDiff
             </span>
             <span className="px-1.5 py-0.5 text-[9px] font-semibold rounded bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30">
-              v3.7.0
+              v4.0.0
             </span>
             <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-normal">
               • {tabLabels[activeTab]}
@@ -500,7 +523,7 @@ export const Header: React.FC<HeaderProps> = ({
 
                 <div className="my-1 border-t border-neutral-200 dark:border-neutral-800" />
                 <div className="px-3 py-1.5 text-[11px] text-neutral-500">
-                  mDiff Comparison Suite v3.7.0<br />
+                  mDiff Comparison Suite v4.0.0<br />
                   Mavenir Internal Release • Developed by im_arg
                 </div>
               </div>
@@ -521,7 +544,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={onToggleTheme}
             title={`Switch to ${theme === 'dark' ? 'Light Mode' : 'Dark Theme'} mode`}
-            className="flex items-center space-x-1.5 px-2 py-0.5 rounded text-xs bg-neutral-200 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white transition shadow-xs"
+            className="flex items-center space-x-1.5 px-2 py-0.5 rounded text-xs bg-neutral-200 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:white transition shadow-xs"
           >
             {theme === 'dark' ? (
               <>
@@ -538,84 +561,132 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* 2. Modern Workspace Tab Bar: Direct 1-Click Mode Switcher */}
-      <div className="h-8 bg-[#f5f5f5] dark:bg-black border-b border-[#d8d8d8] dark:border-neutral-800 flex items-center justify-between px-2 overflow-x-auto select-none">
-        <div className="flex items-center space-x-1">
-          <button
-            onClick={() => onSelectTab('folder')}
-            title={isWeb ? 'Folder Compare (Requires Desktop Application)' : 'Folder & Directory Comparison (Ctrl+1)'}
-            className={`flex items-center space-x-1.5 px-3 py-1 rounded text-xs transition cursor-pointer ${
-              activeTab === 'folder'
-                ? 'bg-white dark:bg-[#151515] text-blue-600 dark:text-blue-400 font-semibold shadow-xs border-b-2 border-blue-500'
-                : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/50 dark:hover:bg-neutral-900/50'
-            }`}
-          >
-            <FolderGit2 className="w-3.5 h-3.5 text-amber-500" />
-            <span>Folder Compare</span>
-            {isWeb && (
-              <span className="px-1 py-0.2 text-[8px] font-semibold rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 ml-0.5">
-                App Only
-              </span>
-            )}
-            <span className="text-[10px] opacity-50 font-mono ml-1">Ctrl+1</span>
-          </button>
+      {/* 2. Beyond Compare Multi-Session Tab Bar (Matching Beyond Compare Reference) */}
+      <div className="h-8 bg-[#e8e8e8] dark:bg-[#0c0c0c] border-b border-[#c8c8c8] dark:border-neutral-800 flex items-center justify-between px-1.5 overflow-x-auto select-none">
+        {/* Dynamic Session Tabs */}
+        <div className="flex items-center space-x-1 min-w-0">
+          {sessionTabs && sessionTabs.length > 0 ? (
+            sessionTabs.map((tab) => {
+              const isActive = tab.id === activeTabId;
+              return (
+                <div
+                  key={tab.id}
+                  onClick={() => onSelectSessionTab(tab.id)}
+                  className={`group flex items-center space-x-1.5 px-3 py-1 rounded text-xs transition cursor-pointer select-none max-w-xs border ${
+                    isActive
+                      ? tab.type === 'folder'
+                        ? 'bg-white dark:bg-[#1a1a1a] text-blue-700 dark:text-blue-400 font-semibold shadow-xs border-b-2 border-b-blue-600 border-t-transparent border-x-transparent'
+                        : 'bg-[#eefbf0] dark:bg-[#092b15] text-[#15803d] dark:text-[#4ade80] font-semibold shadow-xs border border-[#86efac] dark:border-[#22c55e]/50'
+                      : 'bg-[#d8d8d8] dark:bg-[#141414] text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 border-transparent hover:bg-[#cfcfcf] dark:hover:bg-neutral-800'
+                  }`}
+                  title={tab.title}
+                >
+                  {tab.type === 'folder' ? (
+                    <FolderGit2 className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                  ) : tab.type === 'structured' ? (
+                    <Boxes className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                  ) : (
+                    <FileCode2 className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                  )}
 
-          <button
-            onClick={() => onSelectTab('text')}
-            title="Side-by-Side Text & Code Comparison (Ctrl+2)"
-            className={`flex items-center space-x-1.5 px-3 py-1 rounded text-xs transition cursor-pointer ${
-              activeTab === 'text'
-                ? 'bg-white dark:bg-[#151515] text-blue-600 dark:text-blue-400 font-semibold shadow-xs border-b-2 border-blue-500'
-                : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/50 dark:hover:bg-neutral-900/50'
-            }`}
-          >
-            <FileCode2 className="w-3.5 h-3.5 text-blue-500" />
-            <span>Text Compare</span>
-            <span className="text-[10px] opacity-50 font-mono ml-1">Ctrl+2</span>
-          </button>
+                  <span className="truncate max-w-[200px] font-sans text-xs">
+                    {tab.title}
+                  </span>
 
-          <button
-            onClick={() => onSelectTab('structured')}
-            title="Semantic XML, JSON, YAML & Config Compare (Ctrl+3)"
-            className={`flex items-center space-x-1.5 px-3 py-1 rounded text-xs transition cursor-pointer ${
-              activeTab === 'structured'
-                ? 'bg-white dark:bg-[#151515] text-emerald-600 dark:text-emerald-400 font-semibold shadow-xs border-b-2 border-emerald-500'
-                : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/50 dark:hover:bg-neutral-900/50'
-            }`}
-          >
-            <Boxes className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Config & XML</span>
-            <span className="text-[10px] opacity-50 font-mono ml-1">Ctrl+3</span>
-          </button>
+                  {tab.closable && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCloseSessionTab(tab.id);
+                      }}
+                      title="Close session"
+                      className="ml-1 p-0.5 rounded text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-300 dark:hover:bg-neutral-700 transition"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              );
+            })
+          ) : (
+            <div className="flex items-center space-x-1">
+              <button
+                onClick={() => onSelectTab('folder')}
+                className={`flex items-center space-x-1.5 px-3 py-1 rounded text-xs transition cursor-pointer ${
+                  activeTab === 'folder'
+                    ? 'bg-white dark:bg-[#1a1a1a] text-blue-600 dark:text-blue-400 font-semibold shadow-xs border-b-2 border-blue-500'
+                    : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/50 dark:hover:bg-neutral-900/50'
+                }`}
+              >
+                <FolderGit2 className="w-3.5 h-3.5 text-amber-500" />
+                <span>Folder Compare</span>
+              </button>
+              <button
+                onClick={() => onSelectTab('text')}
+                className={`flex items-center space-x-1.5 px-3 py-1 rounded text-xs transition cursor-pointer ${
+                  activeTab === 'text'
+                    ? 'bg-white dark:bg-[#1a1a1a] text-blue-600 dark:text-blue-400 font-semibold shadow-xs border-b-2 border-blue-500'
+                    : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/50 dark:hover:bg-neutral-900/50'
+                }`}
+              >
+                <FileCode2 className="w-3.5 h-3.5 text-blue-500" />
+                <span>Text Compare</span>
+              </button>
+            </div>
+          )}
 
+          {/* New Tab Button */}
           <button
-            onClick={() => onSelectTab('home')}
-            title="Sessions Launcher & History (Ctrl+4)"
-            className={`flex items-center space-x-1.5 px-3 py-1 rounded text-xs transition cursor-pointer ${
-              activeTab === 'home'
-                ? 'bg-white dark:bg-[#151515] text-purple-600 dark:text-purple-400 font-semibold shadow-xs border-b-2 border-purple-500'
-                : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/50 dark:hover:bg-neutral-900/50'
-            }`}
+            onClick={onNewSession}
+            title="Open New Comparison Session (Ctrl+4)"
+            className="p-1 px-2 rounded hover:bg-neutral-300 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition flex items-center space-x-1 text-xs"
           >
-            <Clock className="w-3.5 h-3.5 text-purple-500" />
-            <span>Sessions</span>
-            <span className="text-[10px] opacity-50 font-mono ml-1">Ctrl+4</span>
+            <Plus className="w-3.5 h-3.5" />
+            <span className="text-[11px] font-sans hidden sm:inline">New Session</span>
           </button>
         </div>
 
-        <button
-          onClick={() => onSelectTab('settings')}
-          title="Preferences & Configuration Rules (Ctrl+5)"
-          className={`flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs transition cursor-pointer ${
-            activeTab === 'settings'
-              ? 'bg-white dark:bg-[#151515] text-neutral-900 dark:text-white font-semibold shadow-xs border-b-2 border-neutral-400'
-              : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/50 dark:hover:bg-neutral-900/50'
-          }`}
-        >
-          <Settings className="w-3.5 h-3.5" />
-          <span>Preferences</span>
-          <span className="text-[10px] opacity-50 font-mono ml-1">Ctrl+5</span>
-        </button>
+        {/* Right Controls: Interactive Zoom & Preferences */}
+        <div className="flex items-center space-x-2 pl-2">
+          {/* Zoom Feature (Ctrl + Mouse Wheel / Buttons) */}
+          <div className="flex items-center space-x-1 border border-neutral-300 dark:border-neutral-800 rounded px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-900 text-xs text-neutral-600 dark:text-neutral-300">
+            <button
+              onClick={onZoomOut}
+              title="Zoom Out (Ctrl+- or Ctrl+Wheel Down)"
+              className="p-0.5 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800"
+            >
+              <ZoomOut className="w-3 h-3" />
+            </button>
+            <button
+              onClick={onResetZoom}
+              title="Reset Zoom to 100% (Ctrl+0)"
+              className="px-1 text-[10px] font-mono hover:text-blue-600"
+            >
+              {zoomLevel}%
+            </button>
+            <button
+              onClick={onZoomIn}
+              title="Zoom In (Ctrl++ or Ctrl+Wheel Up)"
+              className="p-0.5 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800"
+            >
+              <ZoomIn className="w-3 h-3" />
+            </button>
+          </div>
+
+          {/* Preferences Button */}
+          <button
+            onClick={() => onSelectTab('settings')}
+            title="Preferences & Configuration Rules (Ctrl+5)"
+            className={`flex items-center space-x-1 px-2 py-0.5 rounded text-xs transition cursor-pointer ${
+              activeTab === 'settings'
+                ? 'bg-white dark:bg-[#151515] text-neutral-900 dark:text-white font-semibold shadow-xs'
+                : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-200/50 dark:hover:bg-neutral-900/50'
+            }`}
+          >
+            <Settings className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">Preferences</span>
+          </button>
+        </div>
       </div>
     </div>
   );

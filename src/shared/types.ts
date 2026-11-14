@@ -157,6 +157,15 @@ export interface RecentComparison {
   label?: string;
 }
 
+export interface SessionTab {
+  id: string;
+  type: 'folder' | 'text' | 'structured' | 'home' | 'settings';
+  title: string;
+  leftPath?: string;
+  rightPath?: string;
+  closable?: boolean;
+}
+
 export interface AppSettings {
   theme: 'dark' | 'light';
   defaultIgnorePatterns: string[];

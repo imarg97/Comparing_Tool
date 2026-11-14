@@ -9,7 +9,7 @@ import { TextCompareView } from './views/TextCompare/TextCompareView.js';
 import { StructuredCompareView } from './views/StructuredCompare/StructuredCompareView.js';
 import { HomeView } from './views/Home/HomeView.js';
 import { SettingsView } from './views/Settings/SettingsView.js';
-import { AppSettings, RecentComparison } from '@shared/types.js';
+import { AppSettings, RecentComparison, SessionTab } from '@shared/types.js';
 import { isBrowserEnvironment } from './utils/browser-api.js';
 
 export const App: React.FC = () => {
@@ -26,6 +26,18 @@ export const App: React.FC = () => {
 
   // Navigation & Theme (default to 'text' in web browser mode since folder compare is desktop-only)
   const [activeTab, setActiveTab] = useState<NavigationTab>(() => (isBrowserEnvironment() ? 'text' : 'folder'));
+
+  // Dynamic Beyond Compare Multi-Session Tabs State
+  const [sessionTabs, setSessionTabs] = useState<SessionTab[]>([
+    {
+      id: 'folder-main',
+      type: 'folder',
+      title: 'Folder Compare',
+      closable: false,
+    },
+  ]);
+  const [activeTabId, setActiveTabId] = useState<string>('folder-main');
+  const [zoomLevel, setZoomLevel] = useState<number>(100);
 
   // Initialize theme from storage (default to 'dark' pitch black)
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -165,10 +177,12 @@ export const App: React.FC = () => {
       setFolderLeftPath(item.leftPath);
       setFolderRightPath(item.rightPath);
       setActiveTab('folder');
+      setActiveTabId('folder-main');
     } else if (item.type === 'text') {
       setTextLeftPath(item.leftPath);
       setTextRightPath(item.rightPath);
       setActiveTab('text');
+      handleOpenInTextCompare(item.leftPath, item.rightPath);
     } else {
       setStructuredLeftPath(item.leftPath);
       setStructuredRightPath(item.rightPath);
@@ -185,11 +199,113 @@ export const App: React.FC = () => {
     }
   };
 
+  // Synchronize folder-main tab title when folders are selected
+  useEffect(() => {
+    setSessionTabs((prev) =>
+      prev.map((tab) => {
+        if (tab.id === 'folder-main') {
+          let title = 'Folder Compare';
+          if (folderLeftPath || folderRightPath) {
+            const leftBase = folderLeftPath ? folderLeftPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || folderLeftPath : 'Left';
+            const rightBase = folderRightPath ? folderRightPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || folderRightPath : 'Right';
+            title = `${leftBase} <-> ${rightBase}`;
+          }
+          return { ...tab, title };
+        }
+        return tab;
+      })
+    );
+  }, [folderLeftPath, folderRightPath]);
+
+  const handleSelectSessionTab = (id: string) => {
+    const tab = sessionTabs.find((t) => t.id === id);
+    if (!tab) return;
+    if (tab.type === 'folder' && isWeb) {
+      setWebFolderModalOpen(true);
+      return;
+    }
+    setActiveTabId(id);
+    setActiveTab(tab.type);
+    if (tab.type === 'text' && tab.leftPath && tab.rightPath) {
+      setTextLeftPath(tab.leftPath);
+      setTextRightPath(tab.rightPath);
+    } else if (tab.type === 'structured' && tab.leftPath && tab.rightPath) {
+      setStructuredLeftPath(tab.leftPath);
+      setStructuredRightPath(tab.rightPath);
+    }
+  };
+
+  const handleCloseSessionTab = (id: string) => {
+    setSessionTabs((prev) => {
+      const idx = prev.findIndex((t) => t.id === id);
+      const filtered = prev.filter((t) => t.id !== id);
+      if (activeTabId === id) {
+        const nextActive = filtered[Math.max(0, idx - 1)] || filtered[0];
+        if (nextActive) {
+          setActiveTabId(nextActive.id);
+          setActiveTab(nextActive.type);
+          if (nextActive.type === 'text' && nextActive.leftPath && nextActive.rightPath) {
+            setTextLeftPath(nextActive.leftPath);
+            setTextRightPath(nextActive.rightPath);
+          }
+        }
+      }
+      return filtered;
+    });
+  };
+
+  const handleNewSession = () => {
+    setActiveTab('home');
+  };
+
+  const handleZoomIn = () => setZoomLevel((z) => Math.min(z + 10, 200));
+  const handleZoomOut = () => setZoomLevel((z) => Math.max(z - 10, 70));
+  const handleResetZoom = () => setZoomLevel(100);
+
+  // Global Ctrl + Mouse Wheel Zoom
+  useEffect(() => {
+    const handleGlobalWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        if (e.deltaY < 0) {
+          setZoomLevel((z) => Math.min(z + 5, 200));
+        } else if (e.deltaY > 0) {
+          setZoomLevel((z) => Math.max(z - 5, 70));
+        }
+      }
+    };
+    window.addEventListener('wheel', handleGlobalWheel, { passive: false });
+    return () => window.removeEventListener('wheel', handleGlobalWheel);
+  }, []);
+
   const handleOpenInTextCompare = (left: string, right: string) => {
     setTextLeftPath(left);
     setTextRightPath(right);
     addRecent('text', left, right);
     setActiveTab('text');
+
+    const fileName =
+      left.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ||
+      right.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ||
+      'values.yaml';
+
+    setSessionTabs((prev) => {
+      const existing = prev.find((t) => t.leftPath === left && t.rightPath === right);
+      if (existing) {
+        setActiveTabId(existing.id);
+        return prev;
+      }
+      const newTab: SessionTab = {
+        id: `file-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        type: 'text',
+        title: fileName,
+        leftPath: left,
+        rightPath: right,
+        closable: true,
+      };
+      setActiveTabId(newTab.id);
+      return [...prev, newTab];
+    });
   };
 
   const handleUpdateStatus = (text: string, count?: number, durationMs?: number) => {
@@ -204,6 +320,16 @@ export const App: React.FC = () => {
       if ((e.metaKey || e.ctrlKey) && e.key === '/') {
         e.preventDefault();
         setShortcutsOpen((prev) => !prev);
+      }
+      if ((e.metaKey || e.ctrlKey) && (e.key === '=' || e.key === '+')) {
+        e.preventDefault();
+        handleZoomIn();
+      } else if ((e.metaKey || e.ctrlKey) && (e.key === '-' || e.key === '_')) {
+        e.preventDefault();
+        handleZoomOut();
+      } else if ((e.metaKey || e.ctrlKey) && e.key === '0') {
+        e.preventDefault();
+        handleResetZoom();
       }
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey) {
         if (e.key === '1') {
@@ -239,10 +365,19 @@ export const App: React.FC = () => {
       <Header
         activeTab={activeTab}
         onSelectTab={handleSelectTab}
+        sessionTabs={sessionTabs}
+        activeTabId={activeTabId}
+        onSelectSessionTab={handleSelectSessionTab}
+        onCloseSessionTab={handleCloseSessionTab}
+        onNewSession={handleNewSession}
         isWeb={isWeb}
         theme={theme}
         onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
         onOpenShortcuts={() => setShortcutsOpen(true)}
+        zoomLevel={zoomLevel}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onResetZoom={handleResetZoom}
       />
 
       {/* Main Workspace Body */}
@@ -266,6 +401,8 @@ export const App: React.FC = () => {
             isWeb={isWeb}
             onNavigateTab={handleSelectTab}
             onShowWebNotice={() => setWebFolderModalOpen(true)}
+            zoomLevel={zoomLevel}
+            onSetZoomLevel={setZoomLevel}
           />
         )}
 

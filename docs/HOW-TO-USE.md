@@ -1,7 +1,7 @@
 # mDiff — Comprehensive User Guide & How-to-Use Manual
 
 **Application**: mDiff (Mavenir Diff) Comparison Suite  
-**Version**: `v3.7.0`  
+**Version**: `v4.0.0`  
 **Platforms**: Web (`http://10.10.84.22:8097`), Windows 10/11 (`mDiff.exe`), macOS (`mDiff.app`)  
 **Design Standard**: Beyond Compare Enterprise Fidelity & Visual Parity  
 
@@ -13,32 +13,35 @@
 
 mDiff combines:
 - **Zero-Latency Client-Side Diffing**: Diff calculations execute strictly on the local machine using client-side CPU and memory.
-- **Beyond Compare Monospace Typography**: Employs corporate standard monospace fonts (`Consolas`, `Lucida Console`, `DejaVu Sans Mono`) with bold weight (`700`) for effortless readability on cellular configs and complex logs.
-- **Box-Free Difference Highlighting**: Clean pastel row striping with bold red text on changed characters replaces clunky boxes and pill overlays.
+- **Beyond Compare Monospace Typography**: Employs corporate standard monospace fonts (`Consolas`, `Lucida Console`, `DejaVu Sans Mono`) at `13px` / line height `20px` with clean regular weight (`400`) for standard code tokens, ensuring clear, comfortable reading without visual strain.
+- **Beyond Compare Dynamic Session Tab Bar**: Tab 1 hosts the active Folder comparison session (e.g. `📁 IMC_31_0_Mexico_site3 <-> IMC_11_0_29_0 ✕`), while double-clicking any file spawns a dedicated file session tab (e.g. `📄 values.yaml ✕` with green accent badge). Tabs can be individually closed (`✕`) or opened with the `[+]` button.
+- **Beyond Compare Asymmetric Color Palette**:
+  - **Left Side**: Modified files and parent folders containing diffs appear in **bold red text** (`#c51b1b`) with red folder/file icons and timestamps.
+  - **Right Side**: Differences are **greyed out** (`#71717a` / muted grey) with grey icons and timestamps. When a row is selected or opened, it switches to blacked out / high-contrast for effortless inspection.
+  - **Orphans**: Files or folders existing only on one side are highlighted in distinct **purple text** (`#7e22ce`) and purple icons on both left and right.
+  - **Identical Files**: Neutral dark text on both sides with `=` in the center divider.
+  - **Row Selection**: Soft sky blue highlight (`#e0edff`).
+- **Interactive Zoom**: Zoom in and out smoothly from **70% to 200%** using **`Ctrl` + mouse wheel (roller button)** or `Ctrl + +`, `Ctrl + -`, and `Ctrl + 0` (reset), supported across both the Monaco code editor and directory trees.
+- **Universal Python 3 Server Engine**: Deployable anywhere from Python 3.6 to 3.13+ on RHEL/CentOS with zero external dependencies and built-in SPA routing.
 - **Air-Gapped & Zero-Telemetry**: Does not transmit files, keystrokes, diff results, or telemetry to external servers.
 
 ---
 
-## 2. Getting Started & Sessions Hub
+## 2. Getting Started & Beyond Compare Session Tabs
 
-Upon launching mDiff or clicking the logo in the top bar, you are presented with the **Sessions Hub** (`Ctrl+4` / `Cmd+4`):
+Upon launching mDiff, the top bar presents the **Beyond Compare Session Tab Bar**:
 
 ```
-+-----------------------------------------------------------------------------------+
-|  [Sessions Hub]                                                                   |
-|                                                                                   |
-|  [Folder Compare] (App Only)     [Text Compare]             [Config & XML Compare]|
-|   Compare directories, trees,     Compare any text, source   Semantic comparison   |
-|   SHA-256 hashes, & sync files.   code, scripts, or logs.    for XML, YAML, JSON.  |
-+-----------------------------------------------------------------------------------+
++-------------------------------------------------------------------------------------------------------+
+| mDiff v4.0.0  [📁 IMC_31_0_Mexico_site3 <-> IMC_11_0_29_0 ✕]  [📄 values.yaml ✕]  [+]   [-] 100% [+]  |
++-------------------------------------------------------------------------------------------------------+
 ```
 
-You can switch between modes at any time using the top navigation bar or keyboard shortcuts:
-- **Folder Compare**: `Ctrl+1` / `Cmd+1` *(Desktop native app only)*
-- **Text Compare**: `Ctrl+2` / `Cmd+2`
-- **Config & XML Compare**: `Ctrl+3` / `Cmd+3`
-- **Sessions**: `Ctrl+4` / `Cmd+4`
-- **Preferences**: `Ctrl+5` / `Cmd+5`
+1. **Folder Session Tab**: Always displays the exact folder names being compared (e.g. `IMC_31_0_Mexico_site3 <-> IMC_11_0_29_0`).
+2. **File Session Tabs**: Double-clicking any file in Folder Compare (such as `values.yaml` or `Chart.yaml`) automatically opens it as a dedicated tab with an active green accent badge (`#22c55e`).
+3. **Closing & New Sessions**: Click `✕` on any tab to close it, or click `[+]` to open a new comparison session.
+4. **Interactive Zoom Controls**: The `[-] 100% [+]` toolbar widget provides one-click zooming, or use `Ctrl` + mouse wheel.
+5. **Sessions Hub**: Click **Sessions** (`Ctrl+4`) at any time to return to the launcher screen.
 
 ---
 
@@ -129,6 +132,10 @@ Designed for entire directory trees, firmware bundles, and release folders.
 | **`Ctrl + H`** | Replace | Open Monaco search and replace widget |
 | **`Ctrl + Z`** | Undo | Undo editor modification |
 | **`Ctrl + Y`** / `Ctrl+Shift+Z` | Redo | Redo editor modification |
+| **`Ctrl + Wheel`** | Mouse Wheel Zoom | Zoom in or out (70% - 200%) on editor and folder tree |
+| **`Ctrl + +`** / `Ctrl + =` | Zoom In | Increase font and row scale by +10% |
+| **`Ctrl + -`** | Zoom Out | Decrease font and row scale by -10% |
+| **`Ctrl + 0`** | Reset Zoom | Reset zoom scale back to default 100% |
 | **`Cmd + /`** / `Ctrl + /` | Shortcuts Modal | Display keyboard shortcut cheat sheet overlay |
 
 ---

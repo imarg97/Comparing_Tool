@@ -2726,6 +2726,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
                 lineHeight: BEYOND_COMPARE_LINE_HEIGHT,
                 fontWeight: BEYOND_COMPARE_FONT_WEIGHT,
                 fontFamily: BEYOND_COMPARE_FONT_FAMILY,
+                mouseWheelZoom: true,
                 minimap: { enabled: false },
                 scrollBeyondLastLine: false,
                 automaticLayout: true,

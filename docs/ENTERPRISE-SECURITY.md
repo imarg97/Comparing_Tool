@@ -1,7 +1,7 @@
 # mDiff — Enterprise Security & Compliance Report
 
 **Prepared for**: Management, IT Security Directors, and Corporate Compliance  
-**Application**: mDiff (Mavenir Diff) Comparison Suite (`v3.7.0`)  
+**Application**: mDiff (Mavenir Diff) Comparison Suite (`v4.0.0`)  
 **Target Deployment**: Corporate Laptops (Windows & macOS) & Internal Lab Servers (`10.10.84.22`)  
 **Security Classification**: Air-Gapped / Zero-Telemetry / Portable User-Space Utility  
 
@@ -38,7 +38,7 @@ flowchart TD
         M4["Zero LaunchAgents / LaunchDaemons"]
     end
 
-    subgraph CoreEngine["Common Hardened Engine (v3.7.0)"]
+    subgraph CoreEngine["Common Hardened Engine (v4.0.0)"]
         C1["Strict Context Isolation & IPC Type Guards"]
         C2["Canonicalized Path Traversal Prevention (.. escapes blocked)"]
         C3["Local Bundled Monaco Editor (Zero Remote Scripts)"]
@@ -65,7 +65,7 @@ flowchart TD
 
 ## 3. Vulnerability Audit & Remediation Matrix
 
-| Category | Potential Threat | mDiff v3.7.0 Mitigation |
+| Category | Potential Threat | mDiff v4.0.0 Mitigation |
 | :--- | :--- | :--- |
 | **Path Traversal** | Malicious paths escaping project root (`../../etc/passwd`) | Canonicalization algorithm collapses `..` and resolves symlinks before validating exact root containment. |
 | **Data Exfiltration** | Outbound telemetry or background network beacons | Removed all external script sources (`https://cdn.jsdelivr.net`). Monaco is bundled 100% locally. CSP blocks unauthorized network origins. |

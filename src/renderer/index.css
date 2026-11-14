@@ -86,7 +86,7 @@
   padding-top: 1px;
 }
 
-/* Familiar Beyond Compare crisp monospace font, bold black (light) / bold white (dark) */
+/* Familiar Beyond Compare crisp monospace font, normal black (light) / clean white (dark) */
 .monaco-editor,
 .monaco-diff-editor,
 .monaco-editor .view-line,
@@ -94,24 +94,45 @@
 .monaco-editor .lines-content,
 .monaco-editor .margin,
 .monaco-diff-editor .line-numbers {
-  font-family: 'Consolas', 'Lucida Console', 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', Menlo, Monaco, monospace !important;
-  font-size: 13.5px !important;
-  font-weight: 700 !important;
+  font-family: 'Consolas', 'Lucida Console', 'Courier New', 'DejaVu Sans Mono', 'Liberation Mono', Menlo, Monaco, monospace !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
   -webkit-font-smoothing: antialiased !important;
   -moz-osx-font-smoothing: grayscale !important;
   text-rendering: optimizeLegibility !important;
 }
 
 .monaco-editor .view-line span {
-  font-weight: 700 !important;
+  font-weight: 400 !important;
   font-style: normal !important;
   color: #000000;
 }
 
 .dark .monaco-editor .view-line span {
-  font-weight: 700 !important;
+  font-weight: 400 !important;
   font-style: normal !important;
-  color: #ffffff;
+  color: #e2e8f0;
+}
+
+/* Changed diff tokens pop out with bold red text matching Beyond Compare */
+.monaco-diff-editor .view-line span.diffx-inline-diff-text,
+.monaco-diff-editor .view-line .diffx-inline-diff-text,
+.monaco-editor .view-line span.diffx-inline-diff-text,
+.monaco-editor .view-line .diffx-inline-diff-text {
+  color: #c51b1b !important;
+  font-weight: 700 !important;
+  background-color: transparent !important;
+  border: none !important;
+}
+
+.dark .monaco-diff-editor .view-line span.diffx-inline-diff-text,
+.dark .monaco-diff-editor .view-line .diffx-inline-diff-text,
+.dark .monaco-editor .view-line span.diffx-inline-diff-text,
+.dark .monaco-editor .view-line .diffx-inline-diff-text {
+  color: #ff5c5c !important;
+  font-weight: 700 !important;
+  background-color: transparent !important;
+  border: none !important;
 }
 
 /* Hide inner editor glyph margin completely - single overview bar kept on extreme left */
@@ -213,7 +234,7 @@
 .monaco-diff-editor .lines-content .line-insert,
 .monaco-diff-editor .lines-content .ced-line-insert,
 .monaco-diff-editor .lines-content .diff-line-insert {
-  background-color: #fdecec !important; /* Clean Beyond Compare soft rose row stripe */
+  background-color: #ffeded !important; /* Clean Beyond Compare soft rose row stripe */
   border-left: none !important;
 }
 

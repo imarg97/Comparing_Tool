@@ -893,4 +893,70 @@ describe('Beyond Compare UI Utilities', () => {
       expect(rightLines.length).toBe(4);
     });
   });
+
+  describe('v4.0.0 Beyond Compare Session Tabs & Zoom', () => {
+    it('formats folder session titles cleanly like Beyond Compare', () => {
+      const getBase = (p: string) => p.replace(/\\/g, '/').split('/').filter(Boolean).pop() || p;
+      const left = 'D:\\Core\\MEX-3\\Charts\\IMC_31_0_Mexico_site3';
+      const right = 'D:\\Core\\MEX-3\\Charts\\IMC_11_0_29_0';
+      const title = `${getBase(left)} <-> ${getBase(right)}`;
+      expect(title).toBe('IMC_31_0_Mexico_site3 <-> IMC_11_0_29_0');
+    });
+
+    it('clamps zoom levels within 70% to 200%', () => {
+      const clampZoom = (z: number) => Math.max(70, Math.min(200, z));
+      expect(clampZoom(50)).toBe(70);
+      expect(clampZoom(100)).toBe(100);
+      expect(clampZoom(150)).toBe(150);
+      expect(clampZoom(250)).toBe(200);
+    });
+
+    it('computes dynamic row height and font size proportional to zoom', () => {
+      const getRowHeight = (zoom: number) => Math.max(20, Math.round((24 * zoom) / 100));
+      const getFontSize = (zoom: number) => ((12 * zoom) / 100).toFixed(1);
+
+      expect(getRowHeight(100)).toBe(24);
+      expect(getFontSize(100)).toBe('12.0');
+
+      expect(getRowHeight(120)).toBe(29);
+      expect(getFontSize(120)).toBe('14.4');
+
+      expect(getRowHeight(80)).toBe(20);
+      expect(getFontSize(80)).toBe('9.6');
+    });
+
+    it('identifies folders with modified descendants for red highlight', () => {
+      const hasDiffDescendant = (entry: any): boolean => {
+        if (entry.status === 'modified' || entry.status === 'left-only' || entry.status === 'right-only') {
+          return true;
+        }
+        if (entry.children && entry.children.length > 0) {
+          return entry.children.some(hasDiffDescendant);
+        }
+        return false;
+      };
+
+      const folderNode = {
+        name: 'imc-diamre',
+        isDirectory: true,
+        status: 'identical',
+        children: [
+          { name: 'Chart.yaml', isDirectory: false, status: 'modified' },
+          { name: 'values.yaml', isDirectory: false, status: 'modified' },
+        ],
+      };
+
+      expect(hasDiffDescendant(folderNode)).toBe(true);
+
+      const cleanFolder = {
+        name: 'templates',
+        isDirectory: true,
+        status: 'identical',
+        children: [
+          { name: 'helper.tpl', isDirectory: false, status: 'identical' },
+        ],
+      };
+      expect(hasDiffDescendant(cleanFolder)).toBe(false);
+    });
+  });
 });

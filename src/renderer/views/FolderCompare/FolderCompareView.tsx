@@ -44,6 +44,8 @@ interface FolderCompareViewProps {
   isWeb?: boolean;
   onNavigateTab?: (tab: NavigationTab) => void;
   onShowWebNotice?: () => void;
+  zoomLevel?: number;
+  onSetZoomLevel?: (zoom: number | ((prev: number) => number)) => void;
 }
 
 export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
@@ -58,6 +60,8 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
   isWeb = false,
   onNavigateTab,
   onShowWebNotice,
+  zoomLevel = 100,
+  onSetZoomLevel,
 }) => {
   // Options state
   const [options, setOptions] = useState<FolderComparisonOptions>({
@@ -96,6 +100,22 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
     y: number;
     node: ComparisonEntry;
   } | null>(null);
+
+  // Zoom calculation
+  const currentZoom = zoomLevel ?? 100;
+  const rowHeight = Math.max(20, Math.round((24 * currentZoom) / 100));
+  const fontSizePx = ((12 * currentZoom) / 100).toFixed(1);
+
+  // Helper: check if a directory has any modified or orphan descendant
+  const hasDiffDescendant = (entry: ComparisonEntry): boolean => {
+    if (entry.status === 'modified' || entry.status === 'left-only' || entry.status === 'right-only') {
+      return true;
+    }
+    if (entry.children && entry.children.length > 0) {
+      return entry.children.some(hasDiffDescendant);
+    }
+    return false;
+  };
 
   // Close context menu on outside click or Escape
   useEffect(() => {
@@ -523,26 +543,59 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
     const isExpanded = expandedFolders.has(node.relativePath);
     const isSelected = selectedEntry?.relativePath === node.relativePath;
 
-    // Beyond Compare colors:
-    // Modified = bold red text
-    // Left orphan = blue text
-    // Right orphan = purple/blue text
-    // Identical = neutral text
     const isModified = node.status === 'modified';
     const isLeftOnly = node.status === 'left-only';
     const isRightOnly = node.status === 'right-only';
+    const hasDiff = node.isDirectory ? hasDiffDescendant(node) : isModified;
 
-    const leftTextColor = isModified
-      ? 'text-red-600 dark:text-red-400 font-semibold'
+    // Left Side (Beyond Compare standard):
+    // Changed files or folders containing diffs: bold red text (#c51b1b) and red icons/dates
+    // Left-only (orphans): purple text and purple icons (#7e22ce)
+    // Identical: neutral dark text
+    const leftTextColor = (hasDiff || isModified)
+      ? 'text-[#c51b1b] dark:text-[#ff5c5c] font-bold'
       : isLeftOnly
-      ? 'text-blue-600 dark:text-blue-400 font-medium'
-      : 'text-neutral-800 dark:text-neutral-300';
+      ? 'text-[#7e22ce] dark:text-[#c084fc] font-bold'
+      : 'text-neutral-800 dark:text-neutral-200 font-normal';
 
-    const rightTextColor = isModified
-      ? 'text-red-600 dark:text-red-400 font-semibold'
+    const leftIconClass = (hasDiff || isModified)
+      ? 'text-[#c51b1b]'
+      : isLeftOnly
+      ? 'text-[#7e22ce] dark:text-[#c084fc]'
+      : node.isDirectory
+      ? (isExpanded ? 'text-amber-500 fill-amber-500/20' : 'text-neutral-500')
+      : 'text-neutral-400';
+
+    const leftMetaColor = (hasDiff || isModified)
+      ? 'text-[#c51b1b] dark:text-[#ff5c5c] font-medium'
+      : isLeftOnly
+      ? 'text-[#7e22ce] dark:text-[#c084fc]'
+      : 'text-neutral-500 dark:text-neutral-400';
+
+    // Right Side (Beyond Compare standard):
+    // Changed files or folders containing diffs: GREYED OUT (#71717a light / #9ca3af dark)
+    // When selected: high-contrast text for reading
+    // Right-only (orphans): purple text and purple icons (#7e22ce)
+    // Identical: neutral dark text
+    const rightTextColor = (hasDiff || isModified)
+      ? (isSelected ? 'text-neutral-900 dark:text-neutral-100 font-medium' : 'text-[#71717a] dark:text-[#9ca3af] font-normal')
       : isRightOnly
-      ? 'text-purple-600 dark:text-purple-400 font-medium'
-      : 'text-neutral-800 dark:text-neutral-300';
+      ? 'text-[#7e22ce] dark:text-[#c084fc] font-bold'
+      : 'text-neutral-800 dark:text-neutral-200 font-normal';
+
+    const rightIconClass = (hasDiff || isModified)
+      ? (isSelected ? 'text-neutral-700 dark:text-neutral-300' : 'text-[#888888] dark:text-[#777777]')
+      : isRightOnly
+      ? 'text-[#7e22ce] dark:text-[#c084fc]'
+      : node.isDirectory
+      ? (isExpanded ? 'text-amber-500 fill-amber-500/20' : 'text-neutral-500')
+      : 'text-neutral-400';
+
+    const rightMetaColor = (hasDiff || isModified)
+      ? (isSelected ? 'text-neutral-700 dark:text-neutral-300' : 'text-[#888888] dark:text-[#777777]')
+      : isRightOnly
+      ? 'text-[#7e22ce] dark:text-[#c084fc]'
+      : 'text-neutral-500 dark:text-neutral-400';
 
     return (
       <React.Fragment key={node.relativePath}>
@@ -569,11 +622,12 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
               );
             }
           }}
-          className={`flex items-center h-6 border-b border-neutral-200 dark:border-neutral-900 text-xs font-mono select-none cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors ${
+          className={`flex items-center border-b border-neutral-200 dark:border-neutral-900 font-mono select-none cursor-pointer transition-colors ${
             isSelected
-              ? 'bg-blue-100 dark:bg-neutral-800 text-neutral-950 dark:text-white'
-              : ''
+              ? 'bg-[#e0edff] dark:bg-[#1e293b] text-neutral-950 dark:text-white border-y border-blue-200/80 dark:border-blue-800/80'
+              : 'hover:bg-neutral-50 dark:hover:bg-neutral-900/60'
           }`}
+          style={{ height: `${rowHeight}px`, fontSize: `${fontSizePx}px` }}
         >
           {/* ================= LEFT PANE ================= */}
           <div className="flex-1 flex items-center min-w-0 pr-1 h-full">
@@ -602,11 +656,11 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
                 </div>
 
                 {/* Folder/File Icon */}
-                <div className="w-4 flex-shrink-0 text-neutral-500 mr-1.5">
+                <div className="w-4 flex-shrink-0 mr-1.5 flex items-center justify-center">
                   {node.isDirectory ? (
-                    <Folder className={`w-3.5 h-3.5 ${isExpanded ? 'text-amber-500 fill-amber-500/20' : 'text-neutral-500'}`} />
+                    <Folder className={`w-3.5 h-3.5 ${leftIconClass}`} />
                   ) : (
-                    <File className="w-3.5 h-3.5 text-neutral-400" />
+                    <File className={`w-3.5 h-3.5 ${leftIconClass}`} />
                   )}
                 </div>
 
@@ -616,12 +670,12 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
                 </span>
 
                 {/* Left Size */}
-                <span className="w-20 text-right pr-2 text-neutral-500 dark:text-neutral-400 text-[11px] flex-shrink-0">
+                <span className={`w-20 text-right pr-2 text-[11px] flex-shrink-0 ${leftMetaColor}`}>
                   {node.isDirectory ? '' : formatBytes(node.left.size)}
                 </span>
 
                 {/* Left Date */}
-                <span className="w-28 text-right pr-2 text-neutral-500 dark:text-neutral-400 text-[11px] flex-shrink-0">
+                <span className={`w-28 text-right pr-2 text-[11px] flex-shrink-0 ${leftMetaColor}`}>
                   {formatDate(node.left.mtime)}
                 </span>
               </div>
@@ -631,7 +685,7 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
             )}
           </div>
 
-          {/* ================= CENTER GUTTER (Comparison Status - Bare Minimum Light Divider) ================= */}
+          {/* ================= CENTER GUTTER (Comparison Status - Beyond Compare Gutter) ================= */}
           <div className="w-6 h-full border-x border-[#e8e8e8] dark:border-neutral-800 bg-neutral-50/50 dark:bg-[#070707] flex items-center justify-center flex-shrink-0 text-center font-bold text-xs">
             {node.status === 'identical' && (
               <span className="text-neutral-400 dark:text-neutral-600 font-sans text-[11px]" title="Identical contents">
@@ -640,7 +694,7 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
             )}
             {node.status === 'modified' && (
               <span
-                className="w-full h-full flex items-center justify-center bg-red-500/10 text-red-600 dark:text-red-400 font-black text-xs"
+                className="w-full h-full flex items-center justify-center bg-red-500/10 text-[#c51b1b] dark:text-[#ff5c5c] font-black text-xs"
                 title="Files differ in content"
               >
                 ≠
@@ -648,7 +702,7 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
             )}
             {node.status === 'left-only' && (
               <span
-                className="w-full h-full flex items-center justify-center bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs"
+                className="w-full h-full flex items-center justify-center bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs font-bold"
                 title="Orphan (exists on left only)"
               >
                 ←
@@ -656,7 +710,7 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
             )}
             {node.status === 'right-only' && (
               <span
-                className="w-full h-full flex items-center justify-center bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs"
+                className="w-full h-full flex items-center justify-center bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs font-bold"
                 title="Orphan (exists on right only)"
               >
                 →
@@ -696,11 +750,11 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
                 </div>
 
                 {/* Folder/File Icon */}
-                <div className="w-4 flex-shrink-0 text-neutral-500 mr-1.5">
+                <div className="w-4 flex-shrink-0 mr-1.5 flex items-center justify-center">
                   {node.isDirectory ? (
-                    <Folder className={`w-3.5 h-3.5 ${isExpanded ? 'text-amber-500 fill-amber-500/20' : 'text-neutral-500'}`} />
+                    <Folder className={`w-3.5 h-3.5 ${rightIconClass}`} />
                   ) : (
-                    <File className="w-3.5 h-3.5 text-neutral-400" />
+                    <File className={`w-3.5 h-3.5 ${rightIconClass}`} />
                   )}
                 </div>
 
@@ -710,12 +764,12 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
                 </span>
 
                 {/* Right Size */}
-                <span className="w-20 text-right pr-2 text-neutral-500 dark:text-neutral-400 text-[11px] flex-shrink-0">
+                <span className={`w-20 text-right pr-2 text-[11px] flex-shrink-0 ${rightMetaColor}`}>
                   {node.isDirectory ? '' : formatBytes(node.right.size)}
                 </span>
 
                 {/* Right Date */}
-                <span className="w-28 text-right pr-2 text-neutral-500 dark:text-neutral-400 text-[11px] flex-shrink-0">
+                <span className={`w-28 text-right pr-2 text-[11px] flex-shrink-0 ${rightMetaColor}`}>
                   {formatDate(node.right.mtime)}
                 </span>
               </div>
@@ -1130,7 +1184,20 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
           onDragOver={handleContainerDragOver}
           onDragLeave={handleContainerDragLeave}
           onDrop={handleContainerDrop}
+          onWheel={(e) => {
+            if (e.ctrlKey || e.metaKey) {
+              e.preventDefault();
+              if (onSetZoomLevel) {
+                if (e.deltaY < 0) {
+                  onSetZoomLevel((z) => Math.min(200, (typeof z === 'number' ? z : 100) + 10));
+                } else if (e.deltaY > 0) {
+                  onSetZoomLevel((z) => Math.max(70, (typeof z === 'number' ? z : 100) - 10));
+                }
+              }
+            }
+          }}
           className="flex-1 overflow-y-auto relative"
+          style={{ fontSize: `${fontSizePx}px` }}
         >
           {!result && !isScanning && (
             <div className="h-full flex items-stretch select-none">
