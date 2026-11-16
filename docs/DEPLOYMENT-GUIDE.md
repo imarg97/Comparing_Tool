@@ -4,7 +4,7 @@
 **Network**: Mavenir VPN Internal Network  
 **Target Port**: `8097` (Verified Free & Routable)  
 **Production URL**: `http://10.10.84.22:8097`  
-**Application Version**: `v4.0.0`  
+**Application Version**: `v5.0.0`  
 
 ---
 
@@ -87,7 +87,7 @@ The script automatically probes the system:
 2. **Single-Threaded Socket Starvation**: Python's built-in `http.server` module CLI is single-threaded. When a modern browser fires concurrent requests for the 4MB JS bundle, stylesheet, and web workers over VPN, connections queue and timeout.
 3. **Container Registry Prompts**: On RHEL systems, calling unqualified `nginx:alpine` in Podman triggered an interactive prompt (`? Please select an image:`), blocking non-interactive startup.
 
-### The Permanent Fix in v4.0.0
+### The Permanent Fix in v5.0.0
 - **`serve.py`**: Custom multi-threaded server using Python's `ThreadingHTTPServer` with an explicit in-memory MIME dictionary, cache control headers, and single-page-app routing fallback.
 - **Enhanced `start-server.sh`**: Directly wires `serve.py`, adds SELinux `:ro,Z` volume flags for containers, suppresses interactive prompts, and writes verified logs to `mdiff.log`.
 

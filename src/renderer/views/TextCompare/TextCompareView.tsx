@@ -53,6 +53,7 @@ interface TextCompareViewProps {
   onNavigateHome?: () => void;
   onRequestConfirm: (config: ConfirmModalConfig) => void;
   onUpdateStatus: (text: string, count?: number, durationMs?: number) => void;
+  onFileStatusChange?: (leftPath: string, rightPath: string, isIdentical: boolean) => void;
 }
 
 export function detectLanguage(filePath: string): string {
@@ -121,6 +122,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
   onNavigateHome,
   onRequestConfirm: _onRequestConfirm,
   onUpdateStatus,
+  onFileStatusChange,
 }) => {
   // File Content State
   const [leftData, setLeftData] = useState<FileContentResult | null>(null);
@@ -1211,11 +1213,14 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         if (activeFilter === 'all' || !canonicalChunksRef.current.length) {
           canonicalChunksRef.current = chunks;
         }
+        const diffCount = lineChanges ? lineChanges.length : 0;
         setDiffStats((prev) => ({
           ...prev,
-          diffCount: lineChanges ? lineChanges.length : 0,
+          diffCount,
         }));
         updateGutterDecorations();
+        const isIdentical = diffCount === 0;
+        onFileStatusChange?.(leftPath, rightPath, isIdentical);
       });
 
       // Trigger initial decoration pass in case initial diff completed prior to listener attach
@@ -2119,6 +2124,9 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         if (leftData) {
           setLeftData({ ...leftData, content });
         }
+        const rightVal = diffEditorRef.current?.getModifiedEditor()?.getValue() ?? rightContentRef.current;
+        const isIdentical = content === rightVal;
+        onFileStatusChange?.(leftPath, rightPath, isIdentical);
         onUpdateStatus(`Saved left file: ${leftPath.split(/[/\\]/).pop()}`);
       } else {
         setDiffError(`Save failed: ${res.error}`);
@@ -2141,6 +2149,9 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         if (rightData) {
           setRightData({ ...rightData, content });
         }
+        const leftVal = diffEditorRef.current?.getOriginalEditor()?.getValue() ?? leftContentRef.current;
+        const isIdentical = content === leftVal;
+        onFileStatusChange?.(leftPath, rightPath, isIdentical);
         onUpdateStatus(`Saved right file: ${rightPath.split(/[/\\]/).pop()}`);
       } else {
         setDiffError(`Save failed: ${res.error}`);

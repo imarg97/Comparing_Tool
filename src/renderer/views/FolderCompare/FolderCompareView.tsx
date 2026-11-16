@@ -22,6 +22,7 @@ import {
   FolderComparisonOptions,
   FolderComparisonResult,
   ScanProgress,
+  EntryStatus,
 } from '@shared/types.js';
 import {
   filterTree,
@@ -29,6 +30,10 @@ import {
   SortOptions,
   StatusFilter,
 } from '@shared/comparison-engine/filter-sort.js';
+import {
+  updateDirectoryStatuses,
+  recalculateSummary,
+} from '@shared/comparison-engine/matcher.js';
 import { ConfirmModalConfig } from '../../components/ConfirmModal.js';
 import { NavigationTab } from '../../components/Header.js';
 
@@ -46,6 +51,7 @@ interface FolderCompareViewProps {
   onShowWebNotice?: () => void;
   zoomLevel?: number;
   onSetZoomLevel?: (zoom: number | ((prev: number) => number)) => void;
+  dynamicFileStatusMap?: Record<string, boolean>;
 }
 
 export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
@@ -62,6 +68,7 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
   onShowWebNotice,
   zoomLevel = 100,
   onSetZoomLevel,
+  dynamicFileStatusMap,
 }) => {
   // Options state
   const [options, setOptions] = useState<FolderComparisonOptions>({
@@ -120,9 +127,15 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
   const rowHeight = Math.max(20, Math.round((24 * currentZoom) / 100));
   const fontSizePx = ((12 * currentZoom) / 100).toFixed(1);
 
-  // Helper: check if a directory has any modified or orphan descendant
+  // Helper: check if a directory has any modified or orphan descendant (reactively respects dynamic equality updates)
   const hasDiffDescendant = (entry: ComparisonEntry): boolean => {
-    if (entry.status === 'modified' || entry.status === 'left-only' || entry.status === 'right-only') {
+    const isDynamicallyIdentical = Boolean(
+      dynamicFileStatusMap &&
+      (dynamicFileStatusMap[entry.relativePath] === true || dynamicFileStatusMap[entry.name] === true)
+    );
+    const effectiveStatus: EntryStatus = isDynamicallyIdentical ? 'identical' : entry.status;
+
+    if (effectiveStatus === 'modified' || effectiveStatus === 'left-only' || effectiveStatus === 'right-only') {
       return true;
     }
     if (entry.children && entry.children.length > 0) {
@@ -264,12 +277,58 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
     }
   }, []);
 
-  // Automatically start folder comparison whenever both folders are selected
+  // Automatically start folder comparison only when new folders are picked or initially without existing result
+  const prevFoldersRef = useRef<{ left: string; right: string }>({ left: '', right: '' });
+
   useEffect(() => {
     if (leftFolder && rightFolder) {
-      handleStartCompare();
+      const isNewPair = prevFoldersRef.current.left !== leftFolder || prevFoldersRef.current.right !== rightFolder;
+      if (isNewPair || !result) {
+        prevFoldersRef.current = { left: leftFolder, right: rightFolder };
+        handleStartCompare();
+      }
     }
   }, [leftFolder, rightFolder]);
+
+  // Live reactive difference updates: When a file is modified/saved or synchronized, update node in-place
+  useEffect(() => {
+    if (!result || !dynamicFileStatusMap) return;
+    let changed = false;
+
+    const updateNode = (node: ComparisonEntry) => {
+      const isDynamicallyIdentical = Boolean(
+        dynamicFileStatusMap[node.relativePath] === true || dynamicFileStatusMap[node.name] === true
+      );
+      if (isDynamicallyIdentical && node.status !== 'identical') {
+        node.status = 'identical';
+        node.sizeDiff = false;
+        node.mtimeDiff = false;
+        changed = true;
+      }
+      if (node.children) {
+        for (const child of node.children) {
+          updateNode(child);
+        }
+      }
+    };
+
+    const newTree = [...result.tree];
+    for (const rootNode of newTree) {
+      updateNode(rootNode);
+    }
+
+    if (changed) {
+      updateDirectoryStatuses(newTree);
+      setResult((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          tree: newTree,
+          summary: recalculateSummary(newTree, prev.summary),
+        };
+      });
+    }
+  }, [dynamicFileStatusMap]);
 
   const handlePickLeft = async () => {
     if (isWeb) {
@@ -421,6 +480,20 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
             createBackup,
           });
           if (copyRes.success) {
+            // Instant 0ms update in-memory
+            entry.status = 'identical';
+            entry.sizeDiff = false;
+            entry.mtimeDiff = false;
+            entry.right.exists = true;
+            entry.right.size = entry.left.size;
+            entry.right.mtime = Date.now();
+            updateDirectoryStatuses(result.tree);
+            setResult({
+              ...result,
+              tree: [...result.tree],
+              summary: recalculateSummary(result.tree, result.summary),
+            });
+            onUpdateStatus(`Copied '${entry.name}' to Right successfully.`);
             handleStartCompare();
           } else {
             setScanError(`Copy failed: ${copyRes.error}`);
@@ -456,6 +529,20 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
             createBackup,
           });
           if (copyRes.success) {
+            // Instant 0ms update in-memory
+            entry.status = 'identical';
+            entry.sizeDiff = false;
+            entry.mtimeDiff = false;
+            entry.left.exists = true;
+            entry.left.size = entry.right.size;
+            entry.left.mtime = Date.now();
+            updateDirectoryStatuses(result.tree);
+            setResult({
+              ...result,
+              tree: [...result.tree],
+              summary: recalculateSummary(result.tree, result.summary),
+            });
+            onUpdateStatus(`Copied '${entry.name}' to Left successfully.`);
             handleStartCompare();
           } else {
             setScanError(`Copy failed: ${copyRes.error}`);
@@ -685,59 +772,57 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
     const isLeftSelected = selectedLeftFile?.relativePath === node.relativePath;
     const isRightSelected = selectedRightFile?.relativePath === node.relativePath;
 
-    const isModified = node.status === 'modified';
-    const isLeftOnly = node.status === 'left-only';
-    const isRightOnly = node.status === 'right-only';
+    const isDynamicallyIdentical = Boolean(
+      dynamicFileStatusMap &&
+      (dynamicFileStatusMap[node.relativePath] === true || dynamicFileStatusMap[node.name] === true)
+    );
+    const effectiveStatus: EntryStatus = isDynamicallyIdentical ? 'identical' : node.status;
+    const isModified = effectiveStatus === 'modified';
+    const isLeftOnly = effectiveStatus === 'left-only';
+    const isRightOnly = effectiveStatus === 'right-only';
     const hasDiff = node.isDirectory ? hasDiffDescendant(node) : isModified;
 
     // Left Side (Beyond Compare standard):
     // Changed files or folders containing diffs: bold red text (#c51b1b) and red icons/dates
     // Left-only (orphans): purple text and purple icons (#7e22ce)
-    // Identical: neutral dark text
+    // Identical: clean regular black text and dark neutral icons
     const leftTextColor = (hasDiff || isModified)
       ? 'text-[#c51b1b] dark:text-[#ff5c5c] font-bold'
       : isLeftOnly
       ? 'text-[#7e22ce] dark:text-[#c084fc] font-bold'
-      : 'text-neutral-800 dark:text-neutral-200 font-normal';
+      : 'text-neutral-900 dark:text-neutral-100 font-normal';
 
     const leftIconClass = (hasDiff || isModified)
-      ? 'text-[#c51b1b]'
+      ? 'text-[#c51b1b] dark:text-[#ff5c5c]'
       : isLeftOnly
       ? 'text-[#7e22ce] dark:text-[#c084fc]'
       : node.isDirectory
-      ? (isExpanded ? 'text-amber-500 fill-amber-500/20' : 'text-neutral-500')
-      : 'text-neutral-400';
+      ? 'text-neutral-800 dark:text-neutral-200 fill-neutral-700/20'
+      : 'text-neutral-700 dark:text-neutral-300';
 
     const leftMetaColor = (hasDiff || isModified)
       ? 'text-[#c51b1b] dark:text-[#ff5c5c] font-medium'
       : isLeftOnly
       ? 'text-[#7e22ce] dark:text-[#c084fc]'
-      : 'text-neutral-500 dark:text-neutral-400';
+      : 'text-neutral-700 dark:text-neutral-300 font-normal';
 
-    // Right Side (Beyond Compare standard):
-    // Changed files or folders containing diffs: GREYED OUT (#71717a light / #9ca3af dark)
-    // When selected: high-contrast text for reading
-    // Right-only (orphans): purple text and purple icons (#7e22ce)
-    // Identical: neutral dark text
-    const rightTextColor = (hasDiff || isModified)
-      ? (isRowSelected || isRightSelected ? 'text-neutral-900 dark:text-neutral-100 font-medium' : 'text-[#71717a] dark:text-[#9ca3af] font-normal')
-      : isRightOnly
+    // Right Side:
+    // Normal black font for identical and modified items (not bold, clean dark text)
+    // Purple for right-only orphans
+    // NO grayed out text (#71717a) or gray icons (#888888)
+    const rightTextColor = isRightOnly
       ? 'text-[#7e22ce] dark:text-[#c084fc] font-bold'
-      : 'text-neutral-800 dark:text-neutral-200 font-normal';
+      : 'text-neutral-900 dark:text-neutral-100 font-normal';
 
-    const rightIconClass = (hasDiff || isModified)
-      ? (isRowSelected || isRightSelected ? 'text-neutral-700 dark:text-neutral-300' : 'text-[#888888] dark:text-[#777777]')
-      : isRightOnly
+    const rightIconClass = isRightOnly
       ? 'text-[#7e22ce] dark:text-[#c084fc]'
       : node.isDirectory
-      ? (isExpanded ? 'text-amber-500 fill-amber-500/20' : 'text-neutral-500')
-      : 'text-neutral-400';
+      ? 'text-neutral-800 dark:text-neutral-200 fill-neutral-700/20'
+      : 'text-neutral-700 dark:text-neutral-300';
 
-    const rightMetaColor = (hasDiff || isModified)
-      ? (isRowSelected || isRightSelected ? 'text-neutral-700 dark:text-neutral-300' : 'text-[#888888] dark:text-[#777777]')
-      : isRightOnly
+    const rightMetaColor = isRightOnly
       ? 'text-[#7e22ce] dark:text-[#c084fc]'
-      : 'text-neutral-500 dark:text-neutral-400';
+      : 'text-neutral-700 dark:text-neutral-300 font-normal';
 
     return (
       <React.Fragment key={node.relativePath}>
@@ -877,12 +962,12 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
 
           {/* ================= CENTER GUTTER (Comparison Status - Beyond Compare Gutter) ================= */}
           <div className="w-6 h-full border-x border-[#e8e8e8] dark:border-neutral-800 bg-neutral-50/50 dark:bg-[#070707] flex items-center justify-center flex-shrink-0 text-center font-bold text-xs">
-            {node.status === 'identical' && (
-              <span className="text-neutral-400 dark:text-neutral-600 font-sans text-[11px]" title="Identical contents">
+            {effectiveStatus === 'identical' && (
+              <span className="text-neutral-500 dark:text-neutral-400 font-sans text-[11px]" title="Identical contents">
                 =
               </span>
             )}
-            {node.status === 'modified' && (
+            {effectiveStatus === 'modified' && (
               <span
                 className="w-full h-full flex items-center justify-center bg-red-500/10 text-[#c51b1b] dark:text-[#ff5c5c] font-black text-xs"
                 title="Files differ in content"
@@ -890,7 +975,7 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
                 ≠
               </span>
             )}
-            {node.status === 'left-only' && (
+            {effectiveStatus === 'left-only' && (
               <span
                 className="w-full h-full flex items-center justify-center bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs font-bold"
                 title="Orphan (exists on left only)"
@@ -898,7 +983,7 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
                 ←
               </span>
             )}
-            {node.status === 'right-only' && (
+            {effectiveStatus === 'right-only' && (
               <span
                 className="w-full h-full flex items-center justify-center bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs font-bold"
                 title="Orphan (exists on right only)"
@@ -906,7 +991,7 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
                 →
               </span>
             )}
-            {node.status === 'error' && (
+            {effectiveStatus === 'error' && (
               <span className="text-rose-500 font-black text-xs" title={node.left.error || node.right.error}>
                 !
               </span>

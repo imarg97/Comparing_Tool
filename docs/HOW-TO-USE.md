@@ -1,7 +1,7 @@
 # mDiff — Comprehensive User Guide & How-to-Use Manual
 
 **Application**: mDiff (Mavenir Diff) Comparison Suite  
-**Version**: `v4.0.0`  
+**Version**: `v5.0.0`  
 **Platforms**: Web (`http://10.10.84.22:8097`), Windows 10/11 (`mDiff.exe`), macOS (`mDiff.app`)  
 **Design Standard**: Beyond Compare Enterprise Fidelity & Visual Parity  
 
@@ -12,14 +12,17 @@
 **mDiff** is an enterprise-grade, high-performance file, directory, and structured configuration comparison suite built for telecom network engineers, system administrators, and software developers. 
 
 mDiff combines:
-- **Zero-Latency Client-Side Diffing**: Diff calculations execute strictly on the local machine using client-side CPU and memory.
+- **Dynamic Difference Updating**: When files are synchronized, edited, or copied between panes, difference statuses update dynamically in real time. The left-side red font and center gutter (`≠`) immediately change back to clean black font and `=`.
+- **Hierarchical Red-to-Black Folder Transition**: Parent directories containing differences display red folder icons and bold red text. As soon as all child differences are synchronized, the parent folder icon and name dynamically transition to solid dark black (`text-neutral-900`) with zero lag.
+- **In-Memory Session Caching**: Folder comparisons remain persistently mounted and cached in memory across session tab switches. Switching from active text editing (`.bashrc`, `others.sh`, `values.yaml`) back to Folder Compare takes 0ms with zero re-scanning.
+- **Home Screen Dashboard as Default Launch**: Applications open directly to the clean Beyond Compare-styled launcher dashboard with 5 comparison session options (Folder Compare, Text Compare, Config & XML, Folder Sync, and Table & Data).
 - **Beyond Compare Monospace Typography**: Employs corporate standard monospace fonts (`Consolas`, `Lucida Console`, `DejaVu Sans Mono`) at `13px` / line height `20px` with clean regular weight (`400`) for standard code tokens, ensuring clear, comfortable reading without visual strain.
 - **Beyond Compare Dynamic Session Tab Bar**: Tab 1 hosts the active Folder comparison session (e.g. `📁 IMC_31_0_Mexico_site3 <-> IMC_11_0_29_0 ✕`), while double-clicking any file spawns a dedicated file session tab (e.g. `📄 values.yaml ✕` with green accent badge). Tabs can be individually closed (`✕`) or opened with the `[+]` button.
-- **Beyond Compare Asymmetric Color Palette**:
+- **Beyond Compare Color Palette**:
   - **Left Side**: Modified files and parent folders containing diffs appear in **bold red text** (`#c51b1b`) with red folder/file icons and timestamps.
-  - **Right Side**: Differences are **greyed out** (`#71717a` / muted grey) with grey icons and timestamps. When a row is selected or opened, it switches to blacked out / high-contrast for effortless inspection.
+  - **Right Side**: Clean, solid regular black font (`text-neutral-900` light / `text-neutral-100` dark) for all identical and modified items—no washed out gray text or gray icons.
   - **Orphans**: Files or folders existing only on one side are highlighted in distinct **purple text** (`#7e22ce`) and purple icons on both left and right.
-  - **Identical Files**: Neutral dark text on both sides with `=` in the center divider.
+  - **Identical Files**: Clean regular black font on both sides with `=` in the center divider.
   - **Row Selection**: Soft sky blue highlight (`#e0edff`).
 - **Interactive Zoom**: Zoom in and out smoothly from **70% to 200%** using **`Ctrl` + mouse wheel (roller button)** or `Ctrl + +`, `Ctrl + -`, and `Ctrl + 0` (reset), supported across both the Monaco code editor and directory trees.
 - **Universal Python 3 Server Engine**: Deployable anywhere from Python 3.6 to 3.13+ on RHEL/CentOS with zero external dependencies and built-in SPA routing.
@@ -33,7 +36,7 @@ Upon launching mDiff, the top bar presents the **Beyond Compare Session Tab Bar*
 
 ```
 +-------------------------------------------------------------------------------------------------------+
-| mDiff v4.0.0  [📁 IMC_31_0_Mexico_site3 <-> IMC_11_0_29_0 ✕]  [📄 values.yaml ✕]  [+]   [-] 100% [+]  |
+| mDiff v5.0.0  [📁 IMC_31_0_Mexico_site3 <-> IMC_11_0_29_0 ✕]  [📄 values.yaml ✕]  [+]   [-] 100% [+]  |
 +-------------------------------------------------------------------------------------------------------+
 ```
 

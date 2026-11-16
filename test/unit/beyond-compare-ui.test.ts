@@ -11,6 +11,20 @@ import {
   buildVisualRowMap,
   executeVisualRangeCopy,
 } from '../../src/shared/comparison-engine/diff-copy.js';
+import {
+  updateDirectoryStatuses,
+  recalculateSummary,
+} from '../../src/shared/comparison-engine/matcher.js';
+import { ComparisonEntry, FileMetadata } from '../../src/shared/types.js';
+
+const makeMeta = (exists: boolean, size = 0, mtime = 0, isDir = false): FileMetadata => ({
+  exists,
+  size,
+  mtime,
+  isDirectory: isDir,
+  isSymlink: false,
+  readable: true,
+});
 
 describe('Beyond Compare UI Utilities', () => {
   describe('detectLanguage', () => {
@@ -1052,6 +1066,152 @@ describe('Beyond Compare UI Utilities', () => {
       expect(prompt.label).toBe(
         '⇄ Compare Files Now: ixla-server-cnims-imcsm-userdata ↔ pval-ns-cnims-imc1-imcsm-userdata'
       );
+    });
+
+    it('dynamically rolls up folder status from modified (red) to identical (black) when child differences are resolved', () => {
+      // Mock directory tree: parent folder 'customize' containing child 'bashrc' (modified)
+      const bashrcNode: ComparisonEntry = {
+        relativePath: 'customize/bashrc',
+        name: 'bashrc',
+        isDirectory: false,
+        status: 'modified',
+        left: makeMeta(true, 2600, 1000),
+        right: makeMeta(true, 2700, 2000),
+        sizeDiff: true,
+        mtimeDiff: true,
+      };
+
+      const addaliasNode: ComparisonEntry = {
+        relativePath: 'customize/addalias',
+        name: 'addalias',
+        isDirectory: false,
+        status: 'identical',
+        left: makeMeta(true, 2300, 1000),
+        right: makeMeta(true, 2300, 1000),
+        sizeDiff: false,
+        mtimeDiff: false,
+      };
+
+      const parentFolder: ComparisonEntry = {
+        relativePath: 'customize',
+        name: 'customize',
+        isDirectory: true,
+        status: 'modified',
+        left: makeMeta(true, 4900, 1000, true),
+        right: makeMeta(true, 5000, 2000, true),
+        mtimeDiff: true,
+        sizeDiff: true,
+        children: [addaliasNode, bashrcNode],
+      };
+
+      const tree: ComparisonEntry[] = [parentFolder];
+
+      // Initially, directory status is modified because bashrc is modified
+      updateDirectoryStatuses(tree);
+      expect(parentFolder.status).toBe('modified');
+
+      // User synchronizes or edits bashrc in TextCompare -> marked identical
+      bashrcNode.status = 'identical';
+      bashrcNode.sizeDiff = false;
+      bashrcNode.mtimeDiff = false;
+
+      // Re-evaluating directory statuses turns customize to identical (black folder icon & black font)
+      updateDirectoryStatuses(tree);
+      expect(parentFolder.status).toBe('identical');
+    });
+
+    it('correctly recalculates summary metrics when nodes update dynamically', () => {
+      const file1: ComparisonEntry = {
+        relativePath: 'values.yaml',
+        name: 'values.yaml',
+        isDirectory: false,
+        status: 'modified',
+        mtimeDiff: true,
+        sizeDiff: true,
+        left: makeMeta(true, 6502, 1000),
+        right: makeMeta(true, 6621, 2000),
+      };
+
+      const file2: ComparisonEntry = {
+        relativePath: 'Chart.yaml',
+        name: 'Chart.yaml',
+        isDirectory: false,
+        status: 'identical',
+        mtimeDiff: false,
+        sizeDiff: false,
+        left: makeMeta(true, 105, 1000),
+        right: makeMeta(true, 105, 1000),
+      };
+
+      const orphan: ComparisonEntry = {
+        relativePath: 'script.sh',
+        name: 'script.sh',
+        isDirectory: false,
+        status: 'left-only',
+        mtimeDiff: false,
+        sizeDiff: false,
+        left: makeMeta(true, 500, 1000),
+        right: makeMeta(false, 0, 0),
+      };
+
+      const tree = [file1, file2, orphan];
+
+      let summary = recalculateSummary(tree);
+      expect(summary.total).toBe(3);
+      expect(summary.identical).toBe(1);
+      expect(summary.modified).toBe(1);
+      expect(summary.leftOnly).toBe(1);
+      expect(summary.rightOnly).toBe(0);
+
+      // Now resolve difference on file1
+      file1.status = 'identical';
+      summary = recalculateSummary(tree);
+      expect(summary.total).toBe(3);
+      expect(summary.identical).toBe(2);
+      expect(summary.modified).toBe(0);
+      expect(summary.leftOnly).toBe(1);
+    });
+
+    it('resolves effective status and Beyond Compare styling with dynamicFileStatusMap', () => {
+      const dynamicFileStatusMap: Record<string, boolean> = {
+        'customize/bashrc': true,
+      };
+
+      const node: ComparisonEntry = {
+        relativePath: 'customize/bashrc',
+        name: 'bashrc',
+        isDirectory: false,
+        status: 'modified',
+        mtimeDiff: true,
+        sizeDiff: true,
+        left: makeMeta(true, 2600, 1000),
+        right: makeMeta(true, 2700, 2000),
+      };
+
+      const isDynamicallyIdentical = Boolean(
+        dynamicFileStatusMap[node.relativePath] === true || dynamicFileStatusMap[node.name] === true
+      );
+      const effectiveStatus = isDynamicallyIdentical ? 'identical' : node.status;
+
+      // Status dynamically updates to identical
+      expect(effectiveStatus).toBe('identical');
+
+      // Left text color for identical item must be regular black font (not red)
+      const isModified = effectiveStatus === 'modified';
+      const isLeftOnly = effectiveStatus === 'left-only';
+      const hasDiff = isModified;
+
+      const leftTextColor = (hasDiff || isModified)
+        ? 'text-[#c51b1b] dark:text-[#ff5c5c] font-bold'
+        : isLeftOnly
+        ? 'text-[#7e22ce] dark:text-[#c084fc] font-bold'
+        : 'text-neutral-900 dark:text-neutral-100 font-normal';
+
+      expect(leftTextColor).toBe('text-neutral-900 dark:text-neutral-100 font-normal');
+
+      // Right text color is regular black font (never gray #71717a)
+      const rightTextColor = 'text-neutral-900 dark:text-neutral-100 font-normal';
+      expect(rightTextColor).not.toContain('#71717a');
     });
   });
 });

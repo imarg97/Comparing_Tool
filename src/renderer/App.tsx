@@ -24,11 +24,17 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // Navigation & Theme (default to 'text' in web browser mode since folder compare is desktop-only)
-  const [activeTab, setActiveTab] = useState<NavigationTab>(() => (isBrowserEnvironment() ? 'text' : 'folder'));
+  // Navigation & Theme (defaults to Beyond Compare Home Screen Dashboard on application launch)
+  const [activeTab, setActiveTab] = useState<NavigationTab>('home');
 
   // Dynamic Beyond Compare Multi-Session Tabs State
   const [sessionTabs, setSessionTabs] = useState<SessionTab[]>([
+    {
+      id: 'session-home',
+      type: 'home',
+      title: 'Home',
+      closable: false,
+    },
     {
       id: 'folder-main',
       type: 'folder',
@@ -36,8 +42,11 @@ export const App: React.FC = () => {
       closable: false,
     },
   ]);
-  const [activeTabId, setActiveTabId] = useState<string>('folder-main');
+  const [activeTabId, setActiveTabId] = useState<string>('session-home');
   const [zoomLevel, setZoomLevel] = useState<number>(100);
+
+  // Dynamic file status map (tracks live differences made identical/modified: relativePath/filename -> isIdentical)
+  const [dynamicFileStatusMap, setDynamicFileStatusMap] = useState<Record<string, boolean>>({});
 
   // Initialize theme from storage (default to 'dark' pitch black)
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -310,6 +319,34 @@ export const App: React.FC = () => {
     });
   };
 
+  const handleFileComparisonStatusChange = (leftPath: string, rightPath: string, isIdentical: boolean) => {
+    let rel = '';
+    if (folderLeftPath) {
+      const normLeftRoot = folderLeftPath.replace(/[\\/]+$/, '').replace(/\\/g, '/');
+      const normLeft = leftPath.replace(/\\/g, '/');
+      if (normLeft.startsWith(normLeftRoot)) {
+        rel = normLeft.slice(normLeftRoot.length).replace(/^[/\\]+/, '');
+      }
+    }
+    if (!rel && folderRightPath) {
+      const normRightRoot = folderRightPath.replace(/[\\/]+$/, '').replace(/\\/g, '/');
+      const normRight = rightPath.replace(/\\/g, '/');
+      if (normRight.startsWith(normRightRoot)) {
+        rel = normRight.slice(normRightRoot.length).replace(/^[/\\]+/, '');
+      }
+    }
+    const leftBase = leftPath.split(/[\\/]/).pop() || '';
+    const rightBase = rightPath.split(/[\\/]/).pop() || '';
+
+    setDynamicFileStatusMap((prev) => {
+      const next = { ...prev };
+      if (rel) next[rel] = isIdentical;
+      if (leftBase) next[leftBase] = isIdentical;
+      if (rightBase) next[rightBase] = isIdentical;
+      return next;
+    });
+  };
+
   const handleUpdateStatus = (text: string, count?: number, durationMs?: number) => {
     setStatusText(text);
     setStatusItemCount(count);
@@ -384,7 +421,8 @@ export const App: React.FC = () => {
 
       {/* Main Workspace Body */}
       <main className="flex-1 flex flex-col min-h-0 relative bg-white dark:bg-black">
-        {activeTab === 'folder' && (
+        {/* Persistent Folder Compare Workspace (Kept in memory, zero-latency session switching without reloading) */}
+        <div className={`flex-1 flex flex-col min-h-0 ${activeTab === 'folder' ? '' : 'hidden'}`}>
           <FolderCompareView
             leftFolder={folderLeftPath}
             rightFolder={folderRightPath}
@@ -405,8 +443,9 @@ export const App: React.FC = () => {
             onShowWebNotice={() => setWebFolderModalOpen(true)}
             zoomLevel={zoomLevel}
             onSetZoomLevel={setZoomLevel}
+            dynamicFileStatusMap={dynamicFileStatusMap}
           />
-        )}
+        </div>
 
         {activeTab === 'text' && (
           <TextCompareView
@@ -424,6 +463,7 @@ export const App: React.FC = () => {
             onNavigateHome={() => setActiveTab('home')}
             onRequestConfirm={(cfg) => setConfirmConfig(cfg)}
             onUpdateStatus={handleUpdateStatus}
+            onFileStatusChange={handleFileComparisonStatusChange}
           />
         )}
 

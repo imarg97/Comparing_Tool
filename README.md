@@ -1,6 +1,6 @@
 # mDiff (Mavenir Diff) — Enterprise Desktop & Web Comparison Suite
 
-**Version**: `v3.7.0`  
+**Version**: `v5.0.0`  
 **License**: Permissive Open-Source (100% MIT & ISC Compatible — Zero Copyleft)  
 **Security Classification**: Air-Gapped / Zero-Telemetry / Portable User-Space Utility  
 **Web Production URL**: `http://10.10.84.22:8097` *(Mavenir VPN)*  
@@ -10,9 +10,9 @@
 
 ## Overview
 
-**mDiff** (Mavenir Diff, formerly DiffX) is an enterprise comparison suite tailored specifically for telecommunications engineering, cloud platform operations (OpenShift / Kubernetes), and DevOps workflows. 
+**mDiff** (Mavenir Diff) is an enterprise comparison suite tailored specifically for telecommunications engineering, cloud platform operations (OpenShift / Kubernetes), and DevOps workflows. 
 
-Engineered with high visual fidelity to **Beyond Compare**, mDiff delivers side-by-side text diffing, deep cryptographic directory tree comparison, and semantic cellular/network XML, YAML, and JSON parameter comparisons across both native desktop operating systems (Windows & macOS) and internal air-gapped web servers.
+Engineered with complete visual and behavioral fidelity to **Beyond Compare**, mDiff delivers side-by-side text diffing, deep cryptographic directory tree comparison, and semantic cellular/network XML, YAML, and JSON parameter comparisons across both native desktop operating systems (Windows & macOS) and internal air-gapped web servers.
 
 ---
 
@@ -22,7 +22,7 @@ All official documentation has been organized into the [`docs/`](docs/) director
 
 | Document | Description |
 | :--- | :--- |
-| **[📖 User Guide & How-To Manual](docs/HOW-TO-USE.md)** | Step-by-step instructions for Text Compare, Config & XML Compare, Folder Compare, Line Detail Inspector, and Keyboard Shortcuts. |
+| **[📖 User Guide & How-To Manual](docs/HOW-TO-USE.md)** | Step-by-step instructions for Folder Compare, Text Compare, Config & XML Compare, Dynamic Difference Updates, and Keyboard Shortcuts. |
 | **[🛡️ Second Security Audit Report](docs/SECURITY-AUDIT-REPORT.md)** | Cloudflare framework defensive audit evaluating 7 remediated vulnerability classes, trust boundaries, and test verification. |
 | **[📋 Enterprise Security & Compliance](docs/ENTERPRISE-SECURITY.md)** | Management & IT compliance report covering zero-admin user-space execution, non-destructive file operations, and endpoint policies. |
 | **[🔐 IT Security & SysAdmin Q&A](docs/IT-SECURITY-QA.md)** | Detailed answers for InfoSec, DLP, and endpoint administrators regarding zero network egress and Content Security Policy. |
@@ -31,18 +31,27 @@ All official documentation has been organized into the [`docs/`](docs/) director
 
 ---
 
-## Key Guarantees & Features in v3.7.0
+## Key Guarantees & Features in v5.0.0
 
-### 1. Beyond Compare Visual Parity
-- **High-Contrast Monospace Typography**: Employs corporate standard monospace fonts (`Consolas`, `Lucida Console`, `DejaVu Sans Mono`, `Liberation Mono`) rendered with **bold weight (`700`)** everywhere (bold black on light theme, bold white on pitch-black dark theme).
-- **Box-Free Difference Highlighting**: Replaced heavy rectangular boxes and border outlines with clean pastel rose row stripes (`#fdecec` light / `#2b1215` dark) and **crisp bold red text** (`#dc2626` light / `#ff5c5c` dark) strictly on differing characters.
-- **Line Detail Inspector**: Bottom-docked panel showing enlarged character-by-character differences.
+### 1. Dynamic Difference Resolution & Real-Time Equality Updates
+- **Instant In-Memory Diff Updates**: When files are edited or copied between Left and Right to make them equal (e.g. `bashrc`, `others.sh`), the diff status updates dynamically in real time. The left-side red font and center gutter (`≠`) immediately change back to clean black font and `=`.
+- **Hierarchical Red-to-Black Folder Transition**: Parent directories containing differences display red folder icons and bold red text. As soon as all child differences are synchronized, the parent folder icon and name dynamically transition to solid black (`text-neutral-900`) with zero lag.
+- **Instant Copy & Delete Operations**: Alt+Left / Alt+Right or context-menu copy immediately marks nodes as identical with 0ms visual latency, backed by filesystem verification.
 
-### 2. Telecom & Cloud Structured Compare
+### 2. Session Caching & Zero-Latency Tab Switching
+- **In-Memory Folder Compare Retention**: Folder comparisons remain mounted and cached in memory across session tab switches. Switching from active text editing (`.bashrc`, `others.sh`, `values.yaml`) back to Folder Compare takes 0ms with zero re-scanning.
+- **Home Screen Dashboard as Default Launch**: Applications open directly to the clean Beyond Compare-styled launcher dashboard with 5 comparison session options (Folder Compare, Text Compare, Config & XML, Folder Sync, and Table & Data).
+
+### 3. Beyond Compare Visual Parity & Clean High-Contrast Typography
+- **Clean Solid Black Typography**: Eliminates washed-out gray text (`#71717a`) on the right side pane. All identical and synchronized items render in clean, readable regular black font (`text-neutral-900` light / `text-neutral-100` dark), with bold red strictly highlighting active differences.
+- **High-Contrast Monospace Typography**: Employs corporate standard monospace fonts (`Consolas`, `Lucida Console`, `DejaVu Sans Mono`, `Liberation Mono`) rendered with crisp contrast.
+- **Box-Free Difference Highlighting**: Clean pastel rose row stripes (`#fdecec` light / `#2b1215` dark) and crisp bold red text (`#dc2626` light / `#ff5c5c` dark) strictly on differing characters.
+
+### 4. Telecom & Cloud Structured Compare
 - **Cellular XML Configurations**: Custom zero-dependency XML parser normalizes attributes, strips formatting differences, and highlights real parameter shifts between network snapshots.
 - **Kubernetes / OpenShift YAML**: Built-in noise filters automatically suppress dynamic runtime noise (`resourceVersion`, `managedFields`, `creationTimestamp`, `uid`, `status`).
 
-### 3. Absolute Privacy & Air-Gapped Execution
+### 5. Absolute Privacy & Air-Gapped Execution
 - **Zero Data Egress**: All diff computations execute strictly on the client CPU and RAM. No files, configs, keystrokes, or diff results are ever transmitted across the network or stored on the server.
 - **Offline Self-Contained Bundles**: Zero external script dependencies (no Google Fonts, no public CDNs). Monaco Editor and all web workers are bundled locally.
 - **Pure JavaScript SHA-256 Fallback**: Deterministic cryptographic hashing that runs reliably in all environments (including non-HTTPS internal network IPs).

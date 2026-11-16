@@ -188,7 +188,7 @@ function buildHierarchy(flatList: ComparisonEntry[]): ComparisonEntry[] {
   return rootNodes;
 }
 
-function updateDirectoryStatuses(nodes: ComparisonEntry[]): EntryStatus {
+export function updateDirectoryStatuses(nodes: ComparisonEntry[]): EntryStatus {
   for (const node of nodes) {
     if (node.isDirectory && node.children && node.children.length > 0) {
       let hasError = false;
@@ -224,4 +224,43 @@ function updateDirectoryStatuses(nodes: ComparisonEntry[]): EntryStatus {
   }
 
   return nodes.length > 0 ? nodes[0].status : 'identical';
+}
+
+export function recalculateSummary(
+  tree: ComparisonEntry[],
+  baseSummary?: ComparisonSummary
+): ComparisonSummary {
+  const summary: ComparisonSummary = {
+    total: 0,
+    identical: 0,
+    modified: 0,
+    leftOnly: 0,
+    rightOnly: 0,
+    error: 0,
+    totalBytesLeft: baseSummary?.totalBytesLeft ?? 0,
+    totalBytesRight: baseSummary?.totalBytesRight ?? 0,
+    scanDurationMs: baseSummary?.scanDurationMs ?? 0,
+  };
+
+  function countNode(node: ComparisonEntry) {
+    if (!node.isDirectory) {
+      summary.total++;
+      if (node.status === 'identical') summary.identical++;
+      else if (node.status === 'modified') summary.modified++;
+      else if (node.status === 'left-only') summary.leftOnly++;
+      else if (node.status === 'right-only') summary.rightOnly++;
+      else if (node.status === 'error') summary.error++;
+    }
+    if (node.children) {
+      for (const child of node.children) {
+        countNode(child);
+      }
+    }
+  }
+
+  for (const root of tree) {
+    countNode(root);
+  }
+
+  return summary;
 }

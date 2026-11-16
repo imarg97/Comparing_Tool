@@ -81,6 +81,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     )}
                   </div>
                   <div
+                    onClick={() => onNavigate('folder')}
+                    className="flex items-center space-x-2 px-2 py-1 rounded cursor-pointer hover:bg-blue-50 dark:hover:bg-neutral-900 hover:text-blue-600 dark:hover:text-blue-400 text-neutral-700 dark:text-neutral-300"
+                  >
+                    <Folder className="w-3.5 h-3.5 text-cyan-500 fill-cyan-400" />
+                    <span>Folder Sync</span>
+                  </div>
+                  <div
                     onClick={() => onNavigate('text')}
                     className="flex items-center space-x-2 px-2 py-1 rounded cursor-pointer hover:bg-blue-50 dark:hover:bg-neutral-900 hover:text-blue-600 dark:hover:text-blue-400 text-neutral-700 dark:text-neutral-300"
                   >
@@ -93,6 +100,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   >
                     <FileCode className="w-3.5 h-3.5 text-emerald-500" />
                     <span>Config & XML Compare</span>
+                  </div>
+                  <div
+                    onClick={() => onNavigate('text')}
+                    className="flex items-center space-x-2 px-2 py-1 rounded cursor-pointer hover:bg-blue-50 dark:hover:bg-neutral-900 hover:text-blue-600 dark:hover:text-blue-400 text-neutral-700 dark:text-neutral-300"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-purple-500" />
+                    <span>Table & Data Compare</span>
                   </div>
                 </div>
               )}
@@ -177,53 +191,51 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         {/* ================= RIGHT MAIN AREA: BEYOND COMPARE LAUNCHER GRID ================= */}
-        <div className="flex-1 bg-white dark:bg-black overflow-y-auto flex flex-col items-center justify-center p-8">
-          <div className="max-w-2xl w-full">
-            {/* Grid of Big Beyond Compare Icons */}
-            <div className="grid grid-cols-3 gap-8 justify-items-center mb-8">
+        <div className="flex-1 bg-white dark:bg-black overflow-y-auto flex flex-col items-center justify-center p-6">
+          <div className="max-w-3xl w-full">
+            {/* Grid of 5 Beyond Compare Comparison Launchers */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 justify-items-center mb-6">
               {/* 1. Folder Compare */}
               <div
                 onClick={() => onNavigate('folder')}
-                className="group flex flex-col items-center cursor-pointer p-4 rounded-lg hover:bg-[#f0f7ff] dark:hover:bg-neutral-900 border border-transparent hover:border-blue-300 dark:hover:border-blue-900/60 transition"
+                className="group flex flex-col items-center cursor-pointer p-3 rounded-lg hover:bg-[#f0f7ff] dark:hover:bg-neutral-900 border border-transparent hover:border-blue-300 dark:hover:border-blue-900/60 transition w-full"
               >
-                <div className="relative w-20 h-20 mb-2 flex items-center justify-center group-hover:scale-105 transition-transform">
-                  {/* Manila Folder Icon pair (Beyond Compare style) */}
-                  <div className="absolute top-2 left-2 w-14 h-12 rounded bg-[#e8a838] shadow border border-[#c48820]" />
-                  <div className="absolute top-4 left-5 w-14 h-12 rounded bg-[#f5bc4b] shadow-md border border-[#c48820] flex items-center justify-center" />
-                  <Folder className="w-10 h-10 text-white fill-white relative z-10 opacity-80" />
+                <div className="relative w-16 h-16 mb-2 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <div className="absolute top-1 left-1 w-11 h-10 rounded bg-[#e8a838] shadow border border-[#c48820]" />
+                  <div className="absolute top-3 left-4 w-11 h-10 rounded bg-[#f5bc4b] shadow-md border border-[#c48820] flex items-center justify-center" />
+                  <Folder className="w-8 h-8 text-white fill-white relative z-10 opacity-80" />
                 </div>
-                <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 flex items-center space-x-1">
+                <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 text-center flex items-center space-x-1">
                   <span>Folder Compare</span>
-                  {isWeb && (
-                    <span className="px-1 py-0.2 text-[8px] font-semibold rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                      App Only
-                    </span>
-                  )}
                 </span>
-                <span className="text-[10px] text-neutral-400 text-center mt-0.5">
-                  {isWeb ? 'Requires Desktop Application' : 'Dual-pane synchronized explorer'}
+                {isWeb && (
+                  <span className="mt-1 px-1 py-0.2 text-[8px] font-semibold rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                    App Only
+                  </span>
+                )}
+                <span className="text-[10px] text-neutral-400 text-center mt-1">
+                  Dual-pane synchronized explorer
                 </span>
               </div>
 
               {/* 2. Text Compare */}
               <div
                 onClick={() => onNavigate('text')}
-                className="group flex flex-col items-center cursor-pointer p-4 rounded-lg hover:bg-[#f0f7ff] dark:hover:bg-neutral-900 border border-transparent hover:border-blue-300 dark:hover:border-blue-900/60 transition"
+                className="group flex flex-col items-center cursor-pointer p-3 rounded-lg hover:bg-[#f0f7ff] dark:hover:bg-neutral-900 border border-transparent hover:border-blue-300 dark:hover:border-blue-900/60 transition w-full"
               >
-                <div className="relative w-20 h-20 mb-2 flex items-center justify-center group-hover:scale-105 transition-transform">
-                  {/* Two Documents Icon pair (Beyond Compare style) */}
-                  <div className="absolute top-2 left-3 w-12 h-14 rounded bg-white dark:bg-neutral-800 shadow border border-neutral-300 dark:border-neutral-700" />
-                  <div className="absolute top-4 left-6 w-12 h-14 rounded bg-white dark:bg-neutral-800 shadow-md border border-neutral-300 dark:border-neutral-700 flex flex-col justify-center px-2 space-y-1">
+                <div className="relative w-16 h-16 mb-2 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <div className="absolute top-1 left-2 w-10 h-12 rounded bg-white dark:bg-neutral-800 shadow border border-neutral-300 dark:border-neutral-700" />
+                  <div className="absolute top-3 left-4 w-10 h-12 rounded bg-white dark:bg-neutral-800 shadow-md border border-neutral-300 dark:border-neutral-700 flex flex-col justify-center px-1.5 space-y-1">
                     <div className="h-1 bg-blue-500 rounded w-full" />
                     <div className="h-1 bg-neutral-300 dark:bg-neutral-600 rounded w-4/5" />
                     <div className="h-1 bg-red-400 rounded w-full" />
                     <div className="h-1 bg-neutral-300 dark:bg-neutral-600 rounded w-3/4" />
                   </div>
                 </div>
-                <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 text-center">
                   Text Compare
                 </span>
-                <span className="text-[10px] text-neutral-400 text-center mt-0.5">
+                <span className="text-[10px] text-neutral-400 text-center mt-1">
                   Side-by-side Monaco diffing
                 </span>
               </div>
@@ -231,19 +243,59 @@ export const HomeView: React.FC<HomeViewProps> = ({
               {/* 3. Config & XML Compare */}
               <div
                 onClick={() => onNavigate('structured')}
-                className="group flex flex-col items-center cursor-pointer p-4 rounded-lg hover:bg-[#f0f7ff] dark:hover:bg-neutral-900 border border-transparent hover:border-blue-300 dark:hover:border-blue-900/60 transition"
+                className="group flex flex-col items-center cursor-pointer p-3 rounded-lg hover:bg-[#f0f7ff] dark:hover:bg-neutral-900 border border-transparent hover:border-blue-300 dark:hover:border-blue-900/60 transition w-full"
               >
-                <div className="relative w-20 h-20 mb-2 flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <div className="absolute top-2 left-3 w-12 h-14 rounded bg-white dark:bg-neutral-800 shadow border border-neutral-300 dark:border-neutral-700" />
-                  <div className="absolute top-4 left-6 w-12 h-14 rounded bg-emerald-50 dark:bg-emerald-950/60 shadow-md border border-emerald-400 dark:border-emerald-700 flex flex-col items-center justify-center text-emerald-600 dark:text-emerald-400 font-mono font-bold text-xs">
+                <div className="relative w-16 h-16 mb-2 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <div className="absolute top-1 left-2 w-10 h-12 rounded bg-white dark:bg-neutral-800 shadow border border-neutral-300 dark:border-neutral-700" />
+                  <div className="absolute top-3 left-4 w-10 h-12 rounded bg-emerald-50 dark:bg-emerald-950/60 shadow-md border border-emerald-400 dark:border-emerald-700 flex flex-col items-center justify-center text-emerald-600 dark:text-emerald-400 font-mono font-bold text-xs">
                     &lt;/&gt;
                   </div>
                 </div>
-                <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
-                  Config & XML Compare
+                <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 text-center">
+                  Config & XML
                 </span>
-                <span className="text-[10px] text-neutral-400 text-center mt-0.5">
-                  site1.xml vs site2.xml & YAML
+                <span className="text-[10px] text-neutral-400 text-center mt-1">
+                  site.xml & values.yaml
+                </span>
+              </div>
+
+              {/* 4. Folder Sync */}
+              <div
+                onClick={() => onNavigate('folder')}
+                className="group flex flex-col items-center cursor-pointer p-3 rounded-lg hover:bg-[#f0f7ff] dark:hover:bg-neutral-900 border border-transparent hover:border-blue-300 dark:hover:border-blue-900/60 transition w-full"
+              >
+                <div className="relative w-16 h-16 mb-2 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <div className="absolute top-1 left-1 w-11 h-10 rounded bg-[#0284c7] shadow border border-[#0369a1]" />
+                  <div className="absolute top-3 left-4 w-11 h-10 rounded bg-[#38bdf8] shadow-md border border-[#0369a1] flex items-center justify-center" />
+                  <Folder className="w-8 h-8 text-white fill-white relative z-10 opacity-90" />
+                </div>
+                <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 group-hover:text-sky-600 dark:group-hover:text-sky-400 text-center">
+                  Folder Sync
+                </span>
+                <span className="text-[10px] text-neutral-400 text-center mt-1">
+                  Bi-directional folder sync
+                </span>
+              </div>
+
+              {/* 5. Table & Data Compare */}
+              <div
+                onClick={() => onNavigate('text')}
+                className="group flex flex-col items-center cursor-pointer p-3 rounded-lg hover:bg-[#f0f7ff] dark:hover:bg-neutral-900 border border-transparent hover:border-blue-300 dark:hover:border-blue-900/60 transition w-full"
+              >
+                <div className="relative w-16 h-16 mb-2 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <div className="absolute top-1 left-2 w-10 h-12 rounded bg-purple-100 dark:bg-purple-950/60 shadow border border-purple-300 dark:border-purple-800" />
+                  <div className="absolute top-3 left-4 w-10 h-12 rounded bg-white dark:bg-neutral-800 shadow-md border border-purple-400 dark:border-purple-700 flex flex-col justify-center px-1.5 space-y-1">
+                    <div className="h-1 bg-purple-500 rounded w-full" />
+                    <div className="h-1 bg-neutral-300 dark:bg-neutral-600 rounded w-full" />
+                    <div className="h-1 bg-purple-400 rounded w-full" />
+                    <div className="h-1 bg-neutral-300 dark:bg-neutral-600 rounded w-full" />
+                  </div>
+                </div>
+                <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 group-hover:text-purple-600 dark:group-hover:text-purple-400 text-center">
+                  Table & Data
+                </span>
+                <span className="text-[10px] text-neutral-400 text-center mt-1">
+                  CSV, TSV & tabular diffs
                 </span>
               </div>
             </div>
@@ -256,7 +308,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       </div>
 
-      {/* ================= BOTTOM DIFFX INFO BANNER (MODERN TECH PALETTE) ================= */}
+      {/* ================= BOTTOM MDIFF INFO BANNER (MODERN TECH PALETTE) ================= */}
       {showBottomBanner && (
         <div className="bg-[#0f172a] dark:bg-black text-slate-100 dark:text-neutral-200 border-t border-slate-800 dark:border-neutral-800 px-6 py-2.5 flex items-center justify-between text-xs flex-shrink-0 shadow-lg relative z-10">
           <div className="grid grid-cols-4 gap-6 max-w-5xl w-full">
@@ -291,7 +343,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
             <div>
               <div className="font-semibold uppercase tracking-wider text-[11px] mb-1 text-sky-400 dark:text-sky-300">
-                DIFFX SUITE v3.7.0
+                MDIFF SUITE v5.0.0
               </div>
               <div className="text-[11px] text-slate-300 dark:text-neutral-400 leading-tight">
                 Designed for high-performance file, folder, and configuration comparison.
