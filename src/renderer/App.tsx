@@ -47,6 +47,7 @@ export const App: React.FC = () => {
 
   // Dynamic file status map (tracks live differences made identical/modified: relativePath/filename -> isIdentical)
   const [dynamicFileStatusMap, setDynamicFileStatusMap] = useState<Record<string, boolean>>({});
+  const [dynamicFileMetaMap, setDynamicFileMetaMap] = useState<Record<string, { isIdentical?: boolean; leftMtime?: number; rightMtime?: number }>>({});
 
   // Initialize theme from storage (default to 'dark' pitch black)
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -319,7 +320,12 @@ export const App: React.FC = () => {
     });
   };
 
-  const handleFileComparisonStatusChange = (leftPath: string, rightPath: string, isIdentical: boolean) => {
+  const handleFileComparisonStatusChange = (
+    leftPath: string,
+    rightPath: string,
+    isIdentical: boolean,
+    meta?: { side?: 'left' | 'right'; mtime?: number }
+  ) => {
     let rel = '';
     if (folderLeftPath) {
       const normLeftRoot = folderLeftPath.replace(/[\\/]+$/, '').replace(/\\/g, '/');
@@ -345,6 +351,20 @@ export const App: React.FC = () => {
       if (rightBase) next[rightBase] = isIdentical;
       return next;
     });
+
+    if (meta && meta.mtime) {
+      setDynamicFileMetaMap((prev) => {
+        const next = { ...prev };
+        const entry = { ...(next[rel] || next[leftBase] || next[rightBase] || {}) };
+        entry.isIdentical = isIdentical;
+        if (meta.side === 'left') entry.leftMtime = meta.mtime;
+        if (meta.side === 'right') entry.rightMtime = meta.mtime;
+        if (rel) next[rel] = entry;
+        if (leftBase) next[leftBase] = entry;
+        if (rightBase) next[rightBase] = entry;
+        return next;
+      });
+    }
   };
 
   const handleUpdateStatus = (text: string, count?: number, durationMs?: number) => {
@@ -444,6 +464,7 @@ export const App: React.FC = () => {
             zoomLevel={zoomLevel}
             onSetZoomLevel={setZoomLevel}
             dynamicFileStatusMap={dynamicFileStatusMap}
+            dynamicFileMetaMap={dynamicFileMetaMap}
           />
         </div>
 

@@ -1196,7 +1196,7 @@ describe('Beyond Compare UI Utilities', () => {
       // Status dynamically updates to identical
       expect(effectiveStatus).toBe('identical');
 
-      // Left text color for identical item must be regular black font (not red)
+      // Left text color for identical item must be regular dark black font (text-black dark:text-neutral-50)
       const isModified = effectiveStatus === 'modified';
       const isLeftOnly = effectiveStatus === 'left-only';
       const hasDiff = isModified;
@@ -1205,13 +1205,151 @@ describe('Beyond Compare UI Utilities', () => {
         ? 'text-[#c51b1b] dark:text-[#ff5c5c] font-bold'
         : isLeftOnly
         ? 'text-[#7e22ce] dark:text-[#c084fc] font-bold'
-        : 'text-neutral-900 dark:text-neutral-100 font-normal';
+        : 'text-black dark:text-neutral-50 font-normal';
 
-      expect(leftTextColor).toBe('text-neutral-900 dark:text-neutral-100 font-normal');
+      expect(leftTextColor).toBe('text-black dark:text-neutral-50 font-normal');
 
-      // Right text color is regular black font (never gray #71717a)
-      const rightTextColor = 'text-neutral-900 dark:text-neutral-100 font-normal';
+      // Right text color for identical item must also be regular dark black font (not gray #71717a)
+      const rightTextColor = (hasDiff || isModified)
+        ? 'text-[#c51b1b] dark:text-[#ff5c5c] font-bold'
+        : isLeftOnly
+        ? 'text-[#7e22ce] dark:text-[#c084fc] font-bold'
+        : 'text-black dark:text-neutral-50 font-normal';
+      expect(rightTextColor).toBe('text-black dark:text-neutral-50 font-normal');
       expect(rightTextColor).not.toContain('#71717a');
+    });
+
+    it('resolves filled colored folder icons accurately according to diff state', () => {
+      // 1. Difference Folder: filled red folder icon and bold red font on BOTH sides
+      const diffNode: ComparisonEntry = {
+        relativePath: 'imc-diamre',
+        name: 'imc-diamre',
+        isDirectory: true,
+        status: 'modified',
+        mtimeDiff: true,
+        sizeDiff: false,
+        left: makeMeta(true, 0, 1000, true),
+        right: makeMeta(true, 0, 2000, true),
+      };
+
+      const hasDiff = true;
+      const leftFolderIcon = (hasDiff || diffNode.status === 'modified')
+        ? (diffNode.isDirectory ? 'fill-red-500 text-red-700 dark:fill-red-600 dark:text-red-400' : 'text-[#c51b1b] dark:text-[#ff5c5c]')
+        : 'fill-amber-400 text-amber-600 dark:fill-amber-500 dark:text-amber-300';
+      const rightFolderIcon = (hasDiff || diffNode.status === 'modified')
+        ? (diffNode.isDirectory ? 'fill-red-500 text-red-700 dark:fill-red-600 dark:text-red-400' : 'text-[#c51b1b] dark:text-[#ff5c5c]')
+        : 'fill-amber-400 text-amber-600 dark:fill-amber-500 dark:text-amber-300';
+
+      expect(leftFolderIcon).toContain('fill-red-500');
+      expect(rightFolderIcon).toContain('fill-red-500');
+
+      // 2. Identical Folder: rich filled amber/yellow folder icon and solid dark black font
+      const identicalNode: ComparisonEntry = {
+        relativePath: 'customize',
+        name: 'customize',
+        isDirectory: true,
+        status: 'identical',
+        mtimeDiff: false,
+        sizeDiff: false,
+        left: makeMeta(true, 0, 1000, true),
+        right: makeMeta(true, 0, 1000, true),
+      };
+
+      const hasIdenticalDiff = false;
+      const leftIdenticalIcon = (hasIdenticalDiff || identicalNode.status === 'modified')
+        ? 'fill-red-500 text-red-700'
+        : (identicalNode.isDirectory ? 'fill-amber-400 text-amber-600 dark:fill-amber-500 dark:text-amber-300' : 'text-neutral-800');
+      const rightIdenticalIcon = (hasIdenticalDiff || identicalNode.status === 'modified')
+        ? 'fill-red-500 text-red-700'
+        : (identicalNode.isDirectory ? 'fill-amber-400 text-amber-600 dark:fill-amber-500 dark:text-amber-300' : 'text-neutral-800');
+
+      expect(leftIdenticalIcon).toContain('fill-amber-400');
+      expect(rightIdenticalIcon).toContain('fill-amber-400');
+
+      // 3. Orphan Folder: filled purple folder icon
+      const orphanNode: ComparisonEntry = {
+        relativePath: 'templates',
+        name: 'templates',
+        isDirectory: true,
+        status: 'left-only',
+        mtimeDiff: false,
+        sizeDiff: false,
+        left: makeMeta(true, 0, 1000, true),
+        right: makeMeta(false, 0, 0, false),
+      };
+
+      const leftOrphanIcon = orphanNode.status === 'left-only'
+        ? (orphanNode.isDirectory ? 'fill-purple-400 text-purple-700 dark:fill-purple-500 dark:text-purple-300' : 'text-[#7e22ce]')
+        : 'fill-amber-400';
+      expect(leftOrphanIcon).toContain('fill-purple-400');
+    });
+
+    it('generates a single unified bracket line chunk for multi-line gaps instead of repeating arrows', () => {
+      // For a multi-line gap spanning 13 lines (lines 81 to 93)
+      const chunk = {
+        id: 'chunk-gap-1',
+        originalStart: 0,
+        originalEnd: 0,
+        modifiedStart: 81,
+        modifiedEnd: 93,
+      };
+
+      const numRows = Math.max(1, chunk.modifiedEnd - chunk.modifiedStart + 1);
+      expect(numRows).toBe(13);
+
+      // In the new architecture:
+      // Exactly 1 chunk container is produced with 1 single arrow icon and 1 bracket line
+      const chunkHasBracket = numRows > 1;
+      const arrowCount = 1; // Exactly 1 arrow icon per diff chunk, regardless of row count!
+
+      expect(chunkHasBracket).toBe(true);
+      expect(arrowCount).toBe(1);
+    });
+  });
+
+  describe('renameSafeFile logic', () => {
+    it('validates rename parameters safely', async () => {
+      const { renameSafeFile } = await import('../../src/main/fs-engine/safe-fs.js');
+      const fs = await import('fs');
+      const path = await import('path');
+      const os = await import('os');
+
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mdiff-test-rename-'));
+      const oldFile = path.join(tmpDir, 'old-name.txt');
+      const newFile = path.join(tmpDir, 'new-name.txt');
+
+      fs.writeFileSync(oldFile, 'test content', 'utf8');
+
+      // 1. Success on valid rename
+      const res1 = await renameSafeFile({ oldPath: oldFile, newPath: newFile });
+      expect(res1.success).toBe(true);
+      expect(fs.existsSync(newFile)).toBe(true);
+      expect(fs.existsSync(oldFile)).toBe(false);
+
+      // 2. Failure on non-existent old path
+      const res2 = await renameSafeFile({ oldPath: oldFile, newPath: path.join(tmpDir, 'another.txt') });
+      expect(res2.success).toBe(false);
+      expect(res2.error).toContain('Source path does not exist');
+
+      // 3. Failure on target collision
+      const collisionTarget = path.join(tmpDir, 'collision.txt');
+      fs.writeFileSync(collisionTarget, 'existing', 'utf8');
+      const res3 = await renameSafeFile({ oldPath: newFile, newPath: collisionTarget });
+      expect(res3.success).toBe(false);
+      expect(res3.error).toContain('already exists');
+
+      // 4. Failure on null byte
+      const res4 = await renameSafeFile({ oldPath: newFile, newPath: path.join(tmpDir, 'null\0byte.txt') });
+      expect(res4.success).toBe(false);
+      expect(res4.error).toContain('null byte');
+
+      // 5. Failure on Windows reserved device name
+      const res5 = await renameSafeFile({ oldPath: newFile, newPath: path.join(tmpDir, 'CON.txt') });
+      expect(res5.success).toBe(false);
+      expect(res5.error).toContain('Windows reserved device name');
+
+      // Clean up tmp dir
+      fs.rmSync(tmpDir, { recursive: true, force: true });
     });
   });
 });

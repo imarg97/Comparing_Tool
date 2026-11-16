@@ -95,6 +95,9 @@ const api = {
   deleteFile: (request) =>
     ipcRenderer.invoke('file:delete', request),
 
+  renameFile: (request) =>
+    ipcRenderer.invoke('file:rename', request),
+
   compareStructured: (request) =>
     ipcRenderer.invoke('structured:compare', request),
 

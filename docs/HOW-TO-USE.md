@@ -98,14 +98,20 @@ Designed for entire directory trees, firmware bundles, and release folders.
    - **Default Initial Collapsed View**: Following the Beyond Compare paradigm, directories start collapsed at the root level upon comparison. This allows engineers navigating multi-gigabyte or deeply nested folder structures to immediately see high-level summary counts without being overwhelmed by thousands of expanded sub-files.
    - **Click Anywhere on Folder to Open / Close**: Clicking anywhere along a folder row (folder icon, name, or metadata) instantly toggles folder expansion open or closed (no need to hunt for the small chevron arrow).
    - **Global Expand / Collapse**: Use the `+^ Expand` and `-^ Collapse` buttons in the toolbar to expand or collapse all subdirectories at once.
-3. **Right-Click Context Menu & Safe Deletion**:
+3. **Right-Click Context Menu, Rename & Safe Deletion**:
    - Right-click any file or folder (e.g. `desktop.ini`, temporary caches, or orphan files) to reveal the contextual action menu:
+     - **Rename Left File/Folder...** / **Rename Right File/Folder...**: Safely rename an item on either side directly within the app without leaving to file explorer.
      - **Delete Left File...** / **Delete Right File...**: Safely remove an unwanted file or folder from either side with an explicit confirmation dialog.
      - **Delete Both Sides...**: Simultaneously delete corresponding items from both directories.
      - **Compare in Text Editor**: Immediately open the selected file pair directly in Text Compare (`Ctrl+2`).
      - **Copy Left to Right** / **Copy Right to Left**: Synchronize individual files.
      - **Show in System Explorer**: Open the containing folder in Windows Explorer or macOS Finder.
-   - **Safe Deletion Engine**: Prevents path traversal (`..`), protects Windows reserved devices (`CON`, `PRN`, `AUX`, `NUL`), and optionally creates timestamped `.bak.<timestamp>` safety copies before removal.
+   - **Safe Rename & Deletion Engine**: Prevents path traversal (`..`), protects Windows reserved devices (`CON`, `PRN`, `AUX`, `NUL`), prevents collision with existing files, and optionally creates timestamped `.bak.<timestamp>` safety copies before removal.
+   - **Filled Colored Folder Icons (Beyond Compare Standard)**:
+     - **Differences**: Filled bright red folder icon (`fill-red-500 text-red-700`) with bold red text on **BOTH** sides.
+     - **Identical**: Rich filled amber/yellow manila folder icon (`fill-amber-400 text-amber-600`) with solid dark black font on **BOTH** sides.
+     - **Orphans**: Filled purple folder icon (`fill-purple-400 text-purple-700`) with bold purple text.
+   - **Real-Time Timestamps & Instant Auto-Refresh**: Saving changes in child files immediately updates timestamps on the folder comparison tree with zero latency. A dedicated **Compare (F5)** button between the address boxes re-checks disk files instantly.
 4. **Cross-Name & Orphan Manual File Comparison (Beyond Compare Manual Alignment)**:
    In telecom configurations, corresponding configuration files often have different site-specific prefixes or names (for example, `ixla-server-cnims-imcsm-userdata` on Site 1 vs `pval-ns-cnims-imc1-imcsm-userdata` on Site 2). Because the filenames differ, standard directory comparison displays each as an orphan file. mDiff provides complete flexibility to pair and compare any two files with different names:
    - **Method 1 (`Ctrl + Click`)**:

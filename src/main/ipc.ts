@@ -10,13 +10,14 @@ import {
   DeleteRequest,
   FolderComparisonOptions,
   FolderComparisonResult,
+  RenameRequest,
   SaveRequest,
   ScanProgress,
   StructuredDiffRequest,
 } from '../shared/types.js';
 import { scanDirectory, ScanContext } from './fs-engine/scanner.js';
 import { matchEntries } from '../shared/comparison-engine/matcher.js';
-import { copySafeFile, deleteSafeFile, readSafeFile, saveSafeFile } from './fs-engine/safe-fs.js';
+import { copySafeFile, deleteSafeFile, readSafeFile, renameSafeFile, saveSafeFile } from './fs-engine/safe-fs.js';
 import { compareStructuredData } from '../shared/comparison-engine/structured.js';
 
 let activeScanContext: ScanContext | null = null;
@@ -200,6 +201,24 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       };
     }
     return await deleteSafeFile(request as DeleteRequest);
+  });
+
+  // Safe File / Directory Rename
+  ipcMain.handle('file:rename', async (_event, request: unknown) => {
+    if (
+      !request ||
+      typeof request !== 'object' ||
+      typeof (request as RenameRequest).oldPath !== 'string' ||
+      typeof (request as RenameRequest).newPath !== 'string'
+    ) {
+      return {
+        success: false,
+        oldPath: '',
+        newPath: '',
+        error: 'Invalid RenameRequest payload provided to IPC.',
+      };
+    }
+    return await renameSafeFile(request as RenameRequest);
   });
 
   // Structured Compare

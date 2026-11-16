@@ -8,6 +8,7 @@ import {
   DeleteRequest,
   DiffxPreloadAPI,
   FolderComparisonOptions,
+  RenameRequest,
   SaveRequest,
   ScanProgress,
   StructuredDiffRequest,
@@ -102,6 +103,9 @@ const api: DiffxPreloadAPI = {
 
   deleteFile: (request: DeleteRequest) =>
     ipcRenderer.invoke('file:delete', request),
+
+  renameFile: (request: RenameRequest) =>
+    ipcRenderer.invoke('file:rename', request),
 
   compareStructured: (request: StructuredDiffRequest) =>
     ipcRenderer.invoke('structured:compare', request),

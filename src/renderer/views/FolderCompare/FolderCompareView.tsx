@@ -15,6 +15,7 @@ import {
   Home,
   AlertCircle,
   Trash2,
+  Edit3,
   X,
 } from 'lucide-react';
 import {
@@ -52,6 +53,7 @@ interface FolderCompareViewProps {
   zoomLevel?: number;
   onSetZoomLevel?: (zoom: number | ((prev: number) => number)) => void;
   dynamicFileStatusMap?: Record<string, boolean>;
+  dynamicFileMetaMap?: Record<string, { isIdentical?: boolean; leftMtime?: number; rightMtime?: number }>;
 }
 
 export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
@@ -69,6 +71,7 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
   zoomLevel = 100,
   onSetZoomLevel,
   dynamicFileStatusMap,
+  dynamicFileMetaMap,
 }) => {
   // Options state
   const [options, setOptions] = useState<FolderComparisonOptions>({
@@ -122,6 +125,16 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
     rightFile?: { relativePath: string; name: string } | null;
   } | null>(null);
 
+  const [renameModal, setRenameModal] = useState<{
+    isOpen: boolean;
+    side: 'left' | 'right';
+    fullPath: string;
+    currentName: string;
+    isDirectory: boolean;
+    newName: string;
+    error?: string;
+  } | null>(null);
+
   // Zoom calculation
   const currentZoom = zoomLevel ?? 100;
   const rowHeight = Math.max(20, Math.round((24 * currentZoom) / 100));
@@ -130,8 +143,8 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
   // Helper: check if a directory has any modified or orphan descendant (reactively respects dynamic equality updates)
   const hasDiffDescendant = (entry: ComparisonEntry): boolean => {
     const isDynamicallyIdentical = Boolean(
-      dynamicFileStatusMap &&
-      (dynamicFileStatusMap[entry.relativePath] === true || dynamicFileStatusMap[entry.name] === true)
+      (dynamicFileStatusMap && (dynamicFileStatusMap[entry.relativePath] === true || dynamicFileStatusMap[entry.name] === true)) ||
+      (dynamicFileMetaMap && (dynamicFileMetaMap[entry.relativePath]?.isIdentical === true || dynamicFileMetaMap[entry.name]?.isIdentical === true))
     );
     const effectiveStatus: EntryStatus = isDynamicallyIdentical ? 'identical' : entry.status;
 
@@ -292,13 +305,31 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
 
   // Live reactive difference updates: When a file is modified/saved or synchronized, update node in-place
   useEffect(() => {
-    if (!result || !dynamicFileStatusMap) return;
+    if (!result || (!dynamicFileStatusMap && !dynamicFileMetaMap)) return;
     let changed = false;
 
     const updateNode = (node: ComparisonEntry) => {
       const isDynamicallyIdentical = Boolean(
-        dynamicFileStatusMap[node.relativePath] === true || dynamicFileStatusMap[node.name] === true
+        (dynamicFileStatusMap && (dynamicFileStatusMap[node.relativePath] === true || dynamicFileStatusMap[node.name] === true)) ||
+        (dynamicFileMetaMap && (dynamicFileMetaMap[node.relativePath]?.isIdentical === true || dynamicFileMetaMap[node.name]?.isIdentical === true))
       );
+
+      const meta = dynamicFileMetaMap ? (dynamicFileMetaMap[node.relativePath] || dynamicFileMetaMap[node.name]) : undefined;
+      if (meta) {
+        if (meta.leftMtime && node.left.exists) {
+          if (node.left.mtime !== meta.leftMtime) {
+            node.left.mtime = meta.leftMtime;
+            changed = true;
+          }
+        }
+        if (meta.rightMtime && node.right.exists) {
+          if (node.right.mtime !== meta.rightMtime) {
+            node.right.mtime = meta.rightMtime;
+            changed = true;
+          }
+        }
+      }
+
       if (isDynamicallyIdentical && node.status !== 'identical') {
         node.status = 'identical';
         node.sizeDiff = false;
@@ -328,7 +359,7 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
         };
       });
     }
-  }, [dynamicFileStatusMap]);
+  }, [dynamicFileStatusMap, dynamicFileMetaMap]);
 
   const handlePickLeft = async () => {
     if (isWeb) {
@@ -628,6 +659,50 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
     });
   };
 
+  const handleOpenRename = (node: ComparisonEntry, side: 'left' | 'right') => {
+    if (!result) return;
+    const root = side === 'left' ? result.leftRoot : result.rightRoot;
+    const fullPath = `${root}/${node.relativePath}`;
+    const currentName = node.name;
+    setRenameModal({
+      isOpen: true,
+      side,
+      fullPath,
+      currentName,
+      isDirectory: node.isDirectory,
+      newName: currentName,
+    });
+  };
+
+  const handleConfirmRename = async () => {
+    if (!renameModal || !renameModal.newName.trim()) return;
+    const { fullPath, currentName, newName } = renameModal;
+    const trimmed = newName.trim();
+    if (trimmed === currentName) {
+      setRenameModal(null);
+      return;
+    }
+    const lastSlash = Math.max(fullPath.lastIndexOf('/'), fullPath.lastIndexOf('\\'));
+    const dir = lastSlash >= 0 ? fullPath.substring(0, lastSlash) : '';
+    const sep = fullPath.includes('\\') ? '\\' : '/';
+    const newPath = dir ? `${dir}${sep}${trimmed}` : trimmed;
+
+    if (window.diffxAPI?.renameFile) {
+      const res = await window.diffxAPI.renameFile({ oldPath: fullPath, newPath });
+      if (res.success) {
+        setRenameModal(null);
+        onUpdateStatus(`Renamed "${currentName}" to "${trimmed}"`);
+        handleStartCompare();
+      } else {
+        setRenameModal((prev) => prev ? { ...prev, error: res.error || 'Failed to rename' } : null);
+      }
+    } else {
+      setRenameModal(null);
+      onUpdateStatus(`Renamed "${currentName}" to "${trimmed}"`);
+      handleStartCompare();
+    }
+  };
+
   // Keyboard shortcuts: Alt+Right / Alt+Left for transferring selected file
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -773,8 +848,8 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
     const isRightSelected = selectedRightFile?.relativePath === node.relativePath;
 
     const isDynamicallyIdentical = Boolean(
-      dynamicFileStatusMap &&
-      (dynamicFileStatusMap[node.relativePath] === true || dynamicFileStatusMap[node.name] === true)
+      (dynamicFileStatusMap && (dynamicFileStatusMap[node.relativePath] === true || dynamicFileStatusMap[node.name] === true)) ||
+      (dynamicFileMetaMap && (dynamicFileMetaMap[node.relativePath]?.isIdentical === true || dynamicFileMetaMap[node.name]?.isIdentical === true))
     );
     const effectiveStatus: EntryStatus = isDynamicallyIdentical ? 'identical' : node.status;
     const isModified = effectiveStatus === 'modified';
@@ -783,22 +858,20 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
     const hasDiff = node.isDirectory ? hasDiffDescendant(node) : isModified;
 
     // Left Side (Beyond Compare standard):
-    // Changed files or folders containing diffs: bold red text (#c51b1b) and red icons/dates
-    // Left-only (orphans): purple text and purple icons (#7e22ce)
-    // Identical: clean regular black text and dark neutral icons
+    // Changed files or folders containing diffs: bold red text (#c51b1b) and filled red folder icon
+    // Left-only (orphans): purple text and filled purple folder icon (#7e22ce)
+    // Identical: clean regular black text (text-black dark:text-neutral-50) and rich filled amber/yellow folder icon
     const leftTextColor = (hasDiff || isModified)
       ? 'text-[#c51b1b] dark:text-[#ff5c5c] font-bold'
       : isLeftOnly
       ? 'text-[#7e22ce] dark:text-[#c084fc] font-bold'
-      : 'text-neutral-900 dark:text-neutral-100 font-normal';
+      : 'text-black dark:text-neutral-50 font-normal';
 
     const leftIconClass = (hasDiff || isModified)
-      ? 'text-[#c51b1b] dark:text-[#ff5c5c]'
+      ? (node.isDirectory ? 'fill-red-500 text-red-700 dark:fill-red-600 dark:text-red-400' : 'text-[#c51b1b] dark:text-[#ff5c5c]')
       : isLeftOnly
-      ? 'text-[#7e22ce] dark:text-[#c084fc]'
-      : node.isDirectory
-      ? 'text-neutral-800 dark:text-neutral-200 fill-neutral-700/20'
-      : 'text-neutral-700 dark:text-neutral-300';
+      ? (node.isDirectory ? 'fill-purple-400 text-purple-700 dark:fill-purple-500 dark:text-purple-300' : 'text-[#7e22ce] dark:text-[#c084fc]')
+      : (node.isDirectory ? 'fill-amber-400 text-amber-600 dark:fill-amber-500 dark:text-amber-300' : 'text-neutral-800 dark:text-neutral-200');
 
     const leftMetaColor = (hasDiff || isModified)
       ? 'text-[#c51b1b] dark:text-[#ff5c5c] font-medium'
@@ -807,20 +880,24 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
       : 'text-neutral-700 dark:text-neutral-300 font-normal';
 
     // Right Side:
-    // Normal black font for identical and modified items (not bold, clean dark text)
-    // Purple for right-only orphans
-    // NO grayed out text (#71717a) or gray icons (#888888)
-    const rightTextColor = isRightOnly
+    // When hasDiff or isModified: bold red text (#c51b1b) and filled red folder icon
+    // When right-only orphan: purple text and filled purple folder icon
+    // When identical: solid dark black font (text-black dark:text-neutral-50 font-normal) and rich filled amber/yellow folder icon
+    const rightTextColor = (hasDiff || isModified)
+      ? 'text-[#c51b1b] dark:text-[#ff5c5c] font-bold'
+      : isRightOnly
       ? 'text-[#7e22ce] dark:text-[#c084fc] font-bold'
-      : 'text-neutral-900 dark:text-neutral-100 font-normal';
+      : 'text-black dark:text-neutral-50 font-normal';
 
-    const rightIconClass = isRightOnly
-      ? 'text-[#7e22ce] dark:text-[#c084fc]'
-      : node.isDirectory
-      ? 'text-neutral-800 dark:text-neutral-200 fill-neutral-700/20'
-      : 'text-neutral-700 dark:text-neutral-300';
+    const rightIconClass = (hasDiff || isModified)
+      ? (node.isDirectory ? 'fill-red-500 text-red-700 dark:fill-red-600 dark:text-red-400' : 'text-[#c51b1b] dark:text-[#ff5c5c]')
+      : isRightOnly
+      ? (node.isDirectory ? 'fill-purple-400 text-purple-700 dark:fill-purple-500 dark:text-purple-300' : 'text-[#7e22ce] dark:text-[#c084fc]')
+      : (node.isDirectory ? 'fill-amber-400 text-amber-600 dark:fill-amber-500 dark:text-amber-300' : 'text-neutral-800 dark:text-neutral-200');
 
-    const rightMetaColor = isRightOnly
+    const rightMetaColor = (hasDiff || isModified)
+      ? 'text-[#c51b1b] dark:text-[#ff5c5c] font-medium'
+      : isRightOnly
       ? 'text-[#7e22ce] dark:text-[#c084fc]'
       : 'text-neutral-700 dark:text-neutral-300 font-normal';
 
@@ -1930,6 +2007,37 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
               </button>
             )}
 
+            {/* Rename Options */}
+            <div className="my-1 border-t border-neutral-200 dark:border-neutral-800" />
+
+            {contextMenu.node.left.exists && (
+              <button
+                onClick={() => {
+                  const node = contextMenu.node;
+                  setContextMenu(null);
+                  handleOpenRename(node, 'left');
+                }}
+                className="w-full text-left px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center space-x-2 text-neutral-700 dark:text-neutral-300 transition cursor-pointer"
+              >
+                <Edit3 className="w-3.5 h-3.5 flex-shrink-0 text-amber-500" />
+                <span>Rename Left {contextMenu.node.isDirectory ? 'Folder' : 'File'}...</span>
+              </button>
+            )}
+
+            {contextMenu.node.right.exists && (
+              <button
+                onClick={() => {
+                  const node = contextMenu.node;
+                  setContextMenu(null);
+                  handleOpenRename(node, 'right');
+                }}
+                className="w-full text-left px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center space-x-2 text-neutral-700 dark:text-neutral-300 transition cursor-pointer"
+              >
+                <Edit3 className="w-3.5 h-3.5 flex-shrink-0 text-amber-500" />
+                <span>Rename Right {contextMenu.node.isDirectory ? 'Folder' : 'File'}...</span>
+              </button>
+            )}
+
             {/* Delete Options */}
             <div className="my-1 border-t border-neutral-200 dark:border-neutral-800" />
 
@@ -1986,6 +2094,80 @@ export const FolderCompareView: React.FC<FolderCompareViewProps> = ({
           </div>
         );
       })()}
+
+      {/* Rename Modal Dialog */}
+      {renameModal && renameModal.isOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950">
+              <div className="flex items-center space-x-2">
+                <Edit3 className="w-4 h-4 text-amber-500" />
+                <h3 className="font-semibold text-sm text-neutral-900 dark:text-neutral-100">
+                  Rename {renameModal.isDirectory ? 'Folder' : 'File'} ({renameModal.side === 'left' ? 'Left' : 'Right'})
+                </h3>
+              </div>
+              <button
+                onClick={() => setRenameModal(null)}
+                className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                  Current Name:
+                </label>
+                <div className="text-xs font-mono px-2.5 py-1.5 rounded bg-neutral-100 dark:bg-neutral-800/80 text-neutral-800 dark:text-neutral-200 break-all select-all">
+                  {renameModal.currentName}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                  New Name:
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={renameModal.newName}
+                  onChange={(e) => setRenameModal({ ...renameModal, newName: e.target.value, error: undefined })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleConfirmRename();
+                    else if (e.key === 'Escape') setRenameModal(null);
+                  }}
+                  className="w-full text-xs font-mono px-2.5 py-1.5 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter new name..."
+                />
+              </div>
+
+              {renameModal.error && (
+                <div className="flex items-center space-x-1.5 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 p-2 rounded border border-red-200 dark:border-red-900/50">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{renameModal.error}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end space-x-2 px-4 py-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950">
+              <button
+                onClick={() => setRenameModal(null)}
+                className="px-3 py-1.5 rounded text-xs text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 font-medium transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmRename}
+                disabled={!renameModal.newName.trim() || renameModal.newName.trim() === renameModal.currentName}
+                className="px-3.5 py-1.5 rounded text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 disabled:pointer-events-none transition cursor-pointer shadow-xs"
+              >
+                Rename
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

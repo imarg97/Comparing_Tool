@@ -498,81 +498,111 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
 
     chunks.forEach((chunk) => {
       // Case A: Right has gap (modifiedEnd === 0), Left has content (originalStart..originalEnd)
-      // Permanent yellow ⇦ arrow in Right margin. Clicking it copies empty space Right ⇦ Left (deletes left lines).
+      // Unified single arrow with connecting guide bracket in Right margin
       if (chunk.modifiedEnd === 0 && chunk.originalStart > 0 && modMargin) {
         const topPx = origEditor.getTopForLineNumber(chunk.originalStart);
         const numRows = Math.max(1, chunk.originalEnd - chunk.originalStart + 1);
+        const totalHeight = numRows * rowHeight;
+        const arrowKey = `mod-gap-${chunk.id || chunk.originalStart}`;
+        activeKeys.add(arrowKey);
 
-        for (let r = 0; r < numRows; r++) {
-          const arrowKey = `mod-gap-${chunk.id || chunk.originalStart}-${r}`;
-          activeKeys.add(arrowKey);
-          let arrow = modMargin.querySelector(`[data-arrow-key="${arrowKey}"]`) as HTMLElement | null;
-          if (!arrow) {
-            arrow = document.createElement('div');
-            arrow.className = 'diffx-gap-gutter-arrow diffx-gap-gutter-arrow-right';
-            arrow.setAttribute('data-arrow-key', arrowKey);
-            arrow.title = 'Copy empty space Right ⇦ Left (delete left line)';
-            const onArrowClick = (e: Event) => {
-              e.stopPropagation();
-              e.preventDefault();
-              handleCopyR2L(chunk);
-            };
-            arrow.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); }, true);
-            arrow.addEventListener('mousedown', (e) => { e.stopPropagation(); e.preventDefault(); }, true);
-            arrow.addEventListener('click', onArrowClick, true);
-            modMargin.appendChild(arrow);
+        let chunkEl = modMargin.querySelector(`[data-arrow-key="${arrowKey}"]`) as HTMLElement | null;
+        if (!chunkEl) {
+          chunkEl = document.createElement('div');
+          chunkEl.className = 'diffx-gap-gutter-chunk';
+          chunkEl.setAttribute('data-arrow-key', arrowKey);
+          chunkEl.title = numRows > 1
+            ? `Copy empty space Right ⇦ Left (delete ${numRows} left lines)`
+            : 'Copy empty space Right ⇦ Left (delete left line)';
+
+          const onArrowClick = (e: Event) => {
+            e.stopPropagation();
+            e.preventDefault();
+            handleCopyR2L(chunk);
+          };
+          chunkEl.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); }, true);
+          chunkEl.addEventListener('mousedown', (e) => { e.stopPropagation(); e.preventDefault(); }, true);
+          chunkEl.addEventListener('click', onArrowClick, true);
+
+          if (numRows > 1) {
+            const bracket = document.createElement('div');
+            bracket.className = 'diffx-gap-bracket-line';
+            chunkEl.appendChild(bracket);
           }
-          arrow.style.position = 'absolute';
-          arrow.style.top = `${topPx + (r * rowHeight)}px`;
-          arrow.style.height = `${rowHeight}px`;
-          arrow.style.left = '0';
-          arrow.style.width = '100%';
-          arrow.style.display = 'block';
+
+          const arrowIcon = document.createElement('div');
+          arrowIcon.className = 'diffx-gap-gutter-arrow diffx-gap-gutter-arrow-right';
+          chunkEl.appendChild(arrowIcon);
+
+          modMargin.appendChild(chunkEl);
         }
+
+        chunkEl.style.position = 'absolute';
+        chunkEl.style.top = `${topPx}px`;
+        chunkEl.style.height = `${totalHeight}px`;
+        chunkEl.style.left = '0';
+        chunkEl.style.width = '100%';
+        chunkEl.style.display = 'block';
       }
 
       // Case B: Left has gap (originalEnd === 0), Right has content (modifiedStart..modifiedEnd)
-      // Permanent yellow ⇨ arrow in Left margin. Clicking it copies empty space Left ⇨ Right (deletes right lines).
+      // Unified single arrow with connecting guide bracket in Left margin
       if (chunk.originalEnd === 0 && chunk.modifiedStart > 0 && origMargin) {
         const topPx = modEditor.getTopForLineNumber(chunk.modifiedStart);
         const numRows = Math.max(1, chunk.modifiedEnd - chunk.modifiedStart + 1);
+        const totalHeight = numRows * rowHeight;
+        const arrowKey = `orig-gap-${chunk.id || chunk.modifiedStart}`;
+        activeKeys.add(arrowKey);
 
-        for (let r = 0; r < numRows; r++) {
-          const arrowKey = `orig-gap-${chunk.id || chunk.modifiedStart}-${r}`;
-          activeKeys.add(arrowKey);
-          let arrow = origMargin.querySelector(`[data-arrow-key="${arrowKey}"]`) as HTMLElement | null;
-          if (!arrow) {
-            arrow = document.createElement('div');
-            arrow.className = 'diffx-gap-gutter-arrow diffx-gap-gutter-arrow-left';
-            arrow.setAttribute('data-arrow-key', arrowKey);
-            arrow.title = 'Copy empty space Left ⇨ Right (delete right line)';
-            const onArrowClick = (e: Event) => {
-              e.stopPropagation();
-              e.preventDefault();
-              handleCopyL2R(chunk);
-            };
-            arrow.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); }, true);
-            arrow.addEventListener('mousedown', (e) => { e.stopPropagation(); e.preventDefault(); }, true);
-            arrow.addEventListener('click', onArrowClick, true);
-            origMargin.appendChild(arrow);
+        let chunkEl = origMargin.querySelector(`[data-arrow-key="${arrowKey}"]`) as HTMLElement | null;
+        if (!chunkEl) {
+          chunkEl = document.createElement('div');
+          chunkEl.className = 'diffx-gap-gutter-chunk';
+          chunkEl.setAttribute('data-arrow-key', arrowKey);
+          chunkEl.title = numRows > 1
+            ? `Copy empty space Left ⇨ Right (delete ${numRows} right lines)`
+            : 'Copy empty space Left ⇨ Right (delete right line)';
+
+          const onArrowClick = (e: Event) => {
+            e.stopPropagation();
+            e.preventDefault();
+            handleCopyL2R(chunk);
+          };
+          chunkEl.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); }, true);
+          chunkEl.addEventListener('mousedown', (e) => { e.stopPropagation(); e.preventDefault(); }, true);
+          chunkEl.addEventListener('click', onArrowClick, true);
+
+          if (numRows > 1) {
+            const bracket = document.createElement('div');
+            bracket.className = 'diffx-gap-bracket-line';
+            chunkEl.appendChild(bracket);
           }
-          arrow.style.position = 'absolute';
-          arrow.style.top = `${topPx + (r * rowHeight)}px`;
-          arrow.style.height = `${rowHeight}px`;
-          arrow.style.left = '0';
-          arrow.style.width = '100%';
-          arrow.style.display = 'block';
+
+          const arrowIcon = document.createElement('div');
+          arrowIcon.className = 'diffx-gap-gutter-arrow diffx-gap-gutter-arrow-left';
+          chunkEl.appendChild(arrowIcon);
+
+          origMargin.appendChild(chunkEl);
         }
+
+        chunkEl.style.position = 'absolute';
+        chunkEl.style.top = `${topPx}px`;
+        chunkEl.style.height = `${totalHeight}px`;
+        chunkEl.style.left = '0';
+        chunkEl.style.width = '100%';
+        chunkEl.style.display = 'block';
       }
     });
 
-    origDom.querySelectorAll('.diffx-gap-gutter-arrow').forEach((el: any) => {
+    origDom.querySelectorAll('.diffx-gap-gutter-chunk, .diffx-gap-gutter-arrow').forEach((el: any) => {
       const key = el.getAttribute('data-arrow-key');
       if (key && !activeKeys.has(key)) el.remove();
+      else if (!key && !el.closest('.diffx-gap-gutter-chunk')) el.remove();
     });
-    modDom.querySelectorAll('.diffx-gap-gutter-arrow').forEach((el: any) => {
+    modDom.querySelectorAll('.diffx-gap-gutter-chunk, .diffx-gap-gutter-arrow').forEach((el: any) => {
       const key = el.getAttribute('data-arrow-key');
       if (key && !activeKeys.has(key)) el.remove();
+      else if (!key && !el.closest('.diffx-gap-gutter-chunk')) el.remove();
     });
   };
 

@@ -122,6 +122,18 @@ export interface DeleteResult {
   error?: string;
 }
 
+export interface RenameRequest {
+  oldPath: string;
+  newPath: string;
+}
+
+export interface RenameResult {
+  success: boolean;
+  oldPath: string;
+  newPath: string;
+  error?: string;
+}
+
 export type StructuredFormat = 'yaml' | 'json' | 'xml';
 
 export interface StructuredDiffRequest {
@@ -197,6 +209,7 @@ export interface DiffxPreloadAPI {
   saveFile: (request: SaveRequest) => Promise<SaveResult>;
   copyFile: (request: CopyRequest) => Promise<CopyResult>;
   deleteFile?: (request: DeleteRequest) => Promise<DeleteResult>;
+  renameFile?: (request: RenameRequest) => Promise<RenameResult>;
 
   // Structured Compare
   compareStructured: (request: StructuredDiffRequest) => Promise<StructuredDiffResult>;

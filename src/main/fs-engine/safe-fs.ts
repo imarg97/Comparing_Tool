@@ -11,6 +11,8 @@ import {
   DeleteRequest,
   DeleteResult,
   FileContentResult,
+  RenameRequest,
+  RenameResult,
   SaveRequest,
   SaveResult,
 } from '../../shared/types.js';
@@ -436,6 +438,65 @@ export async function deleteSafeFile(request: DeleteRequest): Promise<DeleteResu
       success: false,
       filePath: resolved,
       error: `Failed to delete path: ${msg}`,
+    };
+  }
+}
+
+export async function renameSafeFile(request: RenameRequest): Promise<RenameResult> {
+  const { oldPath, newPath } = request;
+  if (!oldPath || !newPath || oldPath.includes('\0') || newPath.includes('\0')) {
+    return {
+      success: false,
+      oldPath: oldPath || '',
+      newPath: newPath || '',
+      error: 'Invalid file path or null byte detected.',
+    };
+  }
+
+  if (isWindowsReservedDeviceName(oldPath) || isWindowsReservedDeviceName(newPath)) {
+    return {
+      success: false,
+      oldPath,
+      newPath,
+      error: 'Access to Windows reserved device name is prohibited.',
+    };
+  }
+
+  const resolvedOld = path.resolve(oldPath);
+  const resolvedNew = path.resolve(newPath);
+
+  if (!fs.existsSync(resolvedOld)) {
+    return {
+      success: false,
+      oldPath: resolvedOld,
+      newPath: resolvedNew,
+      error: `Source path does not exist: ${resolvedOld}`,
+    };
+  }
+
+  if (fs.existsSync(resolvedNew)) {
+    return {
+      success: false,
+      oldPath: resolvedOld,
+      newPath: resolvedNew,
+      error: `A file or folder with this name already exists: ${path.basename(resolvedNew)}`,
+    };
+  }
+
+  try {
+    await fs.promises.rename(resolvedOld, resolvedNew);
+    return {
+      success: true,
+      oldPath: resolvedOld,
+      newPath: resolvedNew,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      success: false,
+      oldPath: resolvedOld,
+      newPath: resolvedNew,
+      error: `Failed to rename path: ${msg}`,
     };
   }
 }
