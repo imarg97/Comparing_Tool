@@ -5,6 +5,8 @@ interface DiffOverviewMapProps {
   chunks: DiffChunk[];
   totalLines: number;
   currentLine?: number;
+  visibleStartLine?: number;
+  visibleLineCount?: number;
   onScrollToLine: (line: number) => void;
   onScrollToChunk?: (chunk: DiffChunk) => void;
   theme?: 'dark' | 'light';
@@ -14,58 +16,69 @@ export const DiffOverviewMap: React.FC<DiffOverviewMapProps> = ({
   chunks,
   totalLines,
   currentLine = 1,
+  visibleStartLine,
+  visibleLineCount,
   onScrollToLine,
   onScrollToChunk,
   theme: _theme = 'light',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef<boolean>(false);
   const safeTotalLines = Math.max(totalLines, 30);
 
-  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!containerRef.current) return;
+  const calculateTargetLine = (clientY: number) => {
+    if (!containerRef.current) return 1;
     const rect = containerRef.current.getBoundingClientRect();
-    const clickY = e.clientY - rect.top;
+    const offsetY = clientY - rect.top;
+    const fraction = Math.max(0, Math.min(1, offsetY / Math.max(1, rect.height)));
+    return Math.max(1, Math.round(fraction * safeTotalLines));
+  };
 
-    // Check if clicked near an existing chunk (within 20px)
-    let bestChunk: DiffChunk | null = null;
-    let minDistance = Infinity;
-
-    for (const chunk of chunks) {
-      const start = chunk.originalStart > 0 ? chunk.originalStart : chunk.modifiedStart;
-      const chunkFraction = (start - 1) / safeTotalLines;
-      const chunkY = chunkFraction * rect.height;
-      const dist = Math.abs(clickY - chunkY);
-      if (dist < minDistance) {
-        minDistance = dist;
-        bestChunk = chunk;
-      }
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!containerRef.current) return;
+    if (e.button !== 0) return; // Only primary button
+    isDraggingRef.current = true;
+    try {
+      containerRef.current.setPointerCapture(e.pointerId);
+    } catch {
+      // non-fatal
     }
-
-    if (bestChunk && minDistance <= 20) {
-      if (onScrollToChunk) {
-        onScrollToChunk(bestChunk);
-        return;
-      }
-      const line = bestChunk.originalStart > 0 ? bestChunk.originalStart : bestChunk.modifiedStart;
-      onScrollToLine(line);
-      return;
-    }
-
-    const fraction = Math.max(0, Math.min(1, clickY / rect.height));
-    const targetLine = Math.max(1, Math.round(fraction * safeTotalLines));
+    const targetLine = calculateTargetLine(e.clientY);
     onScrollToLine(targetLine);
   };
 
-  // Viewport thumb approximation (approx 35 visible lines)
-  const thumbHeightPercent = Math.max(4, (35 / safeTotalLines) * 100);
-  const thumbTopPercent = Math.max(0, Math.min(100 - thumbHeightPercent, ((currentLine - 1) / safeTotalLines) * 100));
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
+    const targetLine = calculateTargetLine(e.clientY);
+    onScrollToLine(targetLine);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isDraggingRef.current && containerRef.current) {
+      isDraggingRef.current = false;
+      try {
+        containerRef.current.releasePointerCapture(e.pointerId);
+      } catch {
+        // non-fatal
+      }
+    }
+  };
+
+  // Viewport thumb based on actual visible ranges or fallback to currentLine
+  const visibleStart = visibleStartLine !== undefined ? visibleStartLine : (currentLine || 1);
+  const visibleCount = visibleLineCount !== undefined ? visibleLineCount : 35;
+  const thumbHeightPercent = Math.max(3, Math.min(100, (visibleCount / safeTotalLines) * 100));
+  const thumbTopPercent = Math.max(0, Math.min(100 - thumbHeightPercent, ((visibleStart - 1) / safeTotalLines) * 100));
 
   return (
     <div
       ref={containerRef}
-      onClick={handleClick}
-      title="Comparison Overview Map • Red/Amber = Differences, Blue = Alignment Gaps, Blue Box = Viewport"
-      className="w-5 h-full bg-[#f8f8f8] dark:bg-black border-r border-[#d4d4d4] dark:border-neutral-800 flex-shrink-0 relative select-none cursor-pointer overflow-hidden"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      title="Comparison Overview Map • Drag or click to scroll smoothly, click diff ticks to jump"
+      className="w-5 h-full bg-[#f8f8f8] dark:bg-black border-r border-[#d4d4d4] dark:border-neutral-800 flex-shrink-0 relative select-none cursor-pointer overflow-hidden touch-none"
     >
       {/* Subtle guide line */}
       <div className="absolute top-0 bottom-0 left-1/2 w-px bg-neutral-200/60 dark:bg-neutral-800 pointer-events-none" />
@@ -91,6 +104,9 @@ export const DiffOverviewMap: React.FC<DiffOverviewMapProps> = ({
         return (
           <div
             key={chunk.id}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+            }}
             onClick={(e) => {
               e.stopPropagation();
               if (onScrollToChunk) {

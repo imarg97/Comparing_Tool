@@ -1,7 +1,7 @@
 # mDiff — Comprehensive User Guide & How-to-Use Manual
 
 **Application**: mDiff (Mavenir Diff) Comparison Suite  
-**Version**: `v5.0.0`  
+**Version**: `v5.1.0`  
 **Platforms**: Web (`http://10.10.84.22:8097`), Windows 10/11 (`mDiff.exe`), macOS (`mDiff.app`)  
 **Design Standard**: Beyond Compare Enterprise Fidelity & Visual Parity  
 
@@ -12,6 +12,8 @@
 **mDiff** is an enterprise-grade, high-performance file, directory, and structured configuration comparison suite built for telecom network engineers, system administrators, and software developers. 
 
 mDiff combines:
+- **Diff Overview Map Smooth Dragging & Freeform Navigation (v5.1.0)**: The far-left vertical minimap bar allows freeform dragging and clicking without snapping to diff chunks. It reflects the exact visible viewport (`visibleStartLine` to `visibleEndLine`) in real time, while individual diff markers can be clicked directly to jump.
+- **Precision Aligned Line Details Inspector (v5.1.0)**: In both Text and Structured Compare, the bottom split inspection bar accurately matches lines between Left and Right across gaps and insertions, displaying green **"Lines identical"** status without false differences in unchanged sections.
 - **Dynamic Difference Updating**: When files are synchronized, edited, or copied between panes, difference statuses update dynamically in real time. The left-side red font and center gutter (`≠`) immediately change back to clean black font and `=`.
 - **Hierarchical Red-to-Black Folder Transition**: Parent directories containing differences display red folder icons and bold red text. As soon as all child differences are synchronized, the parent folder icon and name dynamically transition to solid dark black (`text-neutral-900`) with zero lag.
 - **In-Memory Session Caching**: Folder comparisons remain persistently mounted and cached in memory across session tab switches. Switching from active text editing (`.bashrc`, `others.sh`, `values.yaml`) back to Folder Compare takes 0ms with zero re-scanning.
@@ -36,7 +38,7 @@ Upon launching mDiff, the top bar presents the **Beyond Compare Session Tab Bar*
 
 ```
 +-------------------------------------------------------------------------------------------------------+
-| mDiff v5.0.0  [📁 IMC_31_0_Mexico_site3 <-> IMC_11_0_29_0 ✕]  [📄 values.yaml ✕]  [+]   [-] 100% [+]  |
+| mDiff v5.1.0  [📁 IMC_31_0_Mexico_site3 <-> IMC_11_0_29_0 ✕]  [📄 values.yaml ✕]  [+]   [-] 100% [+]  |
 +-------------------------------------------------------------------------------------------------------+
 ```
 

@@ -1,7 +1,7 @@
 # mDiff — Second Security Audit & Hardening Report
 
 **Application**: mDiff (Mavenir Diff) Comparison Suite  
-**Version**: `v5.0.0`  
+**Version**: `v5.1.0`  
 **Audit Standard**: Cloudflare Defensive Security Audit Methodology  
 **Target Repository**: `https://github.com/imarg97/mdiff`  
 **Audit Scope**: All Source Code (`src/`), Web Build (`dist/`), Desktop Packages (`release/`), and Windows `.exe`  
@@ -11,13 +11,13 @@
 
 ## 1. Executive Summary
 
-A comprehensive, defense-in-depth **Second Security Audit** was executed across the mDiff codebase and compiled distribution packages (`v5.0.0`). The audit evaluated the application against modern threat vectors in hybrid desktop/web architectures, specifically addressing the safety of enterprise telecom configuration data, operating system integrity, and supply chain security.
+A comprehensive, defense-in-depth **Second Security Audit** was executed across the mDiff codebase and compiled distribution packages (`v5.1.0`). The audit evaluated the application against modern threat vectors in hybrid desktop/web architectures, specifically addressing the safety of enterprise telecom configuration data, operating system integrity, and supply chain security.
 
 ### Key Audit Metrics
 - **Total Threat Boundaries Analyzed**: 4 primary boundaries (Renderer, Preload Bridge, Main Process, OS Filesystem).
 - **Vulnerabilities Identified & Remediated**: 7 of 7 resolved in source code (1 Critical, 2 High, 2 Medium, 2 Low).
 - **Open High or Critical Vulnerabilities**: **0 (Zero)**.
-- **Automated Security & Regression Tests**: **92 of 92 tests passing cleanly (100% pass rate)**.
+- **Automated Security & Regression Tests**: **100 of 100 tests passing cleanly (100% pass rate)**.
 - **Data Privacy & Exfiltration Risk**: **Zero (Air-Gapped / No Telemetry / Local-Only Memory Computation)**.
 - **Safe Deletion Controls**: **Cryptographically bounded, path-traversal immune file deletion with mandatory user confirmation modal and optional safety backups**.
 

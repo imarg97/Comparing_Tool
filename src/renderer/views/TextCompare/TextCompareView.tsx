@@ -19,7 +19,6 @@ import {
   DiffChunk,
   normalizeLineChanges,
   findChunkAtLine,
-  findClosestChunk,
   findChunkAtGap,
   executeChunkCopyL2R,
   executeChunkCopyR2L,
@@ -30,6 +29,7 @@ import {
   computeUnchangedRanges,
   computeDiffRanges,
   mapLineNumber,
+  getAlignedLineNumbers,
 } from '@shared/comparison-engine/diff-copy.js';
 import { ConfirmModalConfig } from '../../components/ConfirmModal.js';
 import { LineDetailInspector } from '../../components/LineDetailInspector.js';
@@ -163,8 +163,12 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
 
   // Cursor & Line Detail Tracking
   const [cursorLineNumber, setCursorLineNumber] = useState<number | null>(1);
+  const [inspectionLeftLine, setInspectionLeftLine] = useState<number | null>(1);
+  const [inspectionRightLine, setInspectionRightLine] = useState<number | null>(1);
   const [activeLeftLineText, setActiveLeftLineText] = useState<string>('');
   const [activeRightLineText, setActiveRightLineText] = useState<string>('');
+  const [visibleStartLine, setVisibleStartLine] = useState<number>(1);
+  const [visibleLineCount, setVisibleLineCount] = useState<number>(35);
 
   // Active Selected Diff Chunk (e.g. lines 74–87) & User Range Selection
   const [diffChunks, setDiffChunks] = useState<DiffChunk[]>([]);
@@ -336,14 +340,14 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         origEditor.setPosition({ lineNumber: chunk.originalStart, column: 1 });
         origEditor.focus();
         setActiveFocusSide('left');
-        updateLineDetails(chunk.originalStart);
+        updateLineDetails(chunk.originalStart, 'left');
         setActiveDiffChunk(chunk);
       } else if (chunk.modifiedStart > 0) {
         modEditor.revealLineInCenter(chunk.modifiedStart);
         modEditor.setPosition({ lineNumber: chunk.modifiedStart, column: 1 });
         modEditor.focus();
         setActiveFocusSide('right');
-        updateLineDetails(chunk.modifiedStart);
+        updateLineDetails(chunk.modifiedStart, 'right');
         setActiveDiffChunk(chunk);
       }
     } catch {
@@ -1038,25 +1042,34 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
   }, [options, leftData, rightData]);
 
   // Update line details when cursor moves or content updates
-  const updateLineDetails = (lineNum: number) => {
+  const updateLineDetails = (lineNum: number, side: 'left' | 'right' = activeFocusSide) => {
     setCursorLineNumber(lineNum);
     if (!diffEditorRef.current) return;
     try {
       const origModel = diffEditorRef.current.getOriginalEditor().getModel();
       const modModel = diffEditorRef.current.getModifiedEditor().getModel();
-      if (origModel && lineNum <= origModel.getLineCount()) {
-        setActiveLeftLineText(origModel.getLineContent(lineNum));
+      const currentChunks = canonicalChunksRef.current.length ? canonicalChunksRef.current : diffChunks;
+      const aligned = getAlignedLineNumbers(currentChunks, lineNum, side);
+
+      setInspectionLeftLine(aligned.leftLineNumber);
+      setInspectionRightLine(aligned.rightLineNumber);
+
+      if (aligned.leftLineNumber !== null && origModel && aligned.leftLineNumber <= origModel.getLineCount()) {
+        setActiveLeftLineText(origModel.getLineContent(aligned.leftLineNumber));
       } else {
         setActiveLeftLineText('');
       }
-      if (modModel && lineNum <= modModel.getLineCount()) {
-        setActiveRightLineText(modModel.getLineContent(lineNum));
+
+      if (aligned.rightLineNumber !== null && modModel && aligned.rightLineNumber <= modModel.getLineCount()) {
+        setActiveRightLineText(modModel.getLineContent(aligned.rightLineNumber));
       } else {
         setActiveRightLineText('');
       }
 
       // Check if this line is part of a diff chunk
-      const chunk = findChunkAtLine(chunksRef.current, lineNum, 'left') || findChunkAtLine(chunksRef.current, lineNum, 'right');
+      const chunk = findChunkAtLine(currentChunks, lineNum, side) ||
+                    (aligned.leftLineNumber ? findChunkAtLine(currentChunks, aligned.leftLineNumber, 'left') : null) ||
+                    (aligned.rightLineNumber ? findChunkAtLine(currentChunks, aligned.rightLineNumber, 'right') : null);
       setActiveDiffChunk(chunk);
     } catch {
       // non-fatal
@@ -1271,14 +1284,15 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         rightContentRef.current = val;
         setRightDirty(val !== (rightData?.content ?? ''));
         const pos = modEditor.getPosition();
-        if (pos) updateLineDetails(pos.lineNumber);
+        if (pos) updateLineDetails(pos.lineNumber, 'right');
         const lLines = origEditor.getModel()?.getLineCount() || 1;
         const rLines = modEditor.getModel()?.getLineCount() || 1;
         setTotalLineCount(Math.max(1, lLines, rLines));
       });
 
       modEditor.onDidChangeCursorPosition((e: any) => {
-        updateLineDetails(e.position.lineNumber);
+        setActiveFocusSide('right');
+        updateLineDetails(e.position.lineNumber, 'right');
       });
 
       modEditor.onDidChangeCursorSelection((e: any) => {
@@ -1628,14 +1642,15 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         leftContentRef.current = val;
         setLeftDirty(val !== (leftData?.content ?? ''));
         const pos = origEditor.getPosition();
-        if (pos) updateLineDetails(pos.lineNumber);
+        if (pos) updateLineDetails(pos.lineNumber, 'left');
         const lLines = origEditor.getModel()?.getLineCount() || 1;
         const rLines = modEditor.getModel()?.getLineCount() || 1;
         setTotalLineCount(Math.max(1, lLines, rLines));
       });
 
       origEditor.onDidChangeCursorPosition((e: any) => {
-        updateLineDetails(e.position.lineNumber);
+        setActiveFocusSide('left');
+        updateLineDetails(e.position.lineNumber, 'left');
       });
 
       origEditor.onDidChangeCursorSelection((e: any) => {
@@ -1827,22 +1842,24 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         }
       });
 
-      // Synchronize scroll with far-left overview map
+      // Synchronize scroll with far-left overview map viewport indicator
       origEditor.onDidScrollChange(() => {
         const ranges = origEditor.getVisibleRanges();
         if (ranges && ranges.length > 0) {
-          setCursorLineNumber(ranges[0].startLineNumber);
+          setVisibleStartLine(ranges[0].startLineNumber);
+          setVisibleLineCount(Math.max(1, ranges[0].endLineNumber - ranges[0].startLineNumber + 1));
         }
       });
       modEditor.onDidScrollChange(() => {
         const ranges = modEditor.getVisibleRanges();
         if (ranges && ranges.length > 0) {
-          setCursorLineNumber(ranges[0].startLineNumber);
+          setVisibleStartLine(ranges[0].startLineNumber);
+          setVisibleLineCount(Math.max(1, ranges[0].endLineNumber - ranges[0].startLineNumber + 1));
         }
       });
 
       // Initial line details
-      updateLineDetails(1);
+      updateLineDetails(1, 'left');
       setTimeout(updateGutterDecorations, 100);
     } catch {
       // Non-fatal
@@ -1854,7 +1871,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       diffEditorRef.current.goToDiff('next');
       setTimeout(() => {
         const pos = diffEditorRef.current.getModifiedEditor().getPosition();
-        if (pos) updateLineDetails(pos.lineNumber);
+        if (pos) updateLineDetails(pos.lineNumber, 'right');
       }, 50);
     }
   };
@@ -1864,7 +1881,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       diffEditorRef.current.goToDiff('previous');
       setTimeout(() => {
         const pos = diffEditorRef.current.getModifiedEditor().getPosition();
-        if (pos) updateLineDetails(pos.lineNumber);
+        if (pos) updateLineDetails(pos.lineNumber, 'right');
       }, 50);
     }
   };
@@ -2701,19 +2718,20 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
             chunks={diffChunks}
             totalLines={totalLineCount}
             currentLine={cursorLineNumber || 1}
+            visibleStartLine={visibleStartLine}
+            visibleLineCount={visibleLineCount}
             onScrollToChunk={handleJumpToChunk}
             onScrollToLine={(line) => {
               if (diffEditorRef.current) {
                 try {
-                  const chunk = findClosestChunk(diffChunks, line, activeFocusSide);
-                  if (chunk) {
-                    handleJumpToChunk(chunk);
-                  } else {
-                    const orig = diffEditorRef.current.getOriginalEditor();
-                    orig.revealLineInCenter(line);
-                    orig.setPosition({ lineNumber: line, column: 1 });
-                    updateLineDetails(line);
-                  }
+                  const orig = diffEditorRef.current.getOriginalEditor();
+                  const mod = diffEditorRef.current.getModifiedEditor();
+                  orig.revealLineInCenter(line);
+                  const currentChunks = canonicalChunksRef.current.length ? canonicalChunksRef.current : diffChunks;
+                  const mappedRight = mapLineNumber(currentChunks, line, 'left');
+                  mod.revealLineInCenter(mappedRight > 0 ? mappedRight : line);
+                  orig.setPosition({ lineNumber: line, column: 1 });
+                  updateLineDetails(line, 'left');
                 } catch {
                   // non-fatal
                 }
@@ -2882,8 +2900,8 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       {/* ================= 6. Beyond Compare Line Details Split Inspection Bar (Image 3) ================= */}
       {(leftPath || rightPath) && (
         <LineDetailInspector
-          leftLineNumber={cursorLineNumber}
-          rightLineNumber={cursorLineNumber}
+          leftLineNumber={inspectionLeftLine}
+          rightLineNumber={inspectionRightLine}
           leftText={activeLeftLineText}
           rightText={activeRightLineText}
           onCopyLeftToRight={handleCopyActiveLineL2R}

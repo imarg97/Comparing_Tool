@@ -10,6 +10,7 @@ import {
   collapseEditorGapViewZones,
   buildVisualRowMap,
   executeVisualRangeCopy,
+  getAlignedLineNumbers,
 } from '../../src/shared/comparison-engine/diff-copy.js';
 import {
   updateDirectoryStatuses,
@@ -1350,6 +1351,119 @@ describe('Beyond Compare UI Utilities', () => {
 
       // Clean up tmp dir
       fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+  });
+
+  describe('getAlignedLineNumbers - Alignment and Inspection Bar Precision', () => {
+    it('returns identical line numbers when there are no diff chunks', () => {
+      const resLeft = getAlignedLineNumbers([], 2351, 'left');
+      expect(resLeft).toEqual({ leftLineNumber: 2351, rightLineNumber: 2351 });
+
+      const resRight = getAlignedLineNumbers([], 2401, 'right');
+      expect(resRight).toEqual({ leftLineNumber: 2401, rightLineNumber: 2401 });
+    });
+
+    it('correctly maps aligned line pairs across 50-line insertion in non-differential areas (Screenshot Bug)', () => {
+      // Chunk: 50 lines added on right at line 100
+      const chunks = [
+        {
+          id: 'chunk-1',
+          originalStart: 100,
+          originalEnd: 0,
+          modifiedStart: 100,
+          modifiedEnd: 149,
+        },
+      ];
+
+      // Left cursor at 2351 must align to Right 2401 (+50 delta)
+      const resLeft = getAlignedLineNumbers(chunks, 2351, 'left');
+      expect(resLeft).toEqual({ leftLineNumber: 2351, rightLineNumber: 2401 });
+
+      // Right cursor at 2401 must align to Left 2351 (-50 delta)
+      const resRight = getAlignedLineNumbers(chunks, 2401, 'right');
+      expect(resRight).toEqual({ leftLineNumber: 2351, rightLineNumber: 2401 });
+    });
+
+    it('maps offsets correctly within replacement diff chunks', () => {
+      // Chunk: 3 lines on left (10..12) replaced with 1 line on right (20..20)
+      const chunks = [
+        {
+          id: 'chunk-repl',
+          originalStart: 10,
+          originalEnd: 12,
+          modifiedStart: 20,
+          modifiedEnd: 20,
+        },
+      ];
+
+      // Left line 10 corresponds to Right line 20
+      expect(getAlignedLineNumbers(chunks, 10, 'left')).toEqual({
+        leftLineNumber: 10,
+        rightLineNumber: 20,
+      });
+
+      // Left lines 11 and 12 have no corresponding right line (alignment gap on right)
+      expect(getAlignedLineNumbers(chunks, 11, 'left')).toEqual({
+        leftLineNumber: 11,
+        rightLineNumber: null,
+      });
+      expect(getAlignedLineNumbers(chunks, 12, 'left')).toEqual({
+        leftLineNumber: 12,
+        rightLineNumber: null,
+      });
+
+      // Right line 20 corresponds to Left line 10
+      expect(getAlignedLineNumbers(chunks, 20, 'right')).toEqual({
+        leftLineNumber: 10,
+        rightLineNumber: 20,
+      });
+    });
+
+    it('handles gap insertions on Left and Right sides', () => {
+      // Insertion on right: lines 81..94 added, originalEnd = 0
+      const chunks = [
+        {
+          id: 'chunk-gap-right',
+          originalStart: 81,
+          originalEnd: 0,
+          modifiedStart: 81,
+          modifiedEnd: 94,
+        },
+      ];
+
+      // Clicking line 85 on right inside the insertion has null on left
+      expect(getAlignedLineNumbers(chunks, 85, 'right')).toEqual({
+        leftLineNumber: null,
+        rightLineNumber: 85,
+      });
+
+      // Insertion on left: lines 20..22 added, modifiedEnd = 0
+      const chunksLeft = [
+        {
+          id: 'chunk-gap-left',
+          originalStart: 20,
+          originalEnd: 22,
+          modifiedStart: 20,
+          modifiedEnd: 0,
+        },
+      ];
+
+      // Clicking line 21 on left has null on right
+      expect(getAlignedLineNumbers(chunksLeft, 21, 'left')).toEqual({
+        leftLineNumber: 21,
+        rightLineNumber: null,
+      });
+    });
+
+    it('safely handles non-positive line numbers', () => {
+      expect(getAlignedLineNumbers([], 0, 'left')).toEqual({
+        leftLineNumber: null,
+        rightLineNumber: null,
+      });
+      expect(getAlignedLineNumbers([], -5, 'right')).toEqual({
+        leftLineNumber: null,
+        rightLineNumber: null,
+      });
     });
   });
 });

@@ -964,6 +964,89 @@ export function mapLineNumber(
   return Math.max(0, line + delta);
 }
 
+export interface AlignedLineNumbers {
+  leftLineNumber: number | null;
+  rightLineNumber: number | null;
+}
+
+/**
+ * Calculates aligned line numbers for both Left and Right sides based on diff chunks.
+ * Handles:
+ * - Outside any diff chunk (identical blocks): uses mapLineNumber to compute aligned opposite line.
+ * - Inside a diff chunk: maps offset within the chunk if the opposite side has content; if the
+ *   opposite side is an alignment gap or shorter than the offset, sets null (empty space).
+ */
+export function getAlignedLineNumbers(
+  chunks: DiffChunk[],
+  line: number,
+  side: 'left' | 'right'
+): AlignedLineNumbers {
+  if (line <= 0) {
+    return { leftLineNumber: null, rightLineNumber: null };
+  }
+
+  const chunk = findChunkAtLine(chunks, line, side);
+  if (!chunk) {
+    if (side === 'left') {
+      const right = mapLineNumber(chunks, line, 'left');
+      return {
+        leftLineNumber: line,
+        rightLineNumber: right > 0 ? right : null,
+      };
+    } else {
+      const left = mapLineNumber(chunks, line, 'right');
+      return {
+        leftLineNumber: left > 0 ? left : null,
+        rightLineNumber: line,
+      };
+    }
+  }
+
+  if (side === 'left') {
+    const offset = line - chunk.originalStart;
+    const modCount = chunk.modifiedStart > 0 && chunk.modifiedEnd >= chunk.modifiedStart
+      ? chunk.modifiedEnd - chunk.modifiedStart + 1
+      : 0;
+
+    let rightLine: number | null = null;
+    if (modCount > 0) {
+      if (offset < modCount) {
+        rightLine = chunk.modifiedStart + offset;
+      } else {
+        rightLine = null;
+      }
+    } else {
+      rightLine = null;
+    }
+
+    return {
+      leftLineNumber: line,
+      rightLineNumber: rightLine,
+    };
+  } else {
+    const offset = line - chunk.modifiedStart;
+    const origCount = chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart
+      ? chunk.originalEnd - chunk.originalStart + 1
+      : 0;
+
+    let leftLine: number | null = null;
+    if (origCount > 0) {
+      if (offset < origCount) {
+        leftLine = chunk.originalStart + offset;
+      } else {
+        leftLine = null;
+      }
+    } else {
+      leftLine = null;
+    }
+
+    return {
+      leftLineNumber: leftLine,
+      rightLineNumber: line,
+    };
+  }
+}
+
 /**
  * Maps the line immediately before the source selection to the corresponding
  * line on the target side.

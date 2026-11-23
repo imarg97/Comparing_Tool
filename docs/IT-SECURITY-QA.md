@@ -2,7 +2,7 @@
 
 **Target Audience**: Corporate IT Security, InfoSec, Endpoint Management (Intune/SCCM), and System Administrators  
 **Operating System Focus**: Enterprise Windows 10/11 (with corporate EDR, BitLocker, AppLocker/WDAC) & macOS  
-**Application**: mDiff (Mavenir Diff) Comparison Suite (`v5.0.0`)  
+**Application**: mDiff (Mavenir Diff) Comparison Suite (`v5.1.0`)  
 **Architecture**: Offline Electron Desktop Application & Zero-Telemetry Web Adapter  
 **Author**: im_arg  
 
@@ -10,7 +10,7 @@
 
 ## 1. Executive Summary & Verification Highlights
 
-**mDiff v5.0.0** is an enterprise-grade, high-performance file, directory, and structured configuration comparison tool designed as a completely offline, zero-cost, high-privacy alternative to commercial tools like Beyond Compare.
+**mDiff v5.1.0** is an enterprise-grade, high-performance file, directory, and structured configuration comparison tool designed as a completely offline, zero-cost, high-privacy alternative to commercial tools like Beyond Compare.
 
 - **100% Offline & Air-Gapped**: Zero outbound telemetry, zero background network traffic, zero analytics beacons.
 - **Local Native Execution**: Runs purely within standard Windows/macOS user-space without requiring Administrator or UAC elevation.

@@ -1,6 +1,6 @@
 # mDiff (Mavenir Diff) — Enterprise Desktop & Web Comparison Suite
 
-**Version**: `v5.0.0`  
+**Version**: `v5.1.0`  
 **License**: Permissive Open-Source (100% MIT & ISC Compatible — Zero Copyleft)  
 **Security Classification**: Air-Gapped / Zero-Telemetry / Portable User-Space Utility  
 **Web Production URL**: `http://10.10.84.22:8097` *(Mavenir VPN)*  
@@ -23,6 +23,7 @@ All official documentation has been organized into the [`docs/`](docs/) director
 | Document | Description |
 | :--- | :--- |
 | **[📖 User Guide & How-To Manual](docs/HOW-TO-USE.md)** | Step-by-step instructions for Folder Compare, Text Compare, Config & XML Compare, Dynamic Difference Updates, and Keyboard Shortcuts. |
+| **[📑 Release Notes v5.1.0](docs/RELEASE-NOTES-v5.1.md)** | Release notes for v5.1.0: Diff Overview Map sliding, non-snapping scrolling, and precision aligned line inspection. |
 | **[🛡️ Second Security Audit Report](docs/SECURITY-AUDIT-REPORT.md)** | Cloudflare framework defensive audit evaluating 7 remediated vulnerability classes, trust boundaries, and test verification. |
 | **[📋 Enterprise Security & Compliance](docs/ENTERPRISE-SECURITY.md)** | Management & IT compliance report covering zero-admin user-space execution, non-destructive file operations, and endpoint policies. |
 | **[🔐 IT Security & SysAdmin Q&A](docs/IT-SECURITY-QA.md)** | Detailed answers for InfoSec, DLP, and endpoint administrators regarding zero network egress and Content Security Policy. |
@@ -31,9 +32,19 @@ All official documentation has been organized into the [`docs/`](docs/) director
 
 ---
 
-## Key Guarantees & Features in v5.0.0
+## Key Guarantees & Features in v5.1.0
 
-### 1. Dynamic Difference Resolution & Real-Time Equality Updates
+### 1. Diff Overview Map Smooth Sliding & Non-Snapping Track Navigation
+- **Freeform Track Sliding**: The far-left vertical minimap overview bar supports smooth dragging (`onPointerDown` + `setPointerCapture` + `onPointerMove`). Sliding through non-differential parts scrolls smoothly to the exact target line without snapping or throwing the user into nearby diff chunks.
+- **Accurate Viewport Indicator**: The blue viewport thumb frame precisely mirrors the active visible line range in the editor (`visibleStartLine` to `visibleEndLine`), rendering with sub-pixel responsiveness.
+- **Explicit Chunk Markers**: Clicking on individual colored diff markers jumps straight to that chunk; clicking or sliding on the track scrolls freely.
+
+### 2. Precision Aligned Line Details Inspector
+- **Diff-Aware Line Pair Mapping**: `getAlignedLineNumbers` maps line positions between Left and Right across additions, deletions, and gaps using Monaco line change deltas (`mapLineNumber`).
+- **Zero False-Positive Differences in Unchanged Areas**: When comparing lines in non-differential areas (e.g., line 2351 on Left and line 2401 on Right), the inspector matches the aligned lines, displaying exact matching content with green **"Lines identical"** status instead of false diff warnings.
+- **Independent Viewport Scroll & Cursor States**: Scrolling the editor updates the viewport thumb frame without corrupting active line inspection state.
+
+### 3. Dynamic Difference Resolution & Real-Time Equality Updates
 - **Instant In-Memory Diff Updates**: When files are edited or copied between Left and Right to make them equal (e.g. `bashrc`, `others.sh`), the diff status updates dynamically in real time. The left-side red font and center gutter (`≠`) immediately change back to clean black font and `=`.
 - **Hierarchical Red-to-Black Folder Transition**: Parent directories containing differences display red folder icons and bold red text. As soon as all child differences are synchronized, the parent folder icon and name dynamically transition to solid black (`text-neutral-900`) with zero lag.
 - **Instant Copy & Delete Operations**: Alt+Left / Alt+Right or context-menu copy immediately marks nodes as identical with 0ms visual latency, backed by filesystem verification.
