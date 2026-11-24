@@ -273,7 +273,9 @@ def main():
         ('RELEASE-NOTES-v7.0.md', 'mDiff-Release-Notes-v7.0.pdf', 'mDiff v7.0.0 Release Notes'),
         ('HOW-TO-USE.md', 'mDiff-Complete-User-Guide.pdf', 'mDiff Complete User Guide'),
         ('IT-SECURITY-QA.md', 'mDiff-IT-Security-QA.pdf', 'mDiff IT Security & SecOps Q&A Dossier'),
+        ('LICENSING.md', 'mDiff-Licensing-and-Compliance.pdf', 'mDiff Open-Source Licensing & Compliance Dossier'),
         ('ENTERPRISE-SECURITY.md', 'mDiff-Enterprise-Security-Compliance.pdf', 'mDiff Enterprise Security & Compliance'),
+        ('SECURITY-AUDIT-REPORT.md', 'mDiff-Security-Audit-Report.pdf', 'mDiff Security Audit & Assessment Report'),
         ('DEPLOYMENT-GUIDE.md', 'mDiff-Deployment-Guide.pdf', 'mDiff Deployment & Infrastructure Guide'),
     ]
 

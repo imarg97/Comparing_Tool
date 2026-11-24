@@ -35,12 +35,6 @@ export const App: React.FC = () => {
       title: 'Home',
       closable: false,
     },
-    {
-      id: 'folder-main',
-      type: 'folder',
-      title: 'Folder Compare',
-      closable: false,
-    },
   ]);
   const [activeTabId, setActiveTabId] = useState<string>('session-home');
   const [zoomLevel, setZoomLevel] = useState<number>(100);
@@ -108,6 +102,60 @@ export const App: React.FC = () => {
       return;
     }
     setActiveTab(tab);
+    if (tab === 'folder') {
+      setSessionTabs((prev) => {
+        if (prev.some((t) => t.type === 'folder')) return prev;
+        const leftBase = folderLeftPath ? folderLeftPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || folderLeftPath : '';
+        const rightBase = folderRightPath ? folderRightPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || folderRightPath : '';
+        const title = leftBase && rightBase ? `${leftBase} <-> ${rightBase}` : 'Folder Compare';
+        return [
+          ...prev,
+          {
+            id: 'folder-main',
+            type: 'folder',
+            title,
+            closable: true,
+          },
+        ];
+      });
+      setActiveTabId('folder-main');
+    } else if (tab === 'text') {
+      setSessionTabs((prev) => {
+        if (prev.some((t) => t.type === 'text')) return prev;
+        const leftBase = textLeftPath ? textLeftPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || textLeftPath : '';
+        const rightBase = textRightPath ? textRightPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || textRightPath : '';
+        const title = leftBase && rightBase ? `${leftBase} ↔ ${rightBase}` : 'Text Compare';
+        return [
+          ...prev,
+          {
+            id: 'text-main',
+            type: 'text',
+            title,
+            closable: true,
+          },
+        ];
+      });
+      setActiveTabId('text-main');
+    } else if (tab === 'structured') {
+      setSessionTabs((prev) => {
+        if (prev.some((t) => t.type === 'structured')) return prev;
+        const leftBase = structuredLeftPath ? structuredLeftPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || structuredLeftPath : '';
+        const rightBase = structuredRightPath ? structuredRightPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || structuredRightPath : '';
+        const title = leftBase && rightBase ? `${leftBase} ↔ ${rightBase}` : 'Config & XML';
+        return [
+          ...prev,
+          {
+            id: 'structured-main',
+            type: 'structured',
+            title,
+            closable: true,
+          },
+        ];
+      });
+      setActiveTabId('structured-main');
+    } else if (tab === 'home') {
+      setActiveTabId('session-home');
+    }
   };
 
   // App Settings

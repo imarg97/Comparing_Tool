@@ -328,6 +328,23 @@ describe('Diff Copy Engine', () => {
       ]);
     });
 
+    it('computeUnchangedRanges supports context lines padding to prevent line number overlap', () => {
+      const unchangedWithContext = computeUnchangedRanges(chunks, 26, 'left', 2);
+      expect(unchangedWithContext).toEqual([
+        { startLineNumber: 1, startColumn: 1, endLineNumber: 2, endColumn: 1 },
+        { startLineNumber: 8, startColumn: 1, endLineNumber: 17, endColumn: 1 },
+        { startLineNumber: 25, startColumn: 1, endLineNumber: 26, endColumn: 1 },
+      ]);
+    });
+
+    it('normalizeLineChanges detects insertion and deletion gaps correctly', () => {
+      const raw = [
+        { originalStartLineNumber: 7008, originalEndLineNumber: 0, modifiedStartLineNumber: 7078, modifiedEndLineNumber: 7083 },
+      ];
+      const normalized = normalizeLineChanges(raw);
+      expect(normalized[0].isAlignmentGap).toBe(true);
+    });
+
     it('computeDiffRanges isolates identical lines and hides diffs', () => {
       const diffRanges = computeDiffRanges(chunks, 'left');
       expect(diffRanges).toEqual([

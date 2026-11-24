@@ -936,8 +936,8 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         const origLines = origModel ? origModel.getLineCount() : 0;
         const modLines = modModel ? modModel.getLineCount() : 0;
 
-        const leftHidden = computeUnchangedRanges(chunks, origLines, 'left');
-        const rightHidden = computeUnchangedRanges(chunks, modLines, 'right');
+        const leftHidden = computeUnchangedRanges(chunks, origLines, 'left', 2);
+        const rightHidden = computeUnchangedRanges(chunks, modLines, 'right', 2);
 
         origEditor.setHiddenAreas(leftHidden);
         modEditor.setHiddenAreas(rightHidden);
@@ -1099,8 +1099,10 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       const chunks = normalizeLineChanges(lineChanges);
       if (activeFilter === 'all' || !canonicalChunksRef.current.length) {
         canonicalChunksRef.current = chunks;
+        setDiffChunks(chunks);
+      } else {
+        setDiffChunks(canonicalChunksRef.current);
       }
-      setDiffChunks(chunks);
 
       const origEditor = diffEditorRef.current.getOriginalEditor();
       const modEditor = diffEditorRef.current.getModifiedEditor();
@@ -2748,7 +2750,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       <div className="flex-1 flex flex-row min-h-0 bg-white dark:bg-black w-full overflow-hidden">
         {(leftPath || rightPath) && (
           <DiffOverviewMap
-            chunks={diffChunks}
+            chunks={canonicalChunksRef.current.length ? canonicalChunksRef.current : diffChunks}
             totalLines={totalLineCount}
             currentLine={cursorLineNumber || 1}
             visibleStartLine={visibleStartLine}
@@ -2875,7 +2877,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
                 glyphMargin: false,
                 lineDecorationsWidth: 20,
                 lineNumbers: 'on',
-                lineNumbersMinChars: 3,
+                lineNumbersMinChars: 6,
                 selectionHighlight: false,
                 occurrencesHighlight: 'off',
                 matchBrackets: 'never',

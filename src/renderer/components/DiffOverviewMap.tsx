@@ -31,11 +31,30 @@ export const DiffOverviewMap: React.FC<DiffOverviewMapProps> = ({
   const safeTotalLines = Math.max(totalLines || 1, maxChunkLine, 30);
 
   const calculateTargetLine = (clientY: number) => {
-    if (!containerRef.current) return 1;
+    if (!containerRef.current) return { line: 1, chunk: null };
     const rect = containerRef.current.getBoundingClientRect();
     const offsetY = clientY - rect.top;
     const fraction = Math.max(0, Math.min(1, offsetY / Math.max(1, rect.height)));
-    return Math.max(1, Math.round(fraction * safeTotalLines));
+    const line = Math.max(1, Math.round(fraction * safeTotalLines));
+
+    // Snap to closest diff chunk if click falls within 1.5% height of a diff
+    if (chunks.length > 0) {
+      const tolerance = Math.max(20, Math.round(safeTotalLines * 0.015));
+      let closest: DiffChunk | null = null;
+      let minDiff = Infinity;
+      for (const c of chunks) {
+        const cStart = c.originalStart > 0 ? c.originalStart : c.modifiedStart;
+        const d = Math.abs(cStart - line);
+        if (d < minDiff && d <= tolerance) {
+          minDiff = d;
+          closest = c;
+        }
+      }
+      if (closest) {
+        return { line, chunk: closest };
+      }
+    }
+    return { line, chunk: null };
   };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -47,14 +66,18 @@ export const DiffOverviewMap: React.FC<DiffOverviewMapProps> = ({
     } catch {
       // non-fatal
     }
-    const targetLine = calculateTargetLine(e.clientY);
-    onScrollToLine(targetLine);
+    const target = calculateTargetLine(e.clientY);
+    if (target.chunk && onScrollToChunk) {
+      onScrollToChunk(target.chunk);
+    } else {
+      onScrollToLine(target.line);
+    }
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDraggingRef.current) return;
-    const targetLine = calculateTargetLine(e.clientY);
-    onScrollToLine(targetLine);
+    const target = calculateTargetLine(e.clientY);
+    onScrollToLine(target.line);
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -89,14 +112,33 @@ export const DiffOverviewMap: React.FC<DiffOverviewMapProps> = ({
 
       {/* Difference markers (Beyond Compare exact visual fidelity) */}
       {chunks.map((chunk) => {
-        const isLeftOnly = chunk.originalStart > 0 && chunk.modifiedStart === 0;
-        const isRightOnly = chunk.modifiedStart > 0 && chunk.originalStart === 0;
-        const isAlignmentGap = isLeftOnly || isRightOnly || chunk.originalEnd === 0 || chunk.modifiedEnd === 0;
+        const isLeftGap = chunk.originalEnd === 0 || chunk.originalStart === 0;
+        const isRightGap = chunk.modifiedEnd === 0 || chunk.modifiedStart === 0;
+        const isAlignmentGap = Boolean(chunk.isAlignmentGap || chunk.isWhitespaceOnly || isLeftGap || isRightGap);
 
-        const start = chunk.originalStart > 0 ? chunk.originalStart : chunk.modifiedStart;
-        const end = chunk.originalEnd > 0 ? chunk.originalEnd : (chunk.modifiedEnd > 0 ? chunk.modifiedEnd : start);
-        const count = Math.max(1, end - start + 1);
+        let start = 1;
+        let count = 1;
 
+        if (isLeftGap) {
+          start = chunk.originalStart > 0 ? chunk.originalStart : 1;
+          const modCount = chunk.modifiedEnd >= chunk.modifiedStart && chunk.modifiedStart > 0
+            ? chunk.modifiedEnd - chunk.modifiedStart + 1
+            : 1;
+          count = modCount;
+        } else if (isRightGap) {
+          start = chunk.originalStart > 0 ? chunk.originalStart : (chunk.modifiedStart > 0 ? chunk.modifiedStart : 1);
+          const origCount = chunk.originalEnd >= chunk.originalStart && chunk.originalStart > 0
+            ? chunk.originalEnd - chunk.originalStart + 1
+            : 1;
+          count = origCount;
+        } else {
+          start = chunk.originalStart > 0 ? chunk.originalStart : chunk.modifiedStart;
+          const origCount = chunk.originalEnd >= chunk.originalStart ? chunk.originalEnd - chunk.originalStart + 1 : 1;
+          const modCount = chunk.modifiedEnd >= chunk.modifiedStart ? chunk.modifiedEnd - chunk.modifiedStart + 1 : 1;
+          count = Math.max(origCount, modCount);
+        }
+
+        const end = start + count - 1;
         const top = Math.max(0, Math.min(99.5, ((start - 1) / safeTotalLines) * 100));
 
         // Single difference = crisp thin line; Cluster = solid filled block
@@ -121,16 +163,20 @@ export const DiffOverviewMap: React.FC<DiffOverviewMapProps> = ({
             }}
             style={{
               top: `${top}%`,
-              height: isSingleLine ? '2px' : `${heightPercent}%`,
-              minHeight: isSingleLine ? '2px' : '6px',
+              height: isSingleLine ? '3px' : `${heightPercent}%`,
+              minHeight: isSingleLine ? '3px' : '6px',
             }}
-            className="absolute left-0.5 right-0.5 bg-[#dc2626] hover:bg-[#b91c1c] dark:bg-[#ef4444] cursor-pointer transition-colors shadow-2xs z-10"
+            className={`absolute left-0.5 right-0.5 ${
+              isAlignmentGap
+                ? 'bg-[#2563eb] hover:bg-[#1d4ed8] dark:bg-[#3b82f6]' // Blue line for indentation / alignment gaps
+                : 'bg-[#dc2626] hover:bg-[#b91c1c] dark:bg-[#ef4444]' // Red tick or solid bar for text diff
+            } cursor-pointer transition-colors shadow-2xs z-10 before:absolute before:-inset-y-1 before:inset-x-0`}
             title={
               isAlignmentGap
-                ? `Difference (Gap): lines ${start}–${end} (Click to jump)`
+                ? `Indentation / Alignment Gap: lines ${start}–${end} (Click to jump)`
                 : isSingleLine
                 ? `Difference: line ${start} (Click to jump)`
-                : `Difference Cluster: lines ${start}–${end} (${count} lines) (Click to jump)`
+                : `Diff Cluster: lines ${start}–${end} (${count} lines) (Click to jump)`
             }
           />
         );

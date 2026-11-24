@@ -4,6 +4,8 @@ export interface DiffChunk {
   originalEnd: number;
   modifiedStart: number;
   modifiedEnd: number;
+  isAlignmentGap?: boolean;
+  isWhitespaceOnly?: boolean;
 }
 
 /**
@@ -12,13 +14,22 @@ export interface DiffChunk {
 export function normalizeLineChanges(changes: any[] | null | undefined): DiffChunk[] {
   if (!changes || !Array.isArray(changes)) return [];
 
-  return changes.map((c, idx) => ({
-    id: `chunk_${idx}_${c.originalStartLineNumber}_${c.modifiedStartLineNumber}`,
-    originalStart: c.originalStartLineNumber,
-    originalEnd: c.originalEndLineNumber,
-    modifiedStart: c.modifiedStartLineNumber,
-    modifiedEnd: c.modifiedEndLineNumber,
-  }));
+  return changes.map((c, idx) => {
+    const isGap =
+      c.originalEndLineNumber === 0 ||
+      c.modifiedEndLineNumber === 0 ||
+      c.originalStartLineNumber === 0 ||
+      c.modifiedStartLineNumber === 0;
+
+    return {
+      id: `chunk_${idx}_${c.originalStartLineNumber}_${c.modifiedStartLineNumber}`,
+      originalStart: c.originalStartLineNumber,
+      originalEnd: c.originalEndLineNumber,
+      modifiedStart: c.modifiedStartLineNumber,
+      modifiedEnd: c.modifiedEndLineNumber,
+      isAlignmentGap: isGap,
+    };
+  });
 }
 
 /**
@@ -804,7 +815,8 @@ export interface HiddenRange {
 export function computeUnchangedRanges(
   chunks: DiffChunk[],
   totalLines: number,
-  side: 'left' | 'right'
+  side: 'left' | 'right',
+  contextLines: number = 0
 ): HiddenRange[] {
   if (totalLines <= 0) return [];
   if (!chunks.length) {
@@ -816,11 +828,24 @@ export function computeUnchangedRanges(
       const s = side === 'left' ? c.originalStart : c.modifiedStart;
       const e = side === 'left' ? c.originalEnd : c.modifiedEnd;
       if (s > 0 && e >= s) {
-        return { start: s, end: e };
+        return {
+          start: Math.max(1, s - contextLines),
+          end: Math.min(totalLines, e + contextLines),
+        };
       }
       // If it's a gap on this side (e.g. s is anchor line, e is 0)
       if (s > 0 && e === 0) {
-        return { start: Math.max(1, s), end: Math.min(totalLines, s + 1) };
+        return {
+          start: Math.max(1, s - contextLines),
+          end: Math.min(totalLines, s + 1 + contextLines),
+        };
+      }
+      // If s === 0 and e === 0 (gap before line 1)
+      if (s === 0 && e === 0) {
+        return {
+          start: 1,
+          end: Math.min(totalLines, 1 + contextLines),
+        };
       }
       return null;
     })
