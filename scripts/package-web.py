@@ -1,4 +1,5 @@
 import os
+import shutil
 import tarfile
 import zipfile
 import stat
@@ -8,6 +9,15 @@ DEPLOY_DIR = os.path.join(REPO_DIR, 'deploy')
 RELEASE_DIR = os.path.join(REPO_DIR, 'release')
 TAR_PATH = os.path.join(RELEASE_DIR, 'mDiff-internal-web-deployment.tar.gz')
 ZIP_PATH = os.path.join(RELEASE_DIR, 'mDiff-internal-web-deployment.zip')
+
+# Sync fresh compiled production assets from dist/ to deploy/dist/
+ROOT_DIST = os.path.join(REPO_DIR, 'dist')
+DEPLOY_DIST = os.path.join(DEPLOY_DIR, 'dist')
+if os.path.isdir(ROOT_DIST):
+    print("Syncing fresh compiled assets from dist/ to deploy/dist/...")
+    if os.path.exists(DEPLOY_DIST):
+        shutil.rmtree(DEPLOY_DIST)
+    shutil.copytree(ROOT_DIST, DEPLOY_DIST)
 
 # Clean out any .DS_Store or ._* files in deploy directory
 for root, dirs, files in os.walk(DEPLOY_DIR):

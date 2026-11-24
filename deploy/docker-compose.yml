@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: mdiff-internal:4.0.0
+    image: mdiff-internal:7.0.0
     container_name: mdiff-web
     restart: unless-stopped
     ports:
