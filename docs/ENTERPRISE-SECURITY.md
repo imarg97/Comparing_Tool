@@ -1,7 +1,7 @@
 # mDiff — Enterprise Security & Compliance Report
 
 **Prepared for**: Management, IT Security Directors, and Corporate Compliance  
-**Application**: mDiff (Mavenir Diff) Comparison Suite (`v5.1.0`)  
+**Application**: mDiff (Mavenir Diff) Comparison Suite (`v7.0.0`)  
 **Target Deployment**: Corporate Laptops (Windows & macOS) & Internal Lab Servers (`10.10.84.22`)  
 **Security Classification**: Air-Gapped / Zero-Telemetry / Portable User-Space Utility  
 

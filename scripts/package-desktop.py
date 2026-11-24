@@ -82,9 +82,9 @@ if __name__ == '__main__':
     nsi_script = os.path.join(REPO_DIR, 'scripts', 'installer.nsi')
     if os.path.exists(makensis_bin) and os.path.exists(nsi_script):
         print("Compiling Windows x64 Program Files Setup Installer...")
-        os.system(f"{makensis_bin} -DOUTFILE=../release/mDiff-Setup-5.1.0.exe -DSRCDIR=../release/win-unpacked {nsi_script}")
+        os.system(f"{makensis_bin} -DOUTFILE=../release/mDiff-Setup-7.0.0.exe -DSRCDIR=../release/win-unpacked {nsi_script}")
         shutil.copyfile(
-            os.path.join(RELEASE_DIR, 'mDiff-Setup-5.1.0.exe'),
+            os.path.join(RELEASE_DIR, 'mDiff-Setup-7.0.0.exe'),
             os.path.join(RELEASE_DIR, 'mDiff-Setup-x64.exe')
         )
         print("Compiling Windows arm64 Program Files Setup Installer...")
@@ -98,8 +98,8 @@ if __name__ == '__main__':
     )
     clean_zip_folder(
         os.path.join(RELEASE_DIR, 'win-unpacked'),
-        os.path.join(RELEASE_DIR, 'mDiff-v5.1_Tool.zip'),
-        'mDiff-v5.1_Tool'
+        os.path.join(RELEASE_DIR, 'mDiff-v7.0_Tool.zip'),
+        'mDiff-v7.0_Tool'
     )
     clean_zip_folder(
         os.path.join(RELEASE_DIR, 'win-arm64-unpacked'),

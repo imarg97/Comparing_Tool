@@ -1,7 +1,7 @@
 # mDiff (Mavenir Diff) — Executive Briefing & Team Walkthrough Guide
 
 **Product**: mDiff (Mavenir Diff) Enterprise Comparison Suite  
-**Version**: `v5.1.0`  
+**Version**: `v7.0.0`  
 **Date**: November 24, 2026  
 **Classification**: Mavenir Internal Use  
 **PDF Document**: [`mDiff-Executive-Briefing-Guide.pdf`](file:///Users/anuabhi/.gemini/antigravity/scratch/diffx/docs/mDiff-Executive-Briefing-Guide.pdf)  
@@ -24,7 +24,7 @@ Whenever you need to answer:
 1. **100% Free & Permissive Open-Source (Zero License Headaches)**: Zero subscriptions, zero license keys, zero trial expiration, and zero cost to Mavenir (built on 100% MIT/ISC libraries).
 2. **Beyond Compare Fidelity**: Full visual, color palette, and keyboard shortcut parity (`F7`, `Shift+F7`, `Alt+Right`, `Alt+Left`, `Ctrl+1..5`).
 3. **Dual Delivery (Desktop + Web over VPN)**:
-   - **Windows Program Files Setup**: `mDiff-Setup-5.1.0.exe` for standard enterprise deployment via **Microsoft Intune / Mavenir Company Portal**.
+   - **Windows Program Files Setup**: `mDiff-Setup-7.0.0.exe` for standard enterprise deployment via **Microsoft Intune / Mavenir Company Portal**.
    - **Zero-Install Portable Zip**: `mDiff-windows-x64.zip` for instant user-space execution without admin rights.
    - **Internal Web Portal**: Accessible at `http://10.10.84.22:8097` over Mavenir VPN from any browser without installing software on client machines.
 4. **Telecom & Cloud Intelligence**: Built-in semantic filtering for Kubernetes/OpenShift YAML manifests and cellular XML parameter dumps.
@@ -127,7 +127,7 @@ mDiff was engineered from day one to maintain **complete visual, behavioral, and
 2. **Intelligent Kubernetes & Cloud Noise Filter**: Beyond Compare treats dynamic runtime metadata as real differences. mDiff's Config & XML mode automatically suppresses dynamic Kubernetes noise (`resourceVersion`, `managedFields`, `creationTimestamp`, `uid`, `status`), saving hours of manual review.
 3. **Interactive UI & Font Zoom (70% - 200%)**: Engineers can dynamically scale the editor font, row height, and folder tree using `Ctrl` + mouse wheel (roller button) or toolbar zoom buttons.
 4. **Zero-Latency In-Memory Session Caching**: Folder comparisons remain persistently cached in RAM across tab switches. Switching from active text editing back to Folder Compare takes 0ms with zero re-scanning.
-5. **Enterprise Windows Setup Installer for Intune**: Includes an official NSIS installer (`mDiff-Setup-5.1.0.exe`) that installs to `C:\Program Files\mDiff\`, generates `Uninstall mDiff.exe`, and supports silent install (`/S`) for the **Mavenir Company Portal / Microsoft Intune**.
+5. **Enterprise Windows Setup Installer for Intune**: Includes an official NSIS installer (`mDiff-Setup-7.0.0.exe`) that installs to `C:\Program Files\mDiff\`, generates `Uninstall mDiff.exe`, and supports silent install (`/S`) for the **Mavenir Company Portal / Microsoft Intune**.
 
 ---
 
@@ -136,6 +136,7 @@ mDiff was engineered from day one to maintain **complete visual, behavioral, and
 2. **Air-Gapped & Zero Data Egress**: All diff computations execute strictly on the client CPU and RAM. No files, configs, keystrokes, or diff results are ever transmitted across the network or stored externally.
 3. **Non-Snapping Freeform Minimap Scrolling**: Resolved the common comparison annoyance where sliding through non-differential code forcefully snapped the cursor into nearby diffs. In mDiff, the overview minimap allows fluid, freeform sliding.
 4. **Eliminated False Diff Warnings in Line Details**: Precision aligned line mapping (`getAlignedLineNumbers`) matches lines across gap insertions, eliminating false diff warnings in non-differential code.
+5. **Zero Timeout Full Diff Computation**: Diff calculation timeout has been set to 0 (infinite timeout allowed), ensuring 100% of differences are computed accurately across huge XML configuration files (thousands of lines) without premature truncation.
 
 ---
 
@@ -145,9 +146,10 @@ All production packages are compiled and available in [`release/`](file:///Users
 
 | Package File | Size | Format | Direct Clickable Local Link | Purpose & IT Guidance |
 | :--- | :---: | :---: | :--- | :--- |
-| **`mDiff-Setup-5.1.0.exe`** | **95.5 MB** | **NSIS Setup** | [**`mDiff-Setup-5.1.0.exe`**](file:///Users/anuabhi/.gemini/antigravity/scratch/diffx/release/mDiff-Setup-5.1.0.exe) | **Official Enterprise Installer.** Installs to `C:\Program Files\mDiff\`. Creates `Uninstall mDiff.exe` and registers in Windows Registry. Supports silent install (`/S`) for **Microsoft Intune / Mavenir Company Portal**. |
-| **`mDiff-Setup-x64.exe`** | **95.5 MB** | **NSIS Setup** | [**`mDiff-Setup-x64.exe`**](file:///Users/anuabhi/.gemini/antigravity/scratch/diffx/release/mDiff-Setup-x64.exe) | Standard IT naming identical to `mDiff-Setup-5.1.0.exe`. |
-| **`mDiff-windows-x64.zip`** | **405 MB** | **Portable Zip** | [**`mDiff-windows-x64.zip`**](file:///Users/anuabhi/.gemini/antigravity/scratch/diffx/release/mDiff-windows-x64.zip) | **Zero Admin Rights Required.** Extract anywhere and double-click `mDiff.exe`. Ideal for locked-down corporate laptops without admin privileges. |
+| **`mDiff-Setup-7.0.0.exe`** | **95.5 MB** | **NSIS Setup** | [**`mDiff-Setup-7.0.0.exe`**](file:///Users/anuabhi/.gemini/antigravity/scratch/diffx/release/mDiff-Setup-7.0.0.exe) | **Official Enterprise Installer.** Installs to `C:\Program Files\mDiff\`. Creates `Uninstall mDiff.exe` and registers in Windows Registry. Supports silent install (`/S`) for **Microsoft Intune / Mavenir Company Portal**. |
+| **`mDiff-Setup-x64.exe`** | **95.5 MB** | **NSIS Setup** | [**`mDiff-Setup-x64.exe`**](file:///Users/anuabhi/.gemini/antigravity/scratch/diffx/release/mDiff-Setup-x64.exe) | Standard IT naming identical to `mDiff-Setup-7.0.0.exe`. |
+| **`mDiff-v7.0_Tool.zip`** | **405 MB** | **Portable Zip** | [**`mDiff-v7.0_Tool.zip`**](file:///Users/anuabhi/.gemini/antigravity/scratch/diffx/release/mDiff-v7.0_Tool.zip) | **Zero Admin Rights Required.** Unrestricted 0777 archive. Extract anywhere and double-click `mDiff.exe`. Ideal for locked-down corporate laptops without admin privileges. |
+| **`mDiff-windows-x64.zip`** | **405 MB** | **Portable Zip** | [**`mDiff-windows-x64.zip`**](file:///Users/anuabhi/.gemini/antigravity/scratch/diffx/release/mDiff-windows-x64.zip) | Standard portable release archive. |
 | **`mDiff-internal-web-deployment.tar.gz`** | **2.5 MB** | **Web Tarball** | [**`mDiff-internal-web-deployment.tar.gz`**](file:///Users/anuabhi/.gemini/antigravity/scratch/diffx/release/mDiff-internal-web-deployment.tar.gz) | **Browser Access over Mavenir VPN.** Deployed on `bglocp-installer` (`http://10.10.84.22:8097`). Zero installation on client laptops. |
 | **`mDiff-macOS-arm64.zip`** | **514 MB** | **Standalone App** | [**`mDiff-macOS-arm64.zip`**](file:///Users/anuabhi/.gemini/antigravity/scratch/diffx/release/mDiff-macOS-arm64.zip) | Apple Silicon macOS application (`mDiff.app`). |
 
@@ -156,10 +158,10 @@ All production packages are compiled and available in [`release/`](file:///Users
 ## 5. Frequently Asked Questions (FAQ) for the Meeting
 
 **Q1: Which file should I download for a proper standard installation?**  
-**A:** Download **`mDiff-Setup-5.1.0.exe`** (or `mDiff-Setup-x64.exe`). It runs the official Windows Setup wizard, installs to `C:\Program Files\mDiff\`, creates `Uninstall mDiff.exe`, creates Desktop/Start Menu shortcuts, and registers with Windows Add/Remove Programs.
+**A:** Download **`mDiff-Setup-7.0.0.exe`** (or `mDiff-Setup-x64.exe`). It runs the official Windows Setup wizard, installs to `C:\Program Files\mDiff\`, creates `Uninstall mDiff.exe`, creates Desktop/Start Menu shortcuts, and registers with Windows Add/Remove Programs.
 
 **Q2: Why do we have both an installer and a portable zip?**  
-**A:** For complete deployment flexibility. The installer is for enterprise management (Microsoft Intune / Company Portal) and standard corporate laptop setups. The portable zip (`mDiff-windows-x64.zip`) allows contractors, engineers, or colleagues without local administrator permissions to unzip and run `mDiff.exe` immediately with zero install barriers.
+**A:** For complete deployment flexibility. The installer is for enterprise management (Microsoft Intune / Company Portal) and standard corporate laptop setups. The portable zip (`mDiff-v7.0_Tool.zip` or `mDiff-windows-x64.zip`) allows contractors, engineers, or colleagues without local administrator permissions to unzip and run `mDiff.exe` immediately with zero install barriers.
 
 **Q3: Can we use mDiff for sensitive production telecom customer data?**  
 **A:** Absolutely. mDiff operates under an air-gapped, zero-telemetry architecture. All file hashing, parsing, and difference comparisons execute locally within the client's memory. No telemetry, analytics, or file contents are ever transmitted outside.

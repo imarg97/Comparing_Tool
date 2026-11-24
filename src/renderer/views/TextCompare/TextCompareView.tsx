@@ -335,7 +335,15 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       const origEditor = diffEditorRef.current.getOriginalEditor();
       const modEditor = diffEditorRef.current.getModifiedEditor();
 
-      if (chunk.originalStart > 0) {
+      if (chunk.originalStart > 0 && chunk.modifiedStart > 0) {
+        origEditor.revealLineInCenter(chunk.originalStart);
+        modEditor.revealLineInCenter(chunk.modifiedStart);
+        origEditor.setPosition({ lineNumber: chunk.originalStart, column: 1 });
+        origEditor.focus();
+        setActiveFocusSide('left');
+        updateLineDetails(chunk.originalStart, 'left');
+        setActiveDiffChunk(chunk);
+      } else if (chunk.originalStart > 0) {
         origEditor.revealLineInCenter(chunk.originalStart);
         origEditor.setPosition({ lineNumber: chunk.originalStart, column: 1 });
         origEditor.focus();
@@ -999,6 +1007,10 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
           }));
         }
 
+        const lCount = (leftRes?.content || '').split('\n').length;
+        const rCount = (rightRes?.content || '').split('\n').length;
+        setTotalLineCount(Math.max(1, lCount, rCount));
+
         onUpdateStatus('Files loaded');
       }
     } catch (err: unknown) {
@@ -1266,6 +1278,9 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
           ...prev,
           diffCount,
         }));
+        const lCount = origEditor.getModel()?.getLineCount() || 1;
+        const rCount = modEditor.getModel()?.getLineCount() || 1;
+        setTotalLineCount(Math.max(1, lCount, rCount));
         updateGutterDecorations();
         const isIdentical = diffCount === 0;
         onFileStatusChange?.(leftPath, rightPath, isIdentical);
@@ -2866,7 +2881,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
                 matchBrackets: 'never',
                 renderValidationDecorations: 'off',
                 stickyScroll: { enabled: false },
-                maxComputationTime: 2000,
+                maxComputationTime: 0, // 0 = no timeout: guarantees 100% full diff computation on large XML/config files
                 diffAlgorithm: 'advanced',
                 experimental: { showMoves: false },
                 hideUnchangedRegions: { enabled: false },

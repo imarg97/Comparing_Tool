@@ -306,7 +306,15 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       const origEditor = diffEditorRef.current.getOriginalEditor();
       const modEditor = diffEditorRef.current.getModifiedEditor();
 
-      if (chunk.originalStart > 0) {
+      if (chunk.originalStart > 0 && chunk.modifiedStart > 0) {
+        origEditor.revealLineInCenter(chunk.originalStart);
+        modEditor.revealLineInCenter(chunk.modifiedStart);
+        origEditor.setPosition({ lineNumber: chunk.originalStart, column: 1 });
+        origEditor.focus();
+        setActiveFocusSide('left');
+        updateLineDetails(chunk.originalStart, 'left');
+        setActiveDiffChunk(chunk);
+      } else if (chunk.originalStart > 0) {
         origEditor.revealLineInCenter(chunk.originalStart);
         origEditor.setPosition({ lineNumber: chunk.originalStart, column: 1 });
         origEditor.focus();
@@ -1268,6 +1276,9 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         if (activeFilter === 'all' || !canonicalChunksRef.current.length) {
           canonicalChunksRef.current = chunks;
         }
+        const lCount = origEditor.getModel()?.getLineCount() || 1;
+        const rCount = modEditor.getModel()?.getLineCount() || 1;
+        setTotalLineCount(Math.max(1, lCount, rCount));
         updateGutterDecorations();
       });
 
@@ -2821,7 +2832,7 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
                 matchBrackets: 'never',
                 renderValidationDecorations: 'off',
                 stickyScroll: { enabled: false },
-                maxComputationTime: 2000,
+                maxComputationTime: 0, // 0 = no timeout: guarantees 100% full diff computation on large files
                 diffAlgorithm: 'advanced',
                 experimental: { showMoves: false },
                 ignoreTrimWhitespace: false,

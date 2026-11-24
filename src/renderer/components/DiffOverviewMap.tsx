@@ -24,7 +24,11 @@ export const DiffOverviewMap: React.FC<DiffOverviewMapProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef<boolean>(false);
-  const safeTotalLines = Math.max(totalLines, 30);
+  const maxChunkLine = chunks.reduce(
+    (max, c) => Math.max(max, c.originalEnd || c.originalStart, c.modifiedEnd || c.modifiedStart),
+    1
+  );
+  const safeTotalLines = Math.max(totalLines || 1, maxChunkLine, 30);
 
   const calculateTargetLine = (clientY: number) => {
     if (!containerRef.current) return 1;
@@ -120,19 +124,13 @@ export const DiffOverviewMap: React.FC<DiffOverviewMapProps> = ({
               height: isSingleLine ? '2px' : `${heightPercent}%`,
               minHeight: isSingleLine ? '2px' : '6px',
             }}
-            className={`absolute left-0.5 right-0.5 ${
-              isAlignmentGap
-                ? 'bg-[#2563eb] hover:bg-[#1d4ed8] dark:bg-[#3b82f6]' // Blue line for alignment gap
-                : isRightOnly
-                ? 'bg-[#d97706] hover:bg-[#b45309] dark:bg-[#f59e0b]' // Amber on right side insertions
-                : 'bg-[#dc2626] hover:bg-[#b91c1c] dark:bg-[#ef4444]' // Red tick or solid bar for text diff
-            } cursor-pointer transition-colors shadow-2xs z-10`}
+            className="absolute left-0.5 right-0.5 bg-[#dc2626] hover:bg-[#b91c1c] dark:bg-[#ef4444] cursor-pointer transition-colors shadow-2xs z-10"
             title={
               isAlignmentGap
-                ? `Alignment Gap: lines ${start}–${end} (Click to jump)`
+                ? `Difference (Gap): lines ${start}–${end} (Click to jump)`
                 : isSingleLine
                 ? `Difference: line ${start} (Click to jump)`
-                : `Diff Cluster: lines ${start}–${end} (${count} lines) (Click to jump)`
+                : `Difference Cluster: lines ${start}–${end} (${count} lines) (Click to jump)`
             }
           />
         );

@@ -3,7 +3,7 @@
 
 ; Define defaults if not provided via command line
 !ifndef OUTFILE
-  !define OUTFILE "../release/mDiff-Setup-5.1.0.exe"
+  !define OUTFILE "../release/mDiff-Setup-7.0.0.exe"
 !endif
 !ifndef SRCDIR
   !define SRCDIR "../release/win-unpacked"
@@ -40,13 +40,13 @@ SetCompressor /SOLID lzma
 !insertmacro MUI_LANGUAGE "English"
 
 ; Version Information
-VIProductVersion "5.1.0.0"
+VIProductVersion "7.0.0.0"
 VIAddVersionKey "ProductName" "mDiff"
 VIAddVersionKey "CompanyName" "Mavenir"
 VIAddVersionKey "LegalCopyright" "Copyright © 2026 Mavenir"
 VIAddVersionKey "FileDescription" "mDiff Enterprise Comparison Suite Setup"
-VIAddVersionKey "FileVersion" "5.1.0.0"
-VIAddVersionKey "ProductVersion" "5.1.0.0"
+VIAddVersionKey "FileVersion" "7.0.0.0"
+VIAddVersionKey "ProductVersion" "7.0.0.0"
 
 Section "MainSection" SecMain
     SetOutPath "$INSTDIR"
@@ -68,7 +68,7 @@ Section "MainSection" SecMain
     ; Register in Windows Add/Remove Programs (Registry) for Intune and Company Portal
     WriteRegStr HKLM "Software\Mavenir\mDiff" "InstallLocation" "$INSTDIR"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\mDiff" "DisplayName" "mDiff"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\mDiff" "DisplayVersion" "5.1.0"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\mDiff" "DisplayVersion" "7.0.0"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\mDiff" "Publisher" "Mavenir"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\mDiff" "DisplayIcon" "$INSTDIR\mDiff.exe,0"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\mDiff" "UninstallString" '"$INSTDIR\Uninstall mDiff.exe"'
