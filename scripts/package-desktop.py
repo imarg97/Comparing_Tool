@@ -1,4 +1,5 @@
 import os
+import shutil
 import zipfile
 
 REPO_DIR = '/Users/anuabhi/.gemini/antigravity/scratch/diffx'
@@ -23,7 +24,7 @@ def clean_zip_folder(src_dir, zip_path, root_prefix=''):
                 
                 # Check permissions
                 zi = zipfile.ZipInfo(arc_name)
-                zi.date_time = (2026, 11, 14, 0, 0, 0)
+                zi.date_time = (2026, 11, 24, 0, 0, 0)
                 st = os.stat(full_p)
                 zi.external_attr = (st.st_mode & 0o777) << 16
                 with open(full_p, 'rb') as fp:
@@ -31,6 +32,20 @@ def clean_zip_folder(src_dir, zip_path, root_prefix=''):
     print(f"Done: {zip_path} ({os.path.getsize(zip_path)} bytes)")
 
 if __name__ == '__main__':
+    # 1. Build NSIS Windows Program Files Installers if makensis is present
+    makensis_bin = '/opt/homebrew/bin/makensis'
+    nsi_script = os.path.join(REPO_DIR, 'scripts', 'installer.nsi')
+    if os.path.exists(makensis_bin) and os.path.exists(nsi_script):
+        print("Compiling Windows x64 Program Files Setup Installer...")
+        os.system(f"{makensis_bin} -DOUTFILE=../release/mDiff-Setup-5.1.0.exe -DSRCDIR=../release/win-unpacked {nsi_script}")
+        shutil.copyfile(
+            os.path.join(RELEASE_DIR, 'mDiff-Setup-5.1.0.exe'),
+            os.path.join(RELEASE_DIR, 'mDiff-Setup-x64.exe')
+        )
+        print("Compiling Windows arm64 Program Files Setup Installer...")
+        os.system(f"{makensis_bin} -DOUTFILE=../release/mDiff-Setup-arm64.exe -DSRCDIR=../release/win-arm64-unpacked {nsi_script}")
+
+    # 2. Package Portable Packages
     clean_zip_folder(
         os.path.join(RELEASE_DIR, 'win-unpacked'),
         os.path.join(RELEASE_DIR, 'mDiff-windows-x64.zip'),

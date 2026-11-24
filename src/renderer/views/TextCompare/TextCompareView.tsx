@@ -404,7 +404,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         } catch {
           // ignore
         }
-      }, 2200);
+      }, 850);
     } catch {
       // ignore
     }
@@ -1732,6 +1732,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
               setRightDirty(true);
               setLastModifiedSide('right');
               setActiveFocusSide('right');
+              updateLineDetails(sel.startLine, 'left');
               flashCopiedHighlight('left', sel.startLine, sel.endLine, false);
               if (outRange.startLine > 0) {
                 flashCopiedHighlight('right', outRange.startLine, outRange.endLine, false);
@@ -1748,6 +1749,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
               setRightDirty(true);
               setLastModifiedSide('right');
               setActiveFocusSide('right');
+              updateLineDetails(line, 'left');
               flashCopiedHighlight('left', directChunk.originalStart, directChunk.originalEnd || directChunk.originalStart, false);
               if (outRange.startLine > 0) {
                 flashCopiedHighlight('right', outRange.startLine, outRange.endLine, false);
@@ -1816,6 +1818,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
               setLeftDirty(true);
               setLastModifiedSide('left');
               setActiveFocusSide('left');
+              updateLineDetails(sel.startLine, 'right');
               flashCopiedHighlight('right', sel.startLine, sel.endLine, false);
               if (outRange.startLine > 0) {
                 flashCopiedHighlight('left', outRange.startLine, outRange.endLine, false);
@@ -1832,6 +1835,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
               setLeftDirty(true);
               setLastModifiedSide('left');
               setActiveFocusSide('left');
+              updateLineDetails(line, 'right');
               flashCopiedHighlight('right', directChunk.modifiedStart, directChunk.modifiedEnd || directChunk.modifiedStart, false);
               if (outRange.startLine > 0) {
                 flashCopiedHighlight('left', outRange.startLine, outRange.endLine, false);
@@ -1920,6 +1924,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       setRightDirty(true);
       setLastModifiedSide('right');
       setActiveFocusSide('right');
+      updateLineDetails(sel.startLine, 'left');
       flashCopiedHighlight('left', sel.startLine, sel.endLine, false);
       if (outRange.startLine > 0) {
         flashCopiedHighlight('right', outRange.startLine, outRange.endLine, false);
@@ -1953,6 +1958,8 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       setRightDirty(true);
       setLastModifiedSide('right');
       setActiveFocusSide('right');
+      const targetLine = (chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart) ? chunk.originalStart : (outRange.startLine || 1);
+      updateLineDetails(targetLine, 'left');
       if (chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart) {
         flashCopiedHighlight('left', chunk.originalStart, chunk.originalEnd, false);
       }
@@ -2000,6 +2007,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       setLeftDirty(true);
       setLastModifiedSide('left');
       setActiveFocusSide('left');
+      updateLineDetails(sel.startLine, 'right');
       flashCopiedHighlight('right', sel.startLine, sel.endLine, false);
       if (outRange.startLine > 0) {
         flashCopiedHighlight('left', outRange.startLine, outRange.endLine, false);
@@ -2033,6 +2041,8 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       setLeftDirty(true);
       setLastModifiedSide('left');
       setActiveFocusSide('left');
+      const targetLine = (chunk.modifiedStart > 0 && chunk.modifiedEnd >= chunk.modifiedStart) ? chunk.modifiedStart : (outRange.startLine || 1);
+      updateLineDetails(targetLine, 'right');
       if (chunk.modifiedStart > 0 && chunk.modifiedEnd >= chunk.modifiedStart) {
         flashCopiedHighlight('right', chunk.modifiedStart, chunk.modifiedEnd, false);
       }
@@ -2075,6 +2085,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       setRightDirty(true);
       setLastModifiedSide('right');
       setActiveFocusSide('right');
+      updateLineDetails(cursorLineNumber, 'left');
       flashCopiedHighlight('left', chunk.originalStart, chunk.originalEnd || chunk.originalStart, false);
       if (outRange.startLine > 0) {
         flashCopiedHighlight('right', outRange.startLine, outRange.endLine, false);
@@ -2098,6 +2109,9 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     modModel.pushEditOperations([], [{ range, text: leftLine }], () => null);
     rightContentRef.current = modModel.getValue();
     setRightDirty(true);
+    setLastModifiedSide('right');
+    setActiveFocusSide('right');
+    updateLineDetails(cursorLineNumber, 'left');
     flashCopiedHighlight('left', cursorLineNumber, cursorLineNumber, false);
     flashCopiedHighlight('right', clampedRightLineNum, clampedRightLineNum, false);
     onUpdateStatus(`Copied line ${cursorLineNumber} Left ⇨ Right`);
@@ -2132,6 +2146,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
       setLeftDirty(true);
       setLastModifiedSide('left');
       setActiveFocusSide('left');
+      updateLineDetails(cursorLineNumber, 'right');
       flashCopiedHighlight('right', chunk.modifiedStart, chunk.modifiedEnd || chunk.modifiedStart, false);
       if (outRange.startLine > 0) {
         flashCopiedHighlight('left', outRange.startLine, outRange.endLine, false);
@@ -2155,6 +2170,9 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     origModel.pushEditOperations([], [{ range, text: rightLine }], () => null);
     leftContentRef.current = origModel.getValue();
     setLeftDirty(true);
+    setLastModifiedSide('left');
+    setActiveFocusSide('left');
+    updateLineDetails(cursorLineNumber, 'right');
     flashCopiedHighlight('right', cursorLineNumber, cursorLineNumber, false);
     flashCopiedHighlight('left', clampedLeftLineNum, clampedLeftLineNum, false);
     onUpdateStatus(`Copied line ${cursorLineNumber} Right ⇦ Left`);

@@ -71,12 +71,15 @@ All official documentation has been organized into the [`docs/`](docs/) director
 
 ## Pre-Built Distribution Packages (`release/`)
 
-| Platform | Package Name | Format | Notes |
-| :--- | :--- | :---: | :--- |
-| **Windows (x64)** | `mDiff-windows-x64.zip` | Portable `.exe` | Extract and run `mDiff.exe`. No admin / UAC required. |
-| **Windows (ARM64)** | `mDiff-windows-arm64.zip` | Portable `.exe` | Optimized for Qualcomm Snapdragon Windows laptops. |
-| **macOS (Apple Silicon)** | `mDiff-macOS-arm64.zip` | Standalone `.app` | Drag `mDiff.app` to Applications. |
-| **Internal Web Server** | `mDiff-internal-web-deployment.tar.gz` | Linux Bundle | Single command `./start-server.sh 8097` for `10.10.84.22`. |
+| Platform / Target | Package Name | Format | Size | Description |
+| :--- | :--- | :---: | :---: | :--- |
+| **Windows Enterprise Setup (x64)** | `mDiff-Setup-5.1.0.exe` / `mDiff-Setup-x64.exe` | **NSIS Installer** | **~95 MB** | **Official Setup for `C:\Program Files\mDiff\`. Generates `Uninstall mDiff.exe`. Silent `/S` switch for Microsoft Intune & Company Portal.** |
+| **Windows Enterprise Setup (ARM64)** | `mDiff-Setup-arm64.exe` | **NSIS Installer** | **~91 MB** | **Setup for Qualcomm Snapdragon Copilot+ Windows laptops.** |
+| **Windows Portable (x64)** | `mDiff-windows-x64.zip` | Portable Zip | 405 MB | Extract and run `mDiff.exe`. Zero installation / zero admin required. |
+| **Windows Portable (ARM64)** | `mDiff-windows-arm64.zip` | Portable Zip | 418 MB | Portable package for Windows ARM64 laptops. |
+| **macOS (Apple Silicon)** | `mDiff-macOS-arm64.zip` | Standalone `.app` | 514 MB | Drag `mDiff.app` to Applications. |
+| **Internal Web Server** | `mDiff-internal-web-deployment.tar.gz` | Linux Tarball | 2.5 MB | Clean Linux deployment package (0 Apple xattr noise) for `10.10.84.22:8097`. |
+| **Internal Web Server (Zip)** | `mDiff-internal-web-deployment.zip` | Linux Zip | 9.2 MB | Alternative web deployment archive. |
 
 ---
 

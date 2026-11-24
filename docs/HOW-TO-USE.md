@@ -164,7 +164,39 @@ Designed for entire directory trees, firmware bundles, and release folders.
 
 ---
 
-## 5. Preferences & Comparison Rules (`Ctrl+5`)
+## 5. Enterprise Installation & Microsoft Intune Deployment
+
+### A. Windows Program Files Setup (`mDiff-Setup-5.1.0.exe` / `mDiff-Setup-x64.exe`)
+For corporate laptop deployment through Microsoft Intune / SCCM / Company Portal:
+1. **Interactive Installation**:
+   - Double-click `mDiff-Setup-5.1.0.exe` or `mDiff-Setup-x64.exe`.
+   - The installer installs cleanly into **`C:\Program Files\mDiff\`**.
+   - Generates and installs a dedicated uninstaller: **`C:\Program Files\mDiff\Uninstall mDiff.exe`**.
+   - Creates Start Menu entries (`mDiff` and `Uninstall mDiff`) and a Desktop shortcut.
+   - Registers in Windows Add/Remove Programs (Registry key `HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall\mDiff`).
+2. **Silent Enterprise Installation (Intune / Company Portal / SCCM)**:
+   - Silent Install command:
+     ```cmd
+     mDiff-Setup-5.1.0.exe /S
+     ```
+   - Silent Uninstall command:
+     ```cmd
+     "C:\Program Files\mDiff\Uninstall mDiff.exe" /S
+     ```
+   - Detection Rule in Microsoft Intune:
+     - Rule Type: File
+     - Path: `C:\Program Files\mDiff`
+     - File: `mDiff.exe`
+
+### B. Portable Windows Execution (Zero Installation)
+If your user account lacks administrative privileges:
+1. Download `mDiff-windows-x64.zip` (or `mDiff-windows-arm64.zip`).
+2. Extract the folder anywhere (e.g. `Downloads` or `Desktop`).
+3. Launch `mDiff.exe` directly. No registry changes or administrator access required.
+
+---
+
+## 6. Preferences & Comparison Rules (`Ctrl+5`)
 
 Accessible via the gear icon or **Preferences**:
 
