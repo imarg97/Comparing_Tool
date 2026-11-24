@@ -32,6 +32,23 @@ def clean_zip_folder(src_dir, zip_path, root_prefix=''):
     print(f"Done: {zip_path} ({os.path.getsize(zip_path)} bytes)")
 
 if __name__ == '__main__':
+    # 0. Sync fresh app.asar and physical icons into unpacked distribution folders
+    mac_asar = os.path.join(RELEASE_DIR, 'mac-arm64', 'mDiff.app', 'Contents', 'Resources', 'app.asar')
+    ico_src = os.path.join(REPO_DIR, 'public', 'icon.ico')
+    png_src = os.path.join(REPO_DIR, 'public', 'icon.png')
+    for target in ['win-unpacked', 'win-arm64-unpacked']:
+        tdir = os.path.join(RELEASE_DIR, target)
+        rdir = os.path.join(tdir, 'resources')
+        if os.path.exists(tdir) and os.path.exists(rdir):
+            if os.path.exists(mac_asar):
+                shutil.copyfile(mac_asar, os.path.join(rdir, 'app.asar'))
+            if os.path.exists(ico_src):
+                shutil.copyfile(ico_src, os.path.join(rdir, 'icon.ico'))
+                shutil.copyfile(ico_src, os.path.join(tdir, 'icon.ico'))
+            if os.path.exists(png_src):
+                shutil.copyfile(png_src, os.path.join(rdir, 'icon.png'))
+                shutil.copyfile(png_src, os.path.join(tdir, 'icon.png'))
+
     # 1. Build NSIS Windows Program Files Installers if makensis is present
     makensis_bin = '/opt/homebrew/bin/makensis'
     nsi_script = os.path.join(REPO_DIR, 'scripts', 'installer.nsi')

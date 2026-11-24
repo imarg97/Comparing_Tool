@@ -2,7 +2,7 @@
  * DiffX — Electron Main Process Entry Point
  */
 
-import { app, BrowserWindow, Menu, MenuItemConstructorOptions, shell } from 'electron';
+import { app, BrowserWindow, Menu, MenuItemConstructorOptions, shell, nativeImage } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -18,9 +18,14 @@ const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 function createMainWindow(): BrowserWindow {
   const isWin = process.platform === 'win32';
   const appPath = app.getAppPath();
+  const resourcesPath = process.resourcesPath || path.join(appPath, '..');
   const candidateIconPaths = [
+    isWin ? path.join(resourcesPath, 'icon.ico') : path.join(resourcesPath, 'icon.png'),
+    isWin ? path.join(resourcesPath, 'resources/icon.ico') : path.join(resourcesPath, 'resources/icon.png'),
     isWin ? path.join(appPath, 'public/icon.ico') : path.join(appPath, 'public/icon.png'),
     isWin ? path.join(appPath, 'dist/icon.ico') : path.join(appPath, 'dist/icon.png'),
+    path.join(resourcesPath, 'icon.ico'),
+    path.join(resourcesPath, 'icon.png'),
     path.join(appPath, 'public/icon.png'),
     path.join(appPath, 'dist/icon.png'),
     path.join(__dirname, '../../public/icon.ico'),
@@ -29,16 +34,25 @@ function createMainWindow(): BrowserWindow {
     path.join(process.cwd(), 'public/icon.png'),
   ];
   let iconPath: string | undefined;
+  let appIcon: ReturnType<typeof nativeImage.createFromPath> | undefined;
   for (const cand of candidateIconPaths) {
-    if (fs.existsSync(cand)) {
-      iconPath = cand;
-      break;
+    try {
+      if (fs.existsSync(cand)) {
+        iconPath = cand;
+        const img = nativeImage.createFromPath(cand);
+        if (!img.isEmpty()) {
+          appIcon = img;
+          break;
+        }
+      }
+    } catch {
+      // ignore
     }
   }
 
   const win = new BrowserWindow({
     title: 'mDiff',
-    icon: iconPath,
+    icon: appIcon || iconPath,
     width: 1360,
     height: 880,
     minWidth: 960,
@@ -54,6 +68,14 @@ function createMainWindow(): BrowserWindow {
       sandbox: true,
     },
   });
+
+  if (appIcon && !appIcon.isEmpty()) {
+    try {
+      win.setIcon(appIcon);
+    } catch {
+      // ignore
+    }
+  }
 
   // On Windows/Linux, disable the duplicate native menu bar so only the unified custom DiffX header is shown
   if (process.platform !== 'darwin') {
@@ -228,6 +250,13 @@ function buildMenu(): void {
 }
 
 app.whenReady().then(() => {
+  if (process.platform === 'win32') {
+    try {
+      app.setAppUserModelId('com.mavenir.mdiff');
+    } catch {
+      // ignore
+    }
+  }
   buildMenu();
   mainWindow = createMainWindow();
 
