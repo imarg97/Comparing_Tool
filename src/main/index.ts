@@ -21,10 +21,12 @@ function createMainWindow(): BrowserWindow {
   const resourcesPath = process.resourcesPath || path.join(appPath, '..');
   const candidateIconPaths = [
     isWin ? path.join(resourcesPath, 'icon.ico') : path.join(resourcesPath, 'icon.png'),
+    isWin ? path.join(resourcesPath, '..', 'icon.ico') : path.join(resourcesPath, '..', 'icon.png'),
     isWin ? path.join(resourcesPath, 'resources/icon.ico') : path.join(resourcesPath, 'resources/icon.png'),
     isWin ? path.join(appPath, 'public/icon.ico') : path.join(appPath, 'public/icon.png'),
     isWin ? path.join(appPath, 'dist/icon.ico') : path.join(appPath, 'dist/icon.png'),
     path.join(resourcesPath, 'icon.ico'),
+    path.join(resourcesPath, '..', 'icon.ico'),
     path.join(resourcesPath, 'icon.png'),
     path.join(appPath, 'public/icon.png'),
     path.join(appPath, 'dist/icon.png'),
@@ -52,7 +54,7 @@ function createMainWindow(): BrowserWindow {
 
   const win = new BrowserWindow({
     title: 'mDiff',
-    icon: appIcon || iconPath,
+    icon: iconPath || appIcon,
     width: 1360,
     height: 880,
     minWidth: 960,
@@ -69,7 +71,19 @@ function createMainWindow(): BrowserWindow {
     },
   });
 
-  if (appIcon && !appIcon.isEmpty()) {
+  if (iconPath) {
+    try {
+      win.setIcon(iconPath);
+    } catch {
+      if (appIcon && !appIcon.isEmpty()) {
+        try {
+          win.setIcon(appIcon);
+        } catch {
+          // ignore
+        }
+      }
+    }
+  } else if (appIcon && !appIcon.isEmpty()) {
     try {
       win.setIcon(appIcon);
     } catch {

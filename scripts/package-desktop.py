@@ -71,6 +71,12 @@ if __name__ == '__main__':
                 shutil.copyfile(png_src, os.path.join(rdir, 'icon.png'))
                 shutil.copyfile(png_src, os.path.join(tdir, 'icon.png'))
 
+    # 0.1 Inject native multi-resolution icon.ico into PE executable resource headers (Group ID 1)
+    inject_script = os.path.join(REPO_DIR, 'scripts', 'inject-icon.cjs')
+    if os.path.exists(inject_script):
+        print("Injecting native Windows PE executable icons via ResEdit...")
+        os.system(f"node {inject_script}")
+
     # 1. Build NSIS Windows Program Files Installers if makensis is present
     makensis_bin = '/opt/homebrew/bin/makensis'
     nsi_script = os.path.join(REPO_DIR, 'scripts', 'installer.nsi')
