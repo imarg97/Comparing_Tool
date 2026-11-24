@@ -72,7 +72,7 @@ written_web_dirs = set()
 with zipfile.ZipFile(ZIP_PATH, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
     root_zi = zipfile.ZipInfo('mdiff/')
     root_zi.date_time = (2026, 11, 24, 0, 0, 0)
-    root_zi.external_attr = ((stat.S_IFDIR | 0o755) << 16) | 0x10
+    root_zi.external_attr = ((stat.S_IFDIR | 0o777) << 16) | 0x10
     zf.writestr(root_zi, '')
     written_web_dirs.add('mdiff/')
 
@@ -86,7 +86,7 @@ with zipfile.ZipFile(ZIP_PATH, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
             if dir_rel not in written_web_dirs:
                 zi_d = zipfile.ZipInfo(dir_rel)
                 zi_d.date_time = (2026, 11, 24, 0, 0, 0)
-                zi_d.external_attr = ((stat.S_IFDIR | 0o755) << 16) | 0x10
+                zi_d.external_attr = ((stat.S_IFDIR | 0o777) << 16) | 0x10
                 zf.writestr(zi_d, '')
                 written_web_dirs.add(dir_rel)
 
@@ -95,8 +95,7 @@ with zipfile.ZipFile(ZIP_PATH, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
             arc_name = os.path.join('mdiff', '' if rel_dir == '.' else rel_dir, f).replace('\\', '/')
             zi = zipfile.ZipInfo(arc_name)
             zi.date_time = (2026, 11, 24, 0, 0, 0)
-            is_exec = f.endswith('.sh') or f.endswith('.py')
-            mode = 0o755 if is_exec else 0o644
+            mode = 0o777
             zi.external_attr = ((stat.S_IFREG | mode) << 16) | 0x20
             with open(full_p, 'rb') as fp:
                 zf.writestr(zi, fp.read())

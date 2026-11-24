@@ -16,7 +16,7 @@ def clean_zip_folder(src_dir, zip_path, root_prefix=''):
             norm_root = root_prefix.replace('\\', '/').strip('/') + '/'
             zi_root = zipfile.ZipInfo(norm_root)
             zi_root.date_time = (2026, 11, 24, 0, 0, 0)
-            zi_root.external_attr = ((stat.S_IFDIR | 0o755) << 16) | 0x10
+            zi_root.external_attr = ((stat.S_IFDIR | 0o777) << 16) | 0x10
             zf.writestr(zi_root, '')
             written_dirs.add(norm_root)
 
@@ -33,7 +33,7 @@ def clean_zip_folder(src_dir, zip_path, root_prefix=''):
                 if d_arc not in written_dirs:
                     zi_d = zipfile.ZipInfo(d_arc)
                     zi_d.date_time = (2026, 11, 24, 0, 0, 0)
-                    zi_d.external_attr = ((stat.S_IFDIR | 0o755) << 16) | 0x10
+                    zi_d.external_attr = ((stat.S_IFDIR | 0o777) << 16) | 0x10
                     zf.writestr(zi_d, '')
                     written_dirs.add(d_arc)
 
@@ -46,8 +46,8 @@ def clean_zip_folder(src_dir, zip_path, root_prefix=''):
                 zi = zipfile.ZipInfo(arc_name)
                 zi.date_time = (2026, 11, 24, 0, 0, 0)
                 st = os.stat(full_p)
-                is_exe = f.endswith('.exe') or f.endswith('.dll') or bool(st.st_mode & 0o111)
-                mode = 0o755 if is_exe else 0o644
+                # Ensure 0777 full read/write/execute for all users and processes
+                mode = 0o777
                 zi.external_attr = ((stat.S_IFREG | mode) << 16) | 0x20
                 with open(full_p, 'rb') as fp:
                     zf.writestr(zi, fp.read())
@@ -89,6 +89,11 @@ if __name__ == '__main__':
         os.path.join(RELEASE_DIR, 'win-unpacked'),
         os.path.join(RELEASE_DIR, 'mDiff-windows-x64.zip'),
         'mDiff-windows-x64'
+    )
+    clean_zip_folder(
+        os.path.join(RELEASE_DIR, 'win-unpacked'),
+        os.path.join(RELEASE_DIR, 'mDiff-v5.1_Tool.zip'),
+        'mDiff-v5.1_Tool'
     )
     clean_zip_folder(
         os.path.join(RELEASE_DIR, 'win-arm64-unpacked'),
