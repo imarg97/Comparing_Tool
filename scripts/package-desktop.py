@@ -1,6 +1,7 @@
 import os
 import shutil
 import zipfile
+import stat
 
 REPO_DIR = '/Users/anuabhi/.gemini/antigravity/scratch/diffx'
 RELEASE_DIR = os.path.join(REPO_DIR, 'release')
@@ -9,24 +10,45 @@ def clean_zip_folder(src_dir, zip_path, root_prefix=''):
     if os.path.exists(zip_path):
         os.remove(zip_path)
     print(f"Creating {os.path.basename(zip_path)} from {src_dir}...")
+    written_dirs = set()
     with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+        if root_prefix:
+            norm_root = root_prefix.replace('\\', '/').strip('/') + '/'
+            zi_root = zipfile.ZipInfo(norm_root)
+            zi_root.date_time = (2026, 11, 24, 0, 0, 0)
+            zi_root.external_attr = ((stat.S_IFDIR | 0o755) << 16) | 0x10
+            zf.writestr(zi_root, '')
+            written_dirs.add(norm_root)
+
         for root, dirs, files in os.walk(src_dir):
             dirs[:] = sorted([d for d in dirs if not d.startswith('._') and d != '.DS_Store'])
             files = sorted([f for f in files if not f.startswith('._') and f != '.DS_Store'])
             rel_dir = os.path.relpath(root, src_dir)
 
+            # Ensure all subdirectories have explicit entries with valid FAT/POSIX directory attributes
+            for d in dirs:
+                sub_rel = d if rel_dir == '.' else os.path.join(rel_dir, d)
+                d_arc = os.path.join(root_prefix, sub_rel) if root_prefix else sub_rel
+                d_arc = d_arc.replace('\\', '/').strip('/') + '/'
+                if d_arc not in written_dirs:
+                    zi_d = zipfile.ZipInfo(d_arc)
+                    zi_d.date_time = (2026, 11, 24, 0, 0, 0)
+                    zi_d.external_attr = ((stat.S_IFDIR | 0o755) << 16) | 0x10
+                    zf.writestr(zi_d, '')
+                    written_dirs.add(d_arc)
+
             for f in files:
                 full_p = os.path.join(root, f)
-                if root_prefix:
-                    arc_name = os.path.normpath(os.path.join(root_prefix, '' if rel_dir == '.' else rel_dir, f))
-                else:
-                    arc_name = os.path.normpath(os.path.join('' if rel_dir == '.' else rel_dir, f))
+                arc_name = os.path.join(root_prefix, '' if rel_dir == '.' else rel_dir, f) if root_prefix else os.path.join('' if rel_dir == '.' else rel_dir, f)
+                arc_name = arc_name.replace('\\', '/')
                 
-                # Check permissions
+                # Check permissions & ensure standard S_IFREG + FAT archive attributes
                 zi = zipfile.ZipInfo(arc_name)
                 zi.date_time = (2026, 11, 24, 0, 0, 0)
                 st = os.stat(full_p)
-                zi.external_attr = (st.st_mode & 0o777) << 16
+                is_exe = f.endswith('.exe') or f.endswith('.dll') or bool(st.st_mode & 0o111)
+                mode = 0o755 if is_exe else 0o644
+                zi.external_attr = ((stat.S_IFREG | mode) << 16) | 0x20
                 with open(full_p, 'rb') as fp:
                     zf.writestr(zi, fp.read())
     print(f"Done: {zip_path} ({os.path.getsize(zip_path)} bytes)")

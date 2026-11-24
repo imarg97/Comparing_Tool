@@ -1,6 +1,7 @@
 import os
 import tarfile
 import zipfile
+import stat
 
 REPO_DIR = '/Users/anuabhi/.gemini/antigravity/scratch/diffx'
 DEPLOY_DIR = os.path.join(REPO_DIR, 'deploy')
@@ -67,21 +68,36 @@ with tarfile.open(TAR_PATH, 'w:gz', format=tarfile.GNU_FORMAT) as tar:
 if os.path.exists(ZIP_PATH):
     os.remove(ZIP_PATH)
 
+written_web_dirs = set()
 with zipfile.ZipFile(ZIP_PATH, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+    root_zi = zipfile.ZipInfo('mdiff/')
+    root_zi.date_time = (2026, 11, 24, 0, 0, 0)
+    root_zi.external_attr = ((stat.S_IFDIR | 0o755) << 16) | 0x10
+    zf.writestr(root_zi, '')
+    written_web_dirs.add('mdiff/')
+
     for root, dirs, files in os.walk(DEPLOY_DIR):
         dirs[:] = sorted([d for d in dirs if not d.startswith('._') and d != '.DS_Store'])
         files = sorted([f for f in files if not f.startswith('._') and f != '.DS_Store'])
         rel_dir = os.path.relpath(root, DEPLOY_DIR)
 
+        for d in dirs:
+            dir_rel = os.path.join('mdiff', '' if rel_dir == '.' else rel_dir, d).replace('\\', '/').rstrip('/') + '/'
+            if dir_rel not in written_web_dirs:
+                zi_d = zipfile.ZipInfo(dir_rel)
+                zi_d.date_time = (2026, 11, 24, 0, 0, 0)
+                zi_d.external_attr = ((stat.S_IFDIR | 0o755) << 16) | 0x10
+                zf.writestr(zi_d, '')
+                written_web_dirs.add(dir_rel)
+
         for f in files:
             full_p = os.path.join(root, f)
-            arc_name = os.path.normpath(os.path.join('mdiff', '' if rel_dir == '.' else rel_dir, f))
+            arc_name = os.path.join('mdiff', '' if rel_dir == '.' else rel_dir, f).replace('\\', '/')
             zi = zipfile.ZipInfo(arc_name)
-            zi.date_time = (2026, 11, 14, 0, 0, 0)
-            if f.endswith('.sh') or f.endswith('.py'):
-                zi.external_attr = 0o755 << 16
-            else:
-                zi.external_attr = 0o644 << 16
+            zi.date_time = (2026, 11, 24, 0, 0, 0)
+            is_exec = f.endswith('.sh') or f.endswith('.py')
+            mode = 0o755 if is_exec else 0o644
+            zi.external_attr = ((stat.S_IFREG | mode) << 16) | 0x20
             with open(full_p, 'rb') as fp:
                 zf.writestr(zi, fp.read())
 
