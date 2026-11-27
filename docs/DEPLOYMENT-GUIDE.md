@@ -59,7 +59,7 @@ Firewall status: `firewalld` is inactive on `bglocp-installer`, ensuring port `8
 ### A. Transfer Package to Host
 From your local terminal, transfer the deployment archive to the server:
 ```bash
-scp release/mDiff-internal-web-deployment.tar.gz root@10.10.84.22:/root/DiffX/
+scp release/mDiff-internal-web-deployment.tar.gz root@10.10.84.22:/root/mDiff/
 ```
 
 ### B. Extract and Launch

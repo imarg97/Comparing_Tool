@@ -96,20 +96,25 @@ export const App: React.FC = () => {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [webFolderModalOpen, setWebFolderModalOpen] = useState(false);
 
-  const handleSelectTab = (tab: NavigationTab) => {
+  const handleSelectTab = (tab: NavigationTab, options?: { fresh?: boolean }) => {
     if (tab === 'folder' && isWeb) {
       setWebFolderModalOpen(true);
       return;
     }
     setActiveTab(tab);
     if (tab === 'folder') {
+      if (options?.fresh) {
+        setFolderLeftPath('');
+        setFolderRightPath('');
+      }
       setSessionTabs((prev) => {
-        if (prev.some((t) => t.type === 'folder')) return prev;
-        const leftBase = folderLeftPath ? folderLeftPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || folderLeftPath : '';
-        const rightBase = folderRightPath ? folderRightPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || folderRightPath : '';
+        const filtered = options?.fresh ? prev.filter((t) => t.id !== 'folder-main') : prev;
+        if (!options?.fresh && filtered.some((t) => t.type === 'folder')) return filtered;
+        const leftBase = !options?.fresh && folderLeftPath ? folderLeftPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || folderLeftPath : '';
+        const rightBase = !options?.fresh && folderRightPath ? folderRightPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || folderRightPath : '';
         const title = leftBase && rightBase ? `${leftBase} <-> ${rightBase}` : 'Folder Compare';
         return [
-          ...prev,
+          ...filtered,
           {
             id: 'folder-main',
             type: 'folder',
@@ -120,13 +125,18 @@ export const App: React.FC = () => {
       });
       setActiveTabId('folder-main');
     } else if (tab === 'text') {
+      if (options?.fresh) {
+        setTextLeftPath('');
+        setTextRightPath('');
+      }
       setSessionTabs((prev) => {
-        if (prev.some((t) => t.type === 'text')) return prev;
-        const leftBase = textLeftPath ? textLeftPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || textLeftPath : '';
-        const rightBase = textRightPath ? textRightPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || textRightPath : '';
+        const filtered = options?.fresh ? prev.filter((t) => t.id !== 'text-main') : prev;
+        if (!options?.fresh && filtered.some((t) => t.type === 'text')) return filtered;
+        const leftBase = !options?.fresh && textLeftPath ? textLeftPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || textLeftPath : '';
+        const rightBase = !options?.fresh && textRightPath ? textRightPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || textRightPath : '';
         const title = leftBase && rightBase ? `${leftBase} ↔ ${rightBase}` : 'Text Compare';
         return [
-          ...prev,
+          ...filtered,
           {
             id: 'text-main',
             type: 'text',
@@ -137,13 +147,18 @@ export const App: React.FC = () => {
       });
       setActiveTabId('text-main');
     } else if (tab === 'structured') {
+      if (options?.fresh) {
+        setStructuredLeftPath('');
+        setStructuredRightPath('');
+      }
       setSessionTabs((prev) => {
-        if (prev.some((t) => t.type === 'structured')) return prev;
-        const leftBase = structuredLeftPath ? structuredLeftPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || structuredLeftPath : '';
-        const rightBase = structuredRightPath ? structuredRightPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || structuredRightPath : '';
+        const filtered = options?.fresh ? prev.filter((t) => t.id !== 'structured-main') : prev;
+        if (!options?.fresh && filtered.some((t) => t.type === 'structured')) return filtered;
+        const leftBase = !options?.fresh && structuredLeftPath ? structuredLeftPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || structuredLeftPath : '';
+        const rightBase = !options?.fresh && structuredRightPath ? structuredRightPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || structuredRightPath : '';
         const title = leftBase && rightBase ? `${leftBase} ↔ ${rightBase}` : 'Config & XML';
         return [
-          ...prev,
+          ...filtered,
           {
             id: 'structured-main',
             type: 'structured',
@@ -294,6 +309,20 @@ export const App: React.FC = () => {
   };
 
   const handleCloseSessionTab = (id: string) => {
+    // Reset stored paths for closed session so stale files don't linger
+    if (id === 'structured-main' || id.startsWith('structured-')) {
+      setStructuredLeftPath('');
+      setStructuredRightPath('');
+    }
+    if (id === 'text-main' || id.startsWith('text-') || id.startsWith('file-')) {
+      setTextLeftPath('');
+      setTextRightPath('');
+    }
+    if (id === 'folder-main' || id.startsWith('folder-')) {
+      setFolderLeftPath('');
+      setFolderRightPath('');
+    }
+
     setSessionTabs((prev) => {
       const idx = prev.findIndex((t) => t.id === id);
       const filtered = prev.filter((t) => t.id !== id);
@@ -302,9 +331,15 @@ export const App: React.FC = () => {
         if (nextActive) {
           setActiveTabId(nextActive.id);
           setActiveTab(nextActive.type);
-          if (nextActive.type === 'text' && nextActive.leftPath && nextActive.rightPath) {
-            setTextLeftPath(nextActive.leftPath);
-            setTextRightPath(nextActive.rightPath);
+          if (nextActive.type === 'text') {
+            setTextLeftPath(nextActive.leftPath || '');
+            setTextRightPath(nextActive.rightPath || '');
+          } else if (nextActive.type === 'structured') {
+            setStructuredLeftPath(nextActive.leftPath || '');
+            setStructuredRightPath(nextActive.rightPath || '');
+          } else if (nextActive.type === 'folder') {
+            setFolderLeftPath(nextActive.leftPath || '');
+            setFolderRightPath(nextActive.rightPath || '');
           }
         }
       }

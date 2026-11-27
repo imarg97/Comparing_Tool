@@ -15,7 +15,7 @@ import { RecentComparison } from '@shared/types.js';
 import { NavigationTab } from '../../components/Header.js';
 
 interface HomeViewProps {
-  onNavigate: (tab: NavigationTab) => void;
+  onNavigate: (tab: NavigationTab, options?: { fresh?: boolean }) => void;
   recentList: RecentComparison[];
   onOpenRecent: (item: RecentComparison) => void;
   onClearRecent: () => void;
@@ -69,7 +69,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               {newSessionsOpen && (
                 <div className="pl-6 space-y-0.5 mt-0.5">
                   <div
-                    onClick={() => onNavigate('folder')}
+                    onClick={() => onNavigate('folder', { fresh: true })}
                     className="flex items-center space-x-2 px-2 py-1 rounded cursor-pointer hover:bg-blue-50 dark:hover:bg-neutral-900 hover:text-blue-600 dark:hover:text-blue-400 text-neutral-700 dark:text-neutral-300"
                   >
                     <Folder className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
@@ -81,28 +81,28 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     )}
                   </div>
                   <div
-                    onClick={() => onNavigate('folder')}
+                    onClick={() => onNavigate('folder', { fresh: true })}
                     className="flex items-center space-x-2 px-2 py-1 rounded cursor-pointer hover:bg-blue-50 dark:hover:bg-neutral-900 hover:text-blue-600 dark:hover:text-blue-400 text-neutral-700 dark:text-neutral-300"
                   >
                     <Folder className="w-3.5 h-3.5 text-cyan-500 fill-cyan-400" />
                     <span>Folder Sync</span>
                   </div>
                   <div
-                    onClick={() => onNavigate('text')}
+                    onClick={() => onNavigate('text', { fresh: true })}
                     className="flex items-center space-x-2 px-2 py-1 rounded cursor-pointer hover:bg-blue-50 dark:hover:bg-neutral-900 hover:text-blue-600 dark:hover:text-blue-400 text-neutral-700 dark:text-neutral-300"
                   >
                     <FileText className="w-3.5 h-3.5 text-blue-500" />
                     <span>Text Compare</span>
                   </div>
                   <div
-                    onClick={() => onNavigate('structured')}
+                    onClick={() => onNavigate('structured', { fresh: true })}
                     className="flex items-center space-x-2 px-2 py-1 rounded cursor-pointer hover:bg-blue-50 dark:hover:bg-neutral-900 hover:text-blue-600 dark:hover:text-blue-400 text-neutral-700 dark:text-neutral-300"
                   >
                     <FileCode className="w-3.5 h-3.5 text-emerald-500" />
                     <span>Config & XML Compare</span>
                   </div>
                   <div
-                    onClick={() => onNavigate('text')}
+                    onClick={() => onNavigate('text', { fresh: true })}
                     className="flex items-center space-x-2 px-2 py-1 rounded cursor-pointer hover:bg-blue-50 dark:hover:bg-neutral-900 hover:text-blue-600 dark:hover:text-blue-400 text-neutral-700 dark:text-neutral-300"
                   >
                     <FileText className="w-3.5 h-3.5 text-purple-500" />
@@ -197,7 +197,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 justify-items-center mb-6">
               {/* 1. Folder Compare */}
               <div
-                onClick={() => onNavigate('folder')}
+                onClick={() => onNavigate('folder', { fresh: true })}
                 className="group flex flex-col items-center cursor-pointer p-3 rounded-lg hover:bg-[#f0f7ff] dark:hover:bg-neutral-900 border border-transparent hover:border-blue-300 dark:hover:border-blue-900/60 transition w-full"
               >
                 <div className="relative w-16 h-16 mb-2 flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -220,7 +220,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
               {/* 2. Text Compare */}
               <div
-                onClick={() => onNavigate('text')}
+                onClick={() => onNavigate('text', { fresh: true })}
                 className="group flex flex-col items-center cursor-pointer p-3 rounded-lg hover:bg-[#f0f7ff] dark:hover:bg-neutral-900 border border-transparent hover:border-blue-300 dark:hover:border-blue-900/60 transition w-full"
               >
                 <div className="relative w-16 h-16 mb-2 flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -242,7 +242,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
               {/* 3. Config & XML Compare */}
               <div
-                onClick={() => onNavigate('structured')}
+                onClick={() => onNavigate('structured', { fresh: true })}
                 className="group flex flex-col items-center cursor-pointer p-3 rounded-lg hover:bg-[#f0f7ff] dark:hover:bg-neutral-900 border border-transparent hover:border-blue-300 dark:hover:border-blue-900/60 transition w-full"
               >
                 <div className="relative w-16 h-16 mb-2 flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -261,7 +261,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
               {/* 4. Folder Sync */}
               <div
-                onClick={() => onNavigate('folder')}
+                onClick={() => onNavigate('folder', { fresh: true })}
                 className="group flex flex-col items-center cursor-pointer p-3 rounded-lg hover:bg-[#f0f7ff] dark:hover:bg-neutral-900 border border-transparent hover:border-blue-300 dark:hover:border-blue-900/60 transition w-full"
               >
                 <div className="relative w-16 h-16 mb-2 flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -279,7 +279,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
               {/* 5. Table & Data Compare */}
               <div
-                onClick={() => onNavigate('text')}
+                onClick={() => onNavigate('text', { fresh: true })}
                 className="group flex flex-col items-center cursor-pointer p-3 rounded-lg hover:bg-[#f0f7ff] dark:hover:bg-neutral-900 border border-transparent hover:border-blue-300 dark:hover:border-blue-900/60 transition w-full"
               >
                 <div className="relative w-16 h-16 mb-2 flex items-center justify-center group-hover:scale-105 transition-transform">

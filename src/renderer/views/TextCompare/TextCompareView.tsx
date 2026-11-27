@@ -43,7 +43,7 @@ import {
 } from '../../utils/monaco-theme.js';
 import { DiffOverviewMap } from '../../components/DiffOverviewMap.js';
 import { registerBrowserFile } from '../../utils/browser-api.js';
-import { formatUnstructuredXml } from '@shared/comparison-engine/xml.js';
+import { formatIntelligentContent } from '@shared/comparison-engine/intelligent-formatter.js';
 
 interface TextCompareViewProps {
   leftPath: string;
@@ -140,6 +140,7 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
   const rawLeftContentRef = useRef<string>('');
   const rawRightContentRef = useRef<string>('');
   const [preFormatStructure, setPreFormatStructure] = useState<boolean>(true);
+  const [detectedFormatBadge, setDetectedFormatBadge] = useState<string>('');
   const [totalLineCount, setTotalLineCount] = useState<number>(1);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -961,10 +962,30 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     applyViewFilter(activeFilter, canonicalChunksRef.current.length ? canonicalChunksRef.current : diffChunks);
   }, [activeFilter, diffChunks]);
 
-  // Load files when paths change
+  // Load files when paths change, or cleanly reset when cleared
   useEffect(() => {
     if (leftPath || rightPath) {
       loadFiles();
+    } else {
+      setLeftData(null);
+      setRightData(null);
+      setLeftInitialContent('');
+      setRightInitialContent('');
+      leftContentRef.current = '';
+      rightContentRef.current = '';
+      rawLeftContentRef.current = '';
+      rawRightContentRef.current = '';
+      setDiffChunks([]);
+      setDiffStats({ diffCount: 0, whitespaceDifferenceOnly: false });
+      setDetectedFormatBadge('');
+      if (diffEditorRef.current) {
+        try {
+          diffEditorRef.current.getOriginalEditor()?.getModel()?.setValue('');
+          diffEditorRef.current.getModifiedEditor()?.getModel()?.setValue('');
+        } catch {
+          // ignore
+        }
+      }
     }
   }, [leftPath, rightPath]);
 
@@ -974,15 +995,22 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     let rightTxt = rawRightContentRef.current;
     if (!leftTxt && !rightTxt) return;
 
-    const isXmlContent =
-      leftTxt.trim().startsWith('<?xml') ||
-      rightTxt.trim().startsWith('<?xml') ||
-      /^\s*<[a-zA-Z0-9_:\-.]+/i.test(leftTxt.trim()) ||
-      /^\s*<[a-zA-Z0-9_:\-.]+/i.test(rightTxt.trim());
-
-    if (enabled && isXmlContent) {
-      if (leftTxt) leftTxt = formatUnstructuredXml(leftTxt);
-      if (rightTxt) rightTxt = formatUnstructuredXml(rightTxt);
+    if (enabled) {
+      const lRes = formatIntelligentContent(leftTxt, leftPath);
+      const rRes = formatIntelligentContent(rightTxt, rightPath);
+      if (lRes.wasFormatted) leftTxt = lRes.formatted;
+      if (rRes.wasFormatted) rightTxt = rRes.formatted;
+      const badge =
+        lRes.description !== 'Plain Text'
+          ? lRes.description
+          : rRes.description !== 'Plain Text'
+          ? rRes.description
+          : '';
+      setDetectedFormatBadge(badge);
+      onUpdateStatus(badge ? `Intelligent Structure applied: ${badge}` : 'Auto-Structure / Pretty Print enabled');
+    } else {
+      setDetectedFormatBadge('');
+      onUpdateStatus('Reverted to raw unformatted content');
     }
 
     setLeftInitialContent(leftTxt);
@@ -1002,7 +1030,6 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
     }
 
     setTotalLineCount(Math.max(1, leftTxt.split('\n').length, rightTxt.split('\n').length));
-    onUpdateStatus(enabled ? 'Enabled XML Pre-Formatting (structured)' : 'Disabled XML Pre-Formatting (raw format)');
   };
 
   const loadFiles = async () => {
@@ -1036,15 +1063,20 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
         let leftTxt = leftRes?.content || '';
         let rightTxt = rightRes?.content || '';
 
-        const isXmlContent =
-          leftTxt.trim().startsWith('<?xml') ||
-          rightTxt.trim().startsWith('<?xml') ||
-          /^\s*<[a-zA-Z0-9_:\-.]+/i.test(leftTxt.trim()) ||
-          /^\s*<[a-zA-Z0-9_:\-.]+/i.test(rightTxt.trim());
-
-        if (preFormatStructure && isXmlContent) {
-          if (leftTxt) leftTxt = formatUnstructuredXml(leftTxt);
-          if (rightTxt) rightTxt = formatUnstructuredXml(rightTxt);
+        if (preFormatStructure) {
+          const lRes = formatIntelligentContent(leftTxt, leftPath);
+          const rRes = formatIntelligentContent(rightTxt, rightPath);
+          if (lRes.wasFormatted) leftTxt = lRes.formatted;
+          if (rRes.wasFormatted) rightTxt = rRes.formatted;
+          const badge =
+            lRes.description !== 'Plain Text'
+              ? lRes.description
+              : rRes.description !== 'Plain Text'
+              ? rRes.description
+              : '';
+          setDetectedFormatBadge(badge);
+        } else {
+          setDetectedFormatBadge('');
         }
 
         setLeftInitialContent(leftTxt);
@@ -2601,10 +2633,10 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
 
           <span className="h-4 w-px bg-neutral-300 dark:bg-neutral-800 mx-0.5" />
 
-          {/* Structure XML First Checkbox */}
+          {/* Intelligent Auto-Structure Checkbox */}
           <label
             className="flex items-center space-x-1.5 px-2 py-0.5 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-[11px] font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer shadow-xs select-none hover:bg-neutral-50 dark:hover:bg-neutral-800"
-            title="Automatically structure and indent XML content before comparing to eliminate false differences from unformatted lines"
+            title="Intelligently detect language and auto-structure XML, JSON, YAML, HTML, and SQL with embedded content to eliminate false differences"
           >
             <input
               type="checkbox"
@@ -2612,8 +2644,18 @@ export const TextCompareView: React.FC<TextCompareViewProps> = ({
               onChange={(e) => handleTogglePreFormat(e.target.checked)}
               className="rounded border-neutral-400 text-blue-600 focus:ring-0 cursor-pointer w-3.5 h-3.5"
             />
-            <span className="font-semibold text-neutral-800 dark:text-neutral-200">Structure XML First</span>
+            <span className="font-semibold text-neutral-800 dark:text-neutral-200">Auto-Structure / Pretty Print</span>
           </label>
+
+          {detectedFormatBadge && preFormatStructure && (
+            <span
+              className="flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+              title={`Intelligently structured as ${detectedFormatBadge}`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+              <span>{detectedFormatBadge}</span>
+            </span>
+          )}
         </div>
 
         {/* Right Toolbar Items: Compare & Revert */}
