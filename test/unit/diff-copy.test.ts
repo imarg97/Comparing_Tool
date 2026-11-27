@@ -603,5 +603,55 @@ describe('Diff Copy Engine', () => {
       expect(outRange.startLine).toBe(7);
       expect(outRange.endLine).toBe(9);
     });
+
+    it('transfers specifically a single line when clicked within a multi-line chunk', () => {
+      let pushedEdits: any[] = [];
+      const mockOriginal = {
+        getLineCount: () => 150,
+        getLineMaxColumn: () => 80,
+        getValueInRange: ({ startLineNumber, endLineNumber }: any) => {
+          if (startLineNumber === 137 && endLineNumber === 137) {
+            return '      bond: nad-macvlan-bond0';
+          }
+          return '';
+        },
+      };
+      const mockModified = {
+        getLineCount: () => 150,
+        getLineMaxColumn: () => 80,
+        pushEditOperations: (_before: any, edits: any[]) => {
+          pushedEdits = edits;
+        },
+      };
+
+      const multiLineChunk: DiffChunk = {
+        id: 'chunk-137-138',
+        originalStart: 137,
+        originalEnd: 138,
+        modifiedStart: 137,
+        modifiedEnd: 138,
+      };
+
+      const outRange = { startLine: 0, endLine: 0 };
+      // User clicked specifically on line 137 without selecting line 138
+      const res = executeSelectedLinesCopyL2R(
+        mockOriginal,
+        mockModified,
+        { startLine: 137, endLine: 137 },
+        multiLineChunk,
+        outRange,
+        undefined,
+        [multiLineChunk]
+      );
+
+      expect(res).toBe(true);
+      expect(pushedEdits.length).toBe(1);
+      // Replaces strictly line 137 on right (line 138 remains untouched!)
+      expect(pushedEdits[0].range.startLineNumber).toBe(137);
+      expect(pushedEdits[0].range.endLineNumber).toBe(137);
+      expect(pushedEdits[0].text).toBe('      bond: nad-macvlan-bond0');
+      expect(outRange.startLine).toBe(137);
+      expect(outRange.endLine).toBe(137);
+    });
   });
 });

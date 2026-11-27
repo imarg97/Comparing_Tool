@@ -35,7 +35,7 @@ class NumberedCanvas(canvas.Canvas):
         
         # Header (pages 2+)
         if self._pageNumber > 1:
-            self.drawString(54, 755, f"{self.doc_title} • v7.0.0")
+            self.drawString(54, 755, f"{self.doc_title} • v8.0.0")
             self.drawRightString(612 - 54, 755, "Mavenir Systems • Internal Enterprise Release")
             self.setStrokeColor(colors.HexColor("#cbd5e1"))
             self.setLineWidth(0.5)
@@ -270,7 +270,7 @@ def main():
 
     mappings = [
         ('TEAM-BRIEFING-GUIDE.md', 'mDiff-Executive-Briefing-Guide.pdf', 'mDiff Executive Briefing & Team Walkthrough'),
-        ('RELEASE-NOTES-v7.0.md', 'mDiff-Release-Notes-v7.0.pdf', 'mDiff v7.0.0 Release Notes'),
+        ('RELEASE-NOTES-v8.0.md', 'mDiff-Release-Notes-v8.0.pdf', 'mDiff v8.0.0 Release Notes'),
         ('HOW-TO-USE.md', 'mDiff-Complete-User-Guide.pdf', 'mDiff Complete User Guide'),
         ('IT-SECURITY-QA.md', 'mDiff-IT-Security-QA.pdf', 'mDiff IT Security & SecOps Q&A Dossier'),
         ('LICENSING.md', 'mDiff-Licensing-and-Compliance.pdf', 'mDiff Open-Source Licensing & Compliance Dossier'),

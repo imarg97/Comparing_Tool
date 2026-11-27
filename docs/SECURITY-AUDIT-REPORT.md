@@ -1,7 +1,7 @@
 # mDiff — Second Security Audit & Hardening Report
 
 **Application**: mDiff (Mavenir Diff) Comparison Suite  
-**Version**: `v7.0.0`  
+**Version**: `v8.0.0`  
 **Audit Standard**: Cloudflare Defensive Security Audit Methodology  
 **Target Repository**: `https://github.com/imarg97/mdiff`  
 **Audit Scope**: All Source Code (`src/`), Web Build (`dist/`), Desktop Packages (`release/`), and Windows `.exe`  
@@ -11,7 +11,7 @@
 
 ## 1. Executive Summary
 
-A comprehensive, defense-in-depth **Second Security Audit** was executed across the mDiff codebase and compiled distribution packages (`v7.0.0`). The audit evaluated the application against modern threat vectors in hybrid desktop/web architectures, specifically addressing the safety of enterprise telecom configuration data, operating system integrity, and supply chain security.
+A comprehensive, defense-in-depth **Second Security Audit** was executed across the mDiff codebase and compiled distribution packages (`v8.0.0`). The audit evaluated the application against modern threat vectors in hybrid desktop/web architectures, specifically addressing the safety of enterprise telecom configuration data, operating system integrity, and supply chain security.
 
 ### Key Audit Metrics
 - **Total Threat Boundaries Analyzed**: 4 primary boundaries (Renderer, Preload Bridge, Main Process, OS Filesystem).

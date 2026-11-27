@@ -3,7 +3,7 @@
 **Target Audience**: Corporate Legal Counsel, Intellectual Property (IP) Compliance, Engineering Directors  
 **Application**: mDiff (Mavenir Diff) Comparison Suite  
 **Classification**: Permissive Open-Source Utilization (Zero Copyleft Risk)  
-**Version**: `v7.0.0`  
+**Version**: `v8.0.0`  
 
 ---
 

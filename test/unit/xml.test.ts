@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { parseXml, normalizeXml } from '../../src/shared/comparison-engine/xml.js';
-import { compareStructuredData } from '../../src/shared/comparison-engine/structured.js';
+import { parseXml, normalizeXml, formatUnstructuredXml } from '../../src/shared/comparison-engine/xml.js';
+import { compareStructuredData, detectFormatFromContent } from '../../src/shared/comparison-engine/structured.js';
 
 describe('XML Comparison Engine', () => {
   it('parses valid XML structure into AST', () => {
@@ -110,5 +110,36 @@ describe('XML Comparison Engine', () => {
     expect((({} as any).polluted)).toBeUndefined();
     expect(parsed.root).toBeDefined();
     expect((({} as any).test)).toBeUndefined();
+  });
+
+  it('formats continuous unstructured XML with 2-space indentation and compact leaf nodes', () => {
+    const raw = `<?xml version="1.0"?><sys xmlns="urn:mavenir"><appcommon><AppSelector><name>0</name><eCurrentApp>APP_TYPE_SIP_ROUTER</eCurrentApp></AppSelector></appcommon></sys>`;
+    const formatted = formatUnstructuredXml(raw);
+
+    expect(formatted).toContain('<?xml version="1.0"?>');
+    expect(formatted).toContain('<sys xmlns="urn:mavenir">');
+    expect(formatted).toContain('  <appcommon>');
+    expect(formatted).toContain('    <AppSelector>');
+    expect(formatted).toContain('      <name>0</name>');
+    expect(formatted).toContain('      <eCurrentApp>APP_TYPE_SIP_ROUTER</eCurrentApp>');
+    expect(formatted).toContain('    </AppSelector>');
+    expect(formatted).toContain('  </appcommon>');
+    expect(formatted).toContain('</sys>');
+  });
+
+  it('handles unescaped ampersands and custom CMS symbols resiliently without crashing', () => {
+    const cmsRaw = `<?xml version="1.0"?><data>&lt;CLDPN_DIGITS&gt;^3321299901$&lt;/CLDPN_DIGITS&gt;<item attr="val & more">test & demo</item></data>`;
+    const formatted = formatUnstructuredXml(cmsRaw);
+
+    expect(formatted).toContain('<data>');
+    expect(formatted).toContain('&lt;CLDPN_DIGITS&gt;^3321299901$&lt;/CLDPN_DIGITS&gt;');
+    expect(formatted).toContain('<item attr="val & more">');
+    expect(formatted).toContain('</data>');
+  });
+
+  it('detectFormatFromContent accurately detects XML on snapshot files without extension', () => {
+    const xmlSnapshot = `<?xml version="1.0"?>\n<sys xmlns="urn:mavenir:ns:yang:vmas:6.0.2.0"><appcommon></appcommon></sys>`;
+    const detected = detectFormatFromContent(xmlSnapshot, 'Snapshot-Merged_Snapshot-H2S_AZ1_VMAS_R_6_0_2_4_v26_17Nov_Tia');
+    expect(detected).toBe('xml');
   });
 });

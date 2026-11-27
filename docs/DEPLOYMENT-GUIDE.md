@@ -4,7 +4,7 @@
 **Network**: Mavenir VPN Internal Network  
 **Target Port**: `8097` (Verified Free & Routable)  
 **Production URL**: `http://10.10.84.22:8097`  
-**Application Version**: `v7.0.0`  
+**Application Version**: `v8.0.0`  
 
 ---
 

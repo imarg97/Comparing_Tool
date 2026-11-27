@@ -21,7 +21,8 @@ import {
   StructuredDiffResult,
   StructuredFormat,
 } from '@shared/types.js';
-import { compareStructuredData } from '@shared/comparison-engine/structured.js';
+import { compareStructuredData, detectFormatFromContent } from '@shared/comparison-engine/structured.js';
+import { formatUnstructuredXml } from '@shared/comparison-engine/xml.js';
 import {
   DiffChunk,
   normalizeLineChanges,
@@ -62,13 +63,8 @@ interface StructuredCompareViewProps {
   onUpdateStatus: (text: string, count?: number, durationMs?: number) => void;
 }
 
-export function detectFormatFromPath(filePath: string): StructuredFormat {
-  if (!filePath) return 'yaml';
-  const lower = filePath.toLowerCase();
-  if (lower.endsWith('.xml')) return 'xml';
-  if (lower.endsWith('.json')) return 'json';
-  if (lower.endsWith('.yaml') || lower.endsWith('.yml')) return 'yaml';
-  return 'yaml';
+export function detectFormatFromPath(filePath: string, content?: string): StructuredFormat {
+  return detectFormatFromContent(content || '', filePath);
 }
 
 function formatFileMetadata(data: FileContentResult | null, filePath: string, format: string) {
@@ -111,6 +107,9 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
   const [rightInitialContent, setRightInitialContent] = useState<string>('');
   const leftContentRef = useRef<string>('');
   const rightContentRef = useRef<string>('');
+  const rawLeftContentRef = useRef<string>('');
+  const rawRightContentRef = useRef<string>('');
+  const [preFormatStructure, setPreFormatStructure] = useState<boolean>(true);
   const [totalLineCount, setTotalLineCount] = useState<number>(1);
 
   // Dirty State
@@ -952,6 +951,48 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
     }
   }, [leftPath, rightPath]);
 
+  const handleTogglePreFormat = (enabled: boolean) => {
+    setPreFormatStructure(enabled);
+    let leftTxt = rawLeftContentRef.current;
+    let rightTxt = rawRightContentRef.current;
+    if (!leftTxt && !rightTxt) return;
+
+    const detFormat = detectFormatFromContent(leftTxt || rightTxt, leftPath || rightPath);
+    const isXmlContent =
+      detFormat === 'xml' ||
+      leftTxt.trim().startsWith('<?xml') ||
+      rightTxt.trim().startsWith('<?xml') ||
+      /^\s*<[a-zA-Z0-9_:\-.]+/i.test(leftTxt.trim()) ||
+      /^\s*<[a-zA-Z0-9_:\-.]+/i.test(rightTxt.trim());
+
+    if (enabled && isXmlContent) {
+      if (leftTxt) leftTxt = formatUnstructuredXml(leftTxt);
+      if (rightTxt) rightTxt = formatUnstructuredXml(rightTxt);
+    }
+
+    setLeftInitialContent(leftTxt);
+    setRightInitialContent(rightTxt);
+    leftContentRef.current = leftTxt;
+    rightContentRef.current = rightTxt;
+
+    if (diffEditorRef.current) {
+      try {
+        const origEd = diffEditorRef.current.getOriginalEditor();
+        const modEd = diffEditorRef.current.getModifiedEditor();
+        if (origEd?.getModel()) origEd.setValue(leftTxt);
+        if (modEd?.getModel()) modEd.setValue(rightTxt);
+      } catch {
+        // non-fatal
+      }
+    }
+
+    setTotalLineCount(Math.max(1, leftTxt.split('\n').length, rightTxt.split('\n').length));
+    if (leftTxt && rightTxt) {
+      runStructuredDiff(leftTxt, rightTxt, isXmlContent ? 'xml' : detFormat);
+    }
+    onUpdateStatus(enabled ? 'Enabled XML Pre-Formatting (structured)' : 'Disabled XML Pre-Formatting (raw format)');
+  };
+
   const loadFiles = async () => {
     setIsLoading(true);
     setLoadError(null);
@@ -965,32 +1006,51 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
         if (leftPath) {
           leftRes = await window.diffxAPI.readFile(leftPath, undefined, 'left');
           setLeftData(leftRes);
-          setLeftInitialContent(leftRes.content);
-          leftContentRef.current = leftRes.content;
-          setLeftDirty(false);
+          rawLeftContentRef.current = leftRes.content;
         } else {
           setLeftData(null);
-          setLeftInitialContent('');
-          leftContentRef.current = '';
+          rawLeftContentRef.current = '';
         }
 
         if (rightPath) {
           rightRes = await window.diffxAPI.readFile(rightPath, undefined, 'right');
           setRightData(rightRes);
-          setRightInitialContent(rightRes.content);
-          rightContentRef.current = rightRes.content;
-          setRightDirty(false);
+          rawRightContentRef.current = rightRes.content;
         } else {
           setRightData(null);
-          setRightInitialContent('');
-          rightContentRef.current = '';
+          rawRightContentRef.current = '';
         }
 
-        setTotalLineCount(Math.max(1, (leftRes?.content || '').split('\n').length, (rightRes?.content || '').split('\n').length));
+        let leftTxt = leftRes?.content || '';
+        let rightTxt = rightRes?.content || '';
+
+        const detFormat = detectFormatFromContent(leftTxt || rightTxt, leftPath || rightPath);
+        setFormat(detFormat);
+
+        const isXmlContent =
+          detFormat === 'xml' ||
+          leftTxt.trim().startsWith('<?xml') ||
+          rightTxt.trim().startsWith('<?xml') ||
+          /^\s*<[a-zA-Z0-9_:\-.]+/i.test(leftTxt.trim()) ||
+          /^\s*<[a-zA-Z0-9_:\-.]+/i.test(rightTxt.trim());
+
+        if (preFormatStructure && isXmlContent) {
+          if (leftTxt) leftTxt = formatUnstructuredXml(leftTxt);
+          if (rightTxt) rightTxt = formatUnstructuredXml(rightTxt);
+        }
+
+        setLeftInitialContent(leftTxt);
+        setRightInitialContent(rightTxt);
+        leftContentRef.current = leftTxt;
+        rightContentRef.current = rightTxt;
+        setLeftDirty(false);
+        setRightDirty(false);
+
+        setTotalLineCount(Math.max(1, leftTxt.split('\n').length, rightTxt.split('\n').length));
 
         // Run structured comparison
-        if (leftRes?.content && rightRes?.content) {
-          runStructuredDiff(leftRes.content, rightRes.content, format);
+        if (leftTxt && rightTxt) {
+          runStructuredDiff(leftTxt, rightTxt, isXmlContent ? 'xml' : detFormat);
         } else {
           setDiffResult(null);
         }
@@ -1127,43 +1187,57 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
       const newLeftDecs: any[] = [];
       const newRightDecs: any[] = [];
 
-      // 1. Render single clean gutter arrow for each difference chunk (never doubled)
+      // 1. Render clean gutter arrow for each line in difference chunks (enabling per-line transfer)
       const activeList = canonicalChunksRef.current.length ? canonicalChunksRef.current : chunks;
       for (const chunk of activeList) {
         if (chunk.originalStart > 0 && chunk.originalEnd >= chunk.originalStart) {
-          newLeftDecs.push({
-            range: {
-              startLineNumber: chunk.originalStart,
-              startColumn: 1,
-              endLineNumber: chunk.originalStart,
-              endColumn: 1,
-            },
-            options: {
-              isWholeLine: false,
-              linesDecorationsClassName: 'diffx-line-copy-l2r',
-              linesDecorationsHoverMessage: {
-                value: `**⇨ Copy Line ${chunk.originalStart} to Right**`,
+          for (let l = chunk.originalStart; l <= chunk.originalEnd; l++) {
+            if (currentSelection && currentSelection.side === 'left') {
+              if (l >= currentSelection.startLine && l <= currentSelection.endLine) {
+                continue;
+              }
+            }
+            newLeftDecs.push({
+              range: {
+                startLineNumber: l,
+                startColumn: 1,
+                endLineNumber: l,
+                endColumn: 1,
               },
-            },
-          });
+              options: {
+                isWholeLine: false,
+                linesDecorationsClassName: 'diffx-line-copy-l2r',
+                linesDecorationsHoverMessage: {
+                  value: `**⇨ Copy Line ${l} to Right**`,
+                },
+              },
+            });
+          }
         }
 
         if (chunk.modifiedStart > 0 && chunk.modifiedEnd >= chunk.modifiedStart) {
-          newRightDecs.push({
-            range: {
-              startLineNumber: chunk.modifiedStart,
-              startColumn: 1,
-              endLineNumber: chunk.modifiedStart,
-              endColumn: 1,
-            },
-            options: {
-              isWholeLine: false,
-              linesDecorationsClassName: 'diffx-line-copy-r2l',
-              linesDecorationsHoverMessage: {
-                value: `**⇦ Copy Line ${chunk.modifiedStart} to Left**`,
+          for (let l = chunk.modifiedStart; l <= chunk.modifiedEnd; l++) {
+            if (currentSelection && currentSelection.side === 'right') {
+              if (l >= currentSelection.startLine && l <= currentSelection.endLine) {
+                continue;
+              }
+            }
+            newRightDecs.push({
+              range: {
+                startLineNumber: l,
+                startColumn: 1,
+                endLineNumber: l,
+                endColumn: 1,
               },
-            },
-          });
+              options: {
+                isWholeLine: false,
+                linesDecorationsClassName: 'diffx-line-copy-r2l',
+                linesDecorationsHoverMessage: {
+                  value: `**⇦ Copy Line ${l} to Left**`,
+                },
+              },
+            });
+          }
         }
       }
 
@@ -1723,53 +1797,58 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
           if (directChunk) setActiveDiffChunk(directChunk);
           if (isGlyphArrowClick) {
             clearGapTargetDecorations();
-            const srcLine = isSelectionClick && sel ? sel.startLine : (directChunk?.originalStart || line);
+            const targetSel = (isSelectionClick && sel && sel.startLine !== sel.endLine)
+              ? sel
+              : {
+                  side: 'left' as const,
+                  startLine: line,
+                  endLine: line,
+                  text: origEditor.getModel()?.getLineContent(line) || '',
+                };
+
+            const srcLine = targetSel.startLine;
             const srcText = origEditor.getModel()?.getLineContent(srcLine) || '';
             triggerShiftAnimation('left-to-right', srcLine, srcText);
             const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
-            if (isSelectionClick && sel) {
-              const selChunk = findChunkAtLine(chunksRef.current, sel.startLine, 'left');
-              const isOverlapping = Boolean(
-                selChunk &&
-                selChunk.originalEnd > 0 &&
-                selChunk.originalStart <= sel.endLine &&
-                selChunk.originalEnd >= sel.startLine
-              );
-              const validChunk = isOverlapping ? selChunk : null;
-              collapseEditorGapViewZones(
-                modEditor,
-                validChunk ? validChunk.modifiedStart : mapLineNumber(chunksRef.current, sel.startLine, 'left')
-              );
-              collapseEditorGapViewZones(origEditor, sel.startLine);
-              executeSelectedLinesCopyL2R(origEditor.getModel(), modEditor.getModel(), sel, validChunk, outRange, modEditor, chunksRef.current, origEditor, diffEditorRef.current);
-              rightContentRef.current = modEditor.getValue();
-              setRightDirty(true);
-              setLastModifiedSide('right');
-              setActiveFocusSide('right');
-              updateLineDetails(sel.startLine, 'left');
-              flashCopiedHighlight('left', sel.startLine, sel.endLine, false);
-              if (outRange.startLine > 0) {
-                flashCopiedHighlight('right', outRange.startLine, outRange.endLine, false);
-              }
-              onUpdateStatus(`Copied selected lines ${sel.startLine}–${sel.endLine} Left ⇨ Right`);
-              setActiveSelection(null);
-              activeSelectionRef.current = null;
-              updateGutterDecorations(canonicalChunksRef.current.length ? canonicalChunksRef.current : diffChunks, null);
-            } else if (directChunk) {
-              collapseEditorGapViewZones(modEditor, directChunk.modifiedStart);
-              collapseEditorGapViewZones(origEditor, directChunk.originalStart);
-              executeChunkCopyL2R(origEditor.getModel(), modEditor.getModel(), directChunk, outRange, modEditor, origEditor, diffEditorRef.current);
-              rightContentRef.current = modEditor.getValue();
-              setRightDirty(true);
-              setLastModifiedSide('right');
-              setActiveFocusSide('right');
-              updateLineDetails(line, 'left');
-              flashCopiedHighlight('left', directChunk.originalStart, directChunk.originalEnd || directChunk.originalStart, false);
-              if (outRange.startLine > 0) {
-                flashCopiedHighlight('right', outRange.startLine, outRange.endLine, false);
-              }
-              onUpdateStatus(`Copied diff lines ${directChunk.originalStart}–${directChunk.originalEnd || directChunk.originalStart} Left ⇨ Right`);
+
+            const selChunk = findChunkAtLine(chunksRef.current, targetSel.startLine, 'left');
+            const validChunk = selChunk || directChunk;
+
+            collapseEditorGapViewZones(
+              modEditor,
+              validChunk ? validChunk.modifiedStart : mapLineNumber(chunksRef.current, targetSel.startLine, 'left')
+            );
+            collapseEditorGapViewZones(origEditor, targetSel.startLine);
+
+            executeSelectedLinesCopyL2R(
+              origEditor.getModel(),
+              modEditor.getModel(),
+              targetSel,
+              validChunk,
+              outRange,
+              modEditor,
+              chunksRef.current,
+              origEditor,
+              diffEditorRef.current
+            );
+
+            rightContentRef.current = modEditor.getValue();
+            setRightDirty(true);
+            setLastModifiedSide('right');
+            setActiveFocusSide('right');
+            updateLineDetails(targetSel.startLine, 'left');
+            flashCopiedHighlight('left', targetSel.startLine, targetSel.endLine, false);
+            if (outRange.startLine > 0) {
+              flashCopiedHighlight('right', outRange.startLine, outRange.endLine, false);
             }
+            if (targetSel.startLine === targetSel.endLine) {
+              onUpdateStatus(`Copied line ${targetSel.startLine} Left ⇨ Right`);
+            } else {
+              onUpdateStatus(`Copied selected lines ${targetSel.startLine}–${targetSel.endLine} Left ⇨ Right`);
+            }
+            setActiveSelection(null);
+            activeSelectionRef.current = null;
+            updateGutterDecorations(canonicalChunksRef.current.length ? canonicalChunksRef.current : diffChunks, null);
           }
         }
       });
@@ -1809,53 +1888,58 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
           if (directChunk) setActiveDiffChunk(directChunk);
           if (isGlyphArrowClick) {
             clearGapTargetDecorations();
-            const srcLine = isSelectionClick && sel ? sel.startLine : (directChunk?.modifiedStart || line);
+            const targetSel = (isSelectionClick && sel && sel.startLine !== sel.endLine)
+              ? sel
+              : {
+                  side: 'right' as const,
+                  startLine: line,
+                  endLine: line,
+                  text: modEditor.getModel()?.getLineContent(line) || '',
+                };
+
+            const srcLine = targetSel.startLine;
             const srcText = modEditor.getModel()?.getLineContent(srcLine) || '';
             triggerShiftAnimation('right-to-left', srcLine, srcText);
             const outRange: ChunkCopyRange = { startLine: 0, endLine: 0 };
-            if (isSelectionClick && sel) {
-              const selChunk = findChunkAtLine(chunksRef.current, sel.startLine, 'right');
-              const isOverlapping = Boolean(
-                selChunk &&
-                selChunk.modifiedEnd > 0 &&
-                selChunk.modifiedStart <= sel.endLine &&
-                selChunk.modifiedEnd >= sel.startLine
-              );
-              const validChunk = isOverlapping ? selChunk : null;
-              collapseEditorGapViewZones(
-                origEditor,
-                validChunk ? validChunk.originalStart : mapLineNumber(chunksRef.current, sel.startLine, 'right')
-              );
-              collapseEditorGapViewZones(modEditor, sel.startLine);
-              executeSelectedLinesCopyR2L(origEditor.getModel(), modEditor.getModel(), sel, validChunk, outRange, origEditor, chunksRef.current, modEditor, diffEditorRef.current);
-              leftContentRef.current = origEditor.getValue();
-              setLeftDirty(true);
-              setLastModifiedSide('left');
-              setActiveFocusSide('left');
-              updateLineDetails(sel.startLine, 'right');
-              flashCopiedHighlight('right', sel.startLine, sel.endLine, false);
-              if (outRange.startLine > 0) {
-                flashCopiedHighlight('left', outRange.startLine, outRange.endLine, false);
-              }
-              onUpdateStatus(`Copied selected lines ${sel.startLine}–${sel.endLine} Right ⇦ Left`);
-              setActiveSelection(null);
-              activeSelectionRef.current = null;
-              updateGutterDecorations(canonicalChunksRef.current.length ? canonicalChunksRef.current : diffChunks, null);
-            } else if (directChunk) {
-              collapseEditorGapViewZones(origEditor, directChunk.originalStart);
-              collapseEditorGapViewZones(modEditor, directChunk.modifiedStart);
-              executeChunkCopyR2L(origEditor.getModel(), modEditor.getModel(), directChunk, outRange, origEditor, modEditor, diffEditorRef.current);
-              leftContentRef.current = origEditor.getValue();
-              setLeftDirty(true);
-              setLastModifiedSide('left');
-              setActiveFocusSide('left');
-              updateLineDetails(line, 'right');
-              flashCopiedHighlight('right', directChunk.modifiedStart, directChunk.modifiedEnd || directChunk.modifiedStart, false);
-              if (outRange.startLine > 0) {
-                flashCopiedHighlight('left', outRange.startLine, outRange.endLine, false);
-              }
-              onUpdateStatus(`Copied diff lines ${directChunk.modifiedStart}–${directChunk.modifiedEnd || directChunk.modifiedStart} Right ⇦ Left`);
+
+            const selChunk = findChunkAtLine(chunksRef.current, targetSel.startLine, 'right');
+            const validChunk = selChunk || directChunk;
+
+            collapseEditorGapViewZones(
+              origEditor,
+              validChunk ? validChunk.originalStart : mapLineNumber(chunksRef.current, targetSel.startLine, 'right')
+            );
+            collapseEditorGapViewZones(modEditor, targetSel.startLine);
+
+            executeSelectedLinesCopyR2L(
+              origEditor.getModel(),
+              modEditor.getModel(),
+              targetSel,
+              validChunk,
+              outRange,
+              origEditor,
+              chunksRef.current,
+              modEditor,
+              diffEditorRef.current
+            );
+
+            leftContentRef.current = origEditor.getValue();
+            setLeftDirty(true);
+            setLastModifiedSide('left');
+            setActiveFocusSide('left');
+            updateLineDetails(targetSel.startLine, 'right');
+            flashCopiedHighlight('right', targetSel.startLine, targetSel.endLine, false);
+            if (outRange.startLine > 0) {
+              flashCopiedHighlight('left', outRange.startLine, outRange.endLine, false);
             }
+            if (targetSel.startLine === targetSel.endLine) {
+              onUpdateStatus(`Copied line ${targetSel.startLine} Right ⇦ Left`);
+            } else {
+              onUpdateStatus(`Copied selected lines ${targetSel.startLine}–${targetSel.endLine} Right ⇦ Left`);
+            }
+            setActiveSelection(null);
+            activeSelectionRef.current = null;
+            updateGutterDecorations(canonicalChunksRef.current.length ? canonicalChunksRef.current : diffChunks, null);
           }
         }
       });
@@ -1884,22 +1968,49 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
   };
 
   const handleNextDiff = () => {
-    if (diffEditorRef.current && typeof diffEditorRef.current.goToDiff === 'function') {
-      diffEditorRef.current.goToDiff('next');
-      setTimeout(() => {
-        const pos = diffEditorRef.current.getModifiedEditor().getPosition();
-        if (pos) updateLineDetails(pos.lineNumber, 'right');
-      }, 50);
+    const chunks = canonicalChunksRef.current.length ? canonicalChunksRef.current : diffChunks;
+    if (!chunks.length || !diffEditorRef.current) return;
+
+    const editor = activeFocusSide === 'left'
+      ? diffEditorRef.current.getOriginalEditor()
+      : diffEditorRef.current.getModifiedEditor();
+    const currentLine = editor.getPosition()?.lineNumber || 1;
+
+    // Find first chunk strictly after current line
+    const nextChunk = chunks.find((c) => {
+      const line = activeFocusSide === 'left' ? (c.originalStart || c.modifiedStart) : (c.modifiedStart || c.originalStart);
+      return line > currentLine;
+    });
+
+    if (nextChunk) {
+      handleJumpToChunk(nextChunk);
+    } else {
+      // Wrap around to first chunk
+      handleJumpToChunk(chunks[0]);
     }
   };
 
   const handlePrevDiff = () => {
-    if (diffEditorRef.current && typeof diffEditorRef.current.goToDiff === 'function') {
-      diffEditorRef.current.goToDiff('previous');
-      setTimeout(() => {
-        const pos = diffEditorRef.current.getModifiedEditor().getPosition();
-        if (pos) updateLineDetails(pos.lineNumber, 'right');
-      }, 50);
+    const chunks = canonicalChunksRef.current.length ? canonicalChunksRef.current : diffChunks;
+    if (!chunks.length || !diffEditorRef.current) return;
+
+    const editor = activeFocusSide === 'left'
+      ? diffEditorRef.current.getOriginalEditor()
+      : diffEditorRef.current.getModifiedEditor();
+    const currentLine = editor.getPosition()?.lineNumber || 1;
+
+    // Find last chunk strictly before current line
+    const reversed = [...chunks].reverse();
+    const prevChunk = reversed.find((c) => {
+      const line = activeFocusSide === 'left' ? (c.originalStart || c.modifiedStart) : (c.modifiedStart || c.originalStart);
+      return line < currentLine;
+    });
+
+    if (prevChunk) {
+      handleJumpToChunk(prevChunk);
+    } else {
+      // Wrap around to last chunk
+      handleJumpToChunk(chunks[chunks.length - 1]);
     }
   };
 
@@ -2483,6 +2594,22 @@ export const StructuredCompareView: React.FC<StructuredCompareViewProps> = ({
               = Same
             </button>
           </div>
+
+          <span className="h-4 w-px bg-neutral-300 dark:bg-neutral-800 mx-0.5" />
+
+          {/* Structure XML First Checkbox */}
+          <label
+            className="flex items-center space-x-1.5 px-2 py-0.5 rounded bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-[11px] font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer shadow-xs select-none hover:bg-neutral-50 dark:hover:bg-neutral-800"
+            title="Automatically structure and indent XML content before comparing to eliminate false differences from unformatted lines"
+          >
+            <input
+              type="checkbox"
+              checked={preFormatStructure}
+              onChange={(e) => handleTogglePreFormat(e.target.checked)}
+              className="rounded border-neutral-400 text-blue-600 focus:ring-0 cursor-pointer w-3.5 h-3.5"
+            />
+            <span className="font-semibold text-neutral-800 dark:text-neutral-200">Structure XML First</span>
+          </label>
         </div>
 
         {/* Right side actions */}

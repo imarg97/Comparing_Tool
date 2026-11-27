@@ -273,3 +273,110 @@ export function normalizeXml(xml: string): { parsed: Record<string, unknown>; fo
     formatted,
   };
 }
+
+/**
+ * Formats unstructured, minified, or continuous XML into structured, readable, indented XML.
+ * Splits continuous tags onto clean separate lines with 2-space hierarchy indentation.
+ * Intelligently preserves leaf elements with simple text content on single lines (e.g. <name>0</name>).
+ * Handles unescaped ampersands, custom entities, and malformed tags gracefully without throwing.
+ */
+export function formatUnstructuredXml(rawXml: string): string {
+  if (!rawXml || typeof rawXml !== 'string') return '';
+
+  // 1. Separate XML declaration if present
+  let text = rawXml.trim();
+  let xmlDeclaration = '';
+  const declMatch = text.match(/^\s*(<\?xml[\s\S]*?\?>)/i);
+  if (declMatch) {
+    xmlDeclaration = declMatch[1].trim();
+    text = text.substring(declMatch[0].length).trim();
+  }
+
+  // 2. Tokenize tags and content (CDATA, comments, tags, or text between tags)
+  const tokenRegex = /(<!\[CDATA\[[\s\S]*?\]\]>)|(<!--[\s\S]*?-->)|(<[\s\S]*?>)|([^<]+)/g;
+  const rawTokens: { type: 'cdata' | 'comment' | 'tag' | 'text'; value: string }[] = [];
+  let m: RegExpExecArray | null;
+
+  while ((m = tokenRegex.exec(text)) !== null) {
+    if (m[1]) {
+      rawTokens.push({ type: 'cdata', value: m[1] });
+    } else if (m[2]) {
+      rawTokens.push({ type: 'comment', value: m[2] });
+    } else if (m[3]) {
+      rawTokens.push({ type: 'tag', value: m[3] });
+    } else if (m[4]) {
+      const trimmed = m[4].trim();
+      if (trimmed) {
+        rawTokens.push({ type: 'text', value: trimmed });
+      }
+    }
+  }
+
+  // 3. Format tokens into indented lines
+  const lines: string[] = [];
+  if (xmlDeclaration) {
+    lines.push(xmlDeclaration);
+  }
+
+  let indentLevel = 0;
+  const getIndent = (lvl: number) => '  '.repeat(Math.max(0, lvl));
+
+  for (let i = 0; i < rawTokens.length; i++) {
+    const token = rawTokens[i];
+
+    if (token.type === 'cdata' || token.type === 'comment') {
+      lines.push(`${getIndent(indentLevel)}${token.value}`);
+      continue;
+    }
+
+    if (token.type === 'tag') {
+      const val = token.value.trim();
+      const isClosing = /^<\/[\s\S]*>$/.test(val);
+      const isSelfClosing = /^<[\s\S]*\/>$/.test(val) || /^<![\s\S]*>$/.test(val);
+
+      if (isClosing) {
+        indentLevel = Math.max(0, indentLevel - 1);
+        lines.push(`${getIndent(indentLevel)}${val}`);
+        continue;
+      }
+
+      if (isSelfClosing) {
+        lines.push(`${getIndent(indentLevel)}${val}`);
+        continue;
+      }
+
+      // Check if this opening tag is immediately followed by a text token and the matching closing tag
+      // e.g.: <name> followed by "0" followed by </name>
+      const tagNameMatch = val.match(/^<([a-zA-Z0-9_:\-.]+)/);
+      const tagName = tagNameMatch ? tagNameMatch[1] : '';
+
+      if (
+        tagName &&
+        i + 2 < rawTokens.length &&
+        rawTokens[i + 1].type === 'text' &&
+        rawTokens[i + 2].type === 'tag'
+      ) {
+        const nextClosing = rawTokens[i + 2].value.trim();
+        const expectedClosing = `</${tagName}>`;
+        if (nextClosing.toLowerCase() === expectedClosing.toLowerCase()) {
+          // Compact inline element: <name>0</name>
+          const inlineText = rawTokens[i + 1].value;
+          lines.push(`${getIndent(indentLevel)}${val}${inlineText}${nextClosing}`);
+          i += 2; // skip text and closing tag
+          continue;
+        }
+      }
+
+      // Opening tag with child nodes
+      lines.push(`${getIndent(indentLevel)}${val}`);
+      indentLevel++;
+      continue;
+    }
+
+    if (token.type === 'text') {
+      lines.push(`${getIndent(indentLevel)}${token.value}`);
+    }
+  }
+
+  return lines.join('\n');
+}

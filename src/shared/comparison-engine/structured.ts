@@ -3,8 +3,26 @@
  */
 
 import * as YAML from 'yaml';
-import { StructuredDiffItem, StructuredDiffRequest, StructuredDiffResult } from '../types.js';
-import { normalizeXml, objectToXml } from './xml.js';
+import { StructuredDiffItem, StructuredDiffRequest, StructuredDiffResult, StructuredFormat } from '../types.js';
+import { normalizeXml, objectToXml, formatUnstructuredXml } from './xml.js';
+
+export function detectFormatFromContent(content: string, filePath?: string): StructuredFormat {
+  if (filePath) {
+    const lower = filePath.toLowerCase();
+    if (lower.endsWith('.xml')) return 'xml';
+    if (lower.endsWith('.json')) return 'json';
+    if (lower.endsWith('.yaml') || lower.endsWith('.yml')) return 'yaml';
+  }
+  if (!content || typeof content !== 'string') return 'xml';
+  const trimmed = content.trim();
+  if (trimmed.startsWith('<?xml') || /^\s*<[a-zA-Z0-9_:\-.]+/i.test(trimmed)) {
+    return 'xml';
+  }
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    return 'json';
+  }
+  return 'yaml';
+}
 
 export const KUBERNETES_NOISY_PATHS = [
   'metadata.resourceVersion',
@@ -181,6 +199,16 @@ export function compareStructuredData(request: StructuredDiffRequest): Structure
   let parsedLeft: unknown;
   let parsedRight: unknown;
 
+  // Auto-correct format if content clearly indicates XML
+  const contentIsXml =
+    request.leftContent.trim().startsWith('<?xml') ||
+    request.rightContent.trim().startsWith('<?xml') ||
+    /^\s*<[a-zA-Z0-9_:\-.]+/i.test(request.leftContent.trim());
+
+  if (contentIsXml && request.format !== 'xml') {
+    request.format = 'xml';
+  }
+
   try {
     if (request.format === 'yaml') {
       parsedLeft = YAML.parse(request.leftContent);
@@ -189,12 +217,37 @@ export function compareStructuredData(request: StructuredDiffRequest): Structure
       parsedLeft = JSON.parse(request.leftContent);
       parsedRight = JSON.parse(request.rightContent);
     } else if (request.format === 'xml') {
-      const normL = normalizeXml(request.leftContent);
-      const normR = normalizeXml(request.rightContent);
-      parsedLeft = normL.parsed;
-      parsedRight = normR.parsed;
+      try {
+        const normL = normalizeXml(request.leftContent);
+        const normR = normalizeXml(request.rightContent);
+        parsedLeft = normL.parsed;
+        parsedRight = normR.parsed;
+      } catch {
+        // Fallback for unstructured/non-strict XML: format with resilient structure formatter
+        const formattedL = formatUnstructuredXml(request.leftContent);
+        const formattedR = formatUnstructuredXml(request.rightContent);
+        return {
+          identical: formattedL === formattedR,
+          items: [],
+          cleanLeft: formattedL,
+          cleanRight: formattedR,
+          parseError: undefined,
+        };
+      }
     }
   } catch (err: unknown) {
+    // If format is XML or content looks like XML, fall back to unstructured formatting without throwing error
+    if (request.format === 'xml' || contentIsXml) {
+      const formattedL = formatUnstructuredXml(request.leftContent);
+      const formattedR = formatUnstructuredXml(request.rightContent);
+      return {
+        identical: formattedL === formattedR,
+        items: [],
+        cleanLeft: formattedL,
+        cleanRight: formattedR,
+        parseError: undefined,
+      };
+    }
     const msg = err instanceof Error ? err.message : String(err);
     return {
       identical: false,
