@@ -38,7 +38,7 @@ flowchart TD
         M4["Zero LaunchAgents / LaunchDaemons"]
     end
 
-    subgraph CoreEngine["Common Hardened Engine (v5.0.0)"]
+    subgraph CoreEngine["Common Hardened Engine (v8.0.0)"]
         C1["Strict Context Isolation & IPC Type Guards"]
         C2["Canonicalized Path Traversal Prevention (.. escapes blocked)"]
         C3["Local Bundled Monaco Editor (Zero Remote Scripts)"]
@@ -65,7 +65,7 @@ flowchart TD
 
 ## 3. Vulnerability Audit & Remediation Matrix
 
-| Category | Potential Threat | mDiff v5.0.0 Mitigation |
+| Category | Potential Threat | mDiff v8.0.0 Mitigation |
 | :--- | :--- | :--- |
 | **Path Traversal** | Malicious paths escaping project root (`../../etc/passwd`) | Canonicalization algorithm collapses `..` and resolves symlinks before validating exact root containment. |
 | **Data Exfiltration** | Outbound telemetry or background network beacons | Removed all external script sources (`https://cdn.jsdelivr.net`). Monaco is bundled 100% locally. CSP blocks unauthorized network origins. |

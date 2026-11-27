@@ -32,7 +32,7 @@ class NumberedCanvas(canvas.Canvas):
         
         # Header (pages 2+)
         if self._pageNumber > 1:
-            self.drawString(54, 755, "mDiff v5.1.0 — Executive Briefing & Team Walkthrough Guide")
+            self.drawString(54, 755, "mDiff v8.0.0 — Executive Briefing & Team Walkthrough Guide")
             self.drawRightString(612 - 54, 755, "Mavenir Systems • Internal")
             self.setStrokeColor(colors.HexColor("#cbd5e1"))
             self.setLineWidth(0.5)
@@ -183,7 +183,7 @@ def build_pdf(output_path):
     meta_table_data = [
         [
             Paragraph("<b>mDiff (Mavenir Diff) Comparison Suite</b>", title_style),
-            Paragraph("<b>Version:</b> 5.1.0<br/><b>Date:</b> November 24, 2026<br/><b>Classification:</b> Mavenir Internal", table_cell_bold)
+            Paragraph("<b>Version:</b> 8.0.0<br/><b>Date:</b> November 24, 2026<br/><b>Classification:</b> Mavenir Internal", table_cell_bold)
         ],
         [
             Paragraph("Team Briefing & Executive Walkthrough Guide", subtitle_style),
@@ -223,7 +223,7 @@ def build_pdf(output_path):
             "<b>Key Highlights for Today's Meeting:</b><br/>"
             "• <b>100% Free & Open-Source:</b> No licenses, no subscriptions, zero expiration, zero cost to Mavenir.<br/>"
             "• <b>Beyond Compare Fidelity:</b> Identical look, feel, color palette, and keyboard shortcuts (F7, Alt+Right, Alt+Left).<br/>"
-            "• <b>Dual Delivery:</b> Available as a standard Windows Program Files installer (`mDiff-Setup-5.1.0.exe` for Microsoft Intune / Company Portal) AND as an internal web portal (`http://10.10.84.22:8097`) accessible from any laptop over Mavenir VPN.<br/>"
+            "• <b>Dual Delivery:</b> Available as a standard Windows Program Files installer (`mDiff-Setup-8.0.0.exe` for Microsoft Intune / Company Portal) AND as an internal web portal (`http://10.10.84.22:8097`) accessible from any laptop over Mavenir VPN.<br/>"
             "• <b>Telecom Intelligence:</b> Built-in semantic filtering for Kubernetes/OpenShift YAML manifests and cellular XML parameter dumps.",
             callout_style
         )
@@ -358,7 +358,7 @@ def build_pdf(output_path):
     story.append(Paragraph("• <b>Intelligent Kubernetes & Cloud Noise Filter:</b> Beyond Compare treats dynamic runtime metadata as real differences. mDiff's Config & XML mode automatically suppresses dynamic Kubernetes noise (`resourceVersion`, `managedFields`, `creationTimestamp`, `uid`, `status`), saving hours of manual review.", bullet_style))
     story.append(Paragraph("• <b>Interactive Zoom (70% - 200%):</b> Engineers can dynamically scale the UI, editor font, and folder tree using `Ctrl` + Mouse Wheel or toolbar zoom controls.", bullet_style))
     story.append(Paragraph("• <b>Zero-Latency Session Caching:</b> Switching from active text editing back to Folder Compare takes 0ms. Folder comparisons remain persistently cached in RAM.", bullet_style))
-    story.append(Paragraph("• <b>Automated Enterprise Setup:</b> Pre-compiled NSIS installer (`mDiff-Setup-5.1.0.exe`) installs directly to `C:\\Program Files\\mDiff\\` with an uninstaller and silent `/S` support for Microsoft Intune / Company Portal deployment.", bullet_style))
+    story.append(Paragraph("• <b>Automated Enterprise Setup:</b> Pre-compiled NSIS installer (`mDiff-Setup-8.0.0.exe`) installs directly to `C:\\Program Files\\mDiff\\` with an uninstaller and silent `/S` support for Microsoft Intune / Company Portal deployment.", bullet_style))
 
     story.append(Spacer(1, 4))
     story.append(Paragraph("(c) What issues have we sorted out compared to Beyond Compare?", h2_style))
@@ -380,7 +380,7 @@ def build_pdf(output_path):
         [Paragraph("Deployment Channel", table_header), Paragraph("Package File", table_header), Paragraph("Target Environment & Usage", table_header)],
         [
             Paragraph("<b>Company Portal / Intune Setup</b>", table_cell_bold),
-            Paragraph("`mDiff-Setup-5.1.0.exe`<br/>`mDiff-Setup-x64.exe`<br/><i>(95.5 MB)</i>", code_style),
+            Paragraph("`mDiff-Setup-8.0.0.exe`<br/>`mDiff-Setup-x64.exe`<br/><i>(95.5 MB)</i>", code_style),
             Paragraph("<b>Official Enterprise Setup.</b> Installs to `C:\\Program Files\\mDiff\\`. Creates `Uninstall mDiff.exe`, Desktop/Start Menu shortcuts, and registers in Windows Registry. Supports silent install (`/S`).", table_cell)
         ],
         [
@@ -418,11 +418,11 @@ def build_pdf(output_path):
         [Paragraph("<b>Q: Is mDiff approved for sensitive telecom configuration files?</b><br/>"
                    "<b>A:</b> Yes. mDiff operates under an air-gapped, local-first security architecture. All file parsing and diff algorithms execute strictly within client memory. Nothing is sent to external servers or cloud services.", body_style)],
         [Paragraph("<b>Q: Why do we have both an installer and a portable zip?</b><br/>"
-                   "<b>A:</b> Enterprise flexibility. The setup installer (`mDiff-Setup-5.1.0.exe`) provides standard `Program Files` integration and uninstallation for corporate IT (Microsoft Intune). The portable zip lets contractors or engineers without local admin rights start working instantly.", body_style)],
+                   "<b>A:</b> Enterprise flexibility. The setup installer (`mDiff-Setup-8.0.0.exe`) provides standard `Program Files` integration and uninstallation for corporate IT (Microsoft Intune). The portable zip lets contractors or engineers without local admin rights start working instantly.", body_style)],
         [Paragraph("<b>Q: Does mDiff support dark mode?</b><br/>"
                    "<b>A:</b> Yes. mDiff includes a dedicated high-contrast dark theme optimized for long debugging sessions, accessible via the top-right toolbar switch.", body_style)],
         [Paragraph("<b>Q: What should I download to test it right now?</b><br/>"
-                   "<b>A:</b> For a full Windows installation, run `mDiff-Setup-5.1.0.exe`. For instant zero-install testing, unzip `mDiff-windows-x64.zip` and run `mDiff.exe`. Or open `http://10.10.84.22:8097` in your browser if connected to Mavenir VPN.", body_style)]
+                   "<b>A:</b> For a full Windows installation, run `mDiff-Setup-8.0.0.exe`. For instant zero-install testing, unzip `mDiff-windows-x64.zip` and run `mDiff.exe`. Or open `http://10.10.84.22:8097` in your browser if connected to Mavenir VPN.", body_style)]
     ]
     faq_table = Table(faq_box_data, colWidths=[504])
     faq_table.setStyle(TableStyle([
